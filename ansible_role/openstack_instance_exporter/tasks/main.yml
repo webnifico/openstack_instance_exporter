@@ -1,0 +1,54 @@
+---
+- name: Ensure the openstack_instance_exporter install directory exists
+  become: true
+  file:
+    path: "{{ openstack_instance_exporter_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Download openstack_instance_exporter tarball
+  become: true
+  get_url:
+    url: "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/openstack_instance_exporter-{{ openstack_instance_exporter_version }}-linux-amd64.tar.xz"
+    dest: "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter.tar.xz"
+    owner: root
+    group: root
+    mode: '0644'
+    checksum: "sha256:{{ openstack_instance_exporter_sha256 }}"
+  register: oie_tar_download_result
+
+- name: Extract openstack_instance_exporter tarball
+  become: true
+  unarchive:
+    src: "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter.tar.xz"
+    dest: "{{ openstack_instance_exporter_install_dir }}"
+    remote_src: yes
+  when: oie_tar_download_result.changed
+  notify: Restart openstack_instance_exporter service
+
+- name: Create systemd service file for openstack_instance_exporter
+  become: true
+  template:
+    src: openstack_instance_exporter.service.j2
+    dest: /etc/systemd/system/openstack_instance_exporter.service
+    owner: root
+    group: root
+    mode: '0640'
+  register: oie_template_result
+  notify: Restart openstack_instance_exporter service
+
+- name: Reload openstack_instance_exporter service if changed
+  become: true
+  systemd:
+    name: openstack_instance_exporter
+    daemon_reload: yes
+  when: oie_tar_download_result.changed or oie_template_result.changed
+
+- name: Enable and start openstack_instance_exporter service
+  become: true
+  systemd:
+    name: openstack_instance_exporter
+    enabled: yes
+    state: started

@@ -1,0 +1,172 @@
+---
+prometheus_alert_rules:
+# OpenStack Instance monitoring
+# Alert if CPU usage is over 75% for more than 30 minutes
+- alert: OpenStack Instance High CPU Usage
+  expr: oae_cpu_percent > 75
+  for: 30m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High CPU usage detected for OpenStack instance {{ $labels.instance_uuid }}"{% endraw %}'
+    description: '{% raw %}"CPU usage has been over 75% for more than thirty minutes for OpenStack instance {{ $labels.instance_uuid }}."{% endraw %}'
+
+# Alert if the total disk write gigabytes are high over 10 minutes
+- alert: OpenStack Instance High Disk GB Write Total Short-Term
+  expr: increase(oae_disk_w_gbytes[10m]) > 25
+  for: 10m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High total disk write detected for OpenStack instance {{ $labels.instance_uuid }} over 10 minutes"{% endraw %}'
+    description: '{% raw %}"Total disk write has been high for more than ten minutes for OpenStack instance {{ $labels.instance_uuid }}."{% endraw %}'
+
+# Alert if the total disk read gigabytes are high over 10 minutes
+- alert: OpenStack Instance High Disk GB Read Total Short-Term
+  expr: increase(oae_disk_r_gbytes[10m]) > 25
+  for: 10m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High total disk read detected for OpenStack instance {{ $labels.instance_uuid }} over 10 minutes"{% endraw %}'
+    description: '{% raw %}"Total disk read has been high for more than ten minutes for OpenStack instance {{ $labels.instance_uuid }}."{% endraw %}'
+
+# Alert if the total disk write gigabytes are high over 6 hours
+- alert: OpenStack Instance High Disk GB Write Total Long-Term
+  expr: increase(oae_disk_w_gbytes[6h]) > 250
+  for: 6h
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High total disk write detected for OpenStack instance {{ $labels.instance_uuid }} over 6 hours"{% endraw %}'
+    description: '{% raw %}"Total disk write has been high for more than six hours for OpenStack instance {{ $labels.instance_uuid }}."{% endraw %}'
+
+# Alert if the total disk read gigabytes are high over 6 hours
+- alert: OpenStack Instance High Disk GB Read Total Long-Term
+  expr: increase(oae_disk_r_gbytes[6h]) > 250
+  for: 6h
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High total disk read detected for OpenStack instance {{ $labels.instance_uuid }} over 6 hours"{% endraw %}'
+    description: '{% raw %}"Total disk read has been high for more than six hours for OpenStack instance {{ $labels.instance_uuid }}."{% endraw %}'
+
+# Alert for High Disk Write Requests
+- alert: OpenStack Instance High Disk Write Requests (IOPS)
+  expr: rate(oae_disk_w_requests[1m]) > on(disk_uuid, instance_uuid) group_left() max(oae_disk_w_alert_threshold) by (disk_uuid, instance_uuid, disk_path, domain, hypervisor, project_uuid, user_uuid)
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High disk write requests detected on OpenStack instance {{ $labels.instance_uuid }} with threshold {{ $value }} requests/second"{% endraw %}'
+    description: '{% raw %}"Disk write requests have been over the threshold of {{ $value }} requests/seconds for more than five minutes on OpenStack instance {{ $labels.instance_uuid }}. This may indicate I/O abuse or other abnormal activity."{% endraw %}'
+
+# Alert for High Disk Read Requests
+- alert: OpenStack Instance High Disk Read Requests (IOPS)
+  expr: rate(oae_disk_r_requests[1m]) > on(disk_uuid, instance_uuid) group_left() max(oae_disk_r_alert_threshold) by (disk_uuid, instance_uuid, disk_path, domain, hypervisor, project_uuid, user_uuid)
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High disk read requests detected on OpenStack instance {{ $labels.instance_uuid }} with threshold {{ $value }} requests/second"{% endraw %}'
+    description: '{% raw %}"Disk read requests have been over the threshold of {{ $value }} requests/second for more than five minutes on OpenStack instance {{ $labels.instance_uuid }}. This may indicate I/O abuse or other abnormal activity."{% endraw %}'
+
+# Alert if the total network transmit gigabytes are high over 10 minutes
+- alert: OpenStack Instance High Network Transmit GB Short-Term
+  expr: increase(oae_net_tx_gbytes[10m]) > 25
+  for: 10m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High total network transmit detected for OpenStack instance {{ $labels.instance_uuid }} over 10 minutes"{% endraw %}'
+    description: '{% raw %}"Total network transmit has been high for more than ten minutes for OpenStack instance {{ $labels.instance_uuid }}."{% endraw %}'
+
+# Alert if the total network receive gigabytes are high over 10 minutes
+- alert: OpenStack Instance High Network Receive GB Short-Term
+  expr: increase(oae_net_rx_gbytes[10m]) > 25
+  for: 10m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High total network receive detected for OpenStack instance {{ $labels.instance_uuid }} over 10 minutes"{% endraw %}'
+    description: '{% raw %}"Total network receive has been high for more than ten minutes for OpenStack instance {{ $labels.instance_uuid }}."{% endraw %}'
+
+# Alert if the total network transmit gigabytes are high over 6 hours
+- alert: OpenStack Instance High Network Transmit GB Long-Term
+  expr: increase(oae_net_tx_gbytes[6h]) > 250
+  for: 6h
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High total network transmit detected for OpenStack instance {{ $labels.instance_uuid }} over 6 hours"{% endraw %}'
+    description: '{% raw %}"Total network transmit has been high for more than six hours for OpenStack instance {{ $labels.instance_uuid }}."{% endraw %}'
+
+# Alert if the total network receive gigabytes are high over 6 hours
+- alert: OpenStack Instance High Network Receive GB Long-Term
+  expr: increase(oae_net_rx_gbytes[6h]) > 250
+  for: 6h
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High total network receive detected for OpenStack instance {{ $labels.instance_uuid }} over 6 hours"{% endraw %}'
+    description: '{% raw %}"Total network receive has been high for more than six hours for OpenStack instance {{ $labels.instance_uuid }}."{% endraw %}'
+
+# Alert for High Incoming Packet Rate
+- alert: OpenStack Instance High Incoming Packet Rate
+  expr: rate(oae_net_rx_pkt_total[1m]) > 10000
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High incoming packet rate detected for OpenStack instance {{ $labels.instance_uuid }}"{% endraw %}'
+    description: '{% raw %}"Incoming packet rate has been over 10,000 packets per second for more than five minutes for OpenStack instance {{ $labels.instance_uuid }}. This may indicate a potential DDoS attack."{% endraw %}'
+
+# Alert for High Outgoing Packet Rate
+- alert: OpenStack Instance High Outgoing Packet Rate
+  expr: rate(oae_net_tx_pkt_total[1m]) > 10000
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High outgoing packet rate detected for OpenStack instance {{ $labels.instance_uuid }}"{% endraw %}'
+    description: '{% raw %}"Outgoing packet rate has been over 10,000 packets per second for more than five minutes for OpenStack instance {{ $labels.instance_uuid }}. This may indicate malicious activity, potentially participating in a DDoS attack."{% endraw %}'
+
+# Alert for High Network Receive Errors
+- alert: OpenStack Instance High Network Receive Errors
+  expr: rate(oae_net_rx_er_total[1m]) > 10
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High network receive errors detected for OpenStack instance {{ $labels.instance_uuid }}"{% endraw %}'
+    description: '{% raw %}"Network receive errors have been over 10 per minute for more than five minutes for OpenStack instance {{ $labels.instance_uuid }}. This may indicate potential network issues or malicious activity."{% endraw %}'
+
+# Alert for High Network Transmit Errors
+- alert: OpenStack Instance High Network Transmit Errors
+  expr: rate(oae_net_tx_er_total[1m]) > 10
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High network transmit errors detected for OpenStack instance {{ $labels.instance_uuid }}"{% endraw %}'
+    description: '{% raw %}"Network transmit errors have been over 10 per minute for more than five minutes for OpenStack instance {{ $labels.instance_uuid }}. This may indicate potential network issues or malicious activity."{% endraw %}'
+
+# Alert for High Dropped Incoming Packets
+- alert: OpenStack Instance High Dropped Incoming Packets
+  expr: rate(oae_net_rx_drp_total[1m]) > 50
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High dropped incoming packets detected for OpenStack instance {{ $labels.instance_uuid }}"{% endraw %}'
+    description: '{% raw %}"Dropped incoming packets have been over 50 per minute for more than five minutes for OpenStack instance {{ $labels.instance_uuid }}. This may indicate potential network issues or malicious activity."{% endraw %}'
+
+# Alert for High Dropped Outgoing Packets
+- alert: OpenStack Instance High Dropped Outgoing Packets
+  expr: rate(oae_net_tx_drp_total[1m]) > 50
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: '{% raw %}"High dropped outgoing packets detected for OpenStack instance {{ $labels.instance_uuid }}"{% endraw %}'
+    description: '{% raw %}"Dropped outgoing packets have been over 50 per minute for more than five minutes for OpenStack instance {{ $labels.instance_uuid }}. This may indicate potential network issues or malicious activity."{% endraw %}'
