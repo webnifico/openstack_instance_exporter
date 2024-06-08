@@ -1,5 +1,7 @@
 # OpenStack Instance Exporter Metrics Collector
 
+A Prometheus based exporter for OpenStack Instance Monitoring written in GO. 
+
 ## Overview
 
 This project provides a metrics collector for OpenStack instances using libvirt and Prometheus. The collector gathers various metrics from the instances and exposes them for Prometheus to scrape. These metrics include CPU usage, disk I/O, and network statistics, which are crucial for monitoring and ensuring optimal performance and resource usage.
@@ -96,3 +98,4 @@ flag.BoolVar(&enableLogging, "enable_logging", false, "Enable detailed logging o
 flag.IntVar(&defaultReadThreshold, "default.read.threshold", 100, "Default read threshold if none provided")
 flag.IntVar(&defaultWriteThreshold, "default.write.threshold", 100, "Default write threshold if none provided")
 flag.Parse()
+
