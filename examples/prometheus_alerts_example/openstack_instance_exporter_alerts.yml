@@ -1,0 +1,353 @@
+# Note these are examples only you can do more ;)
+prometheus_alert_rules:
+  - group_name: OpenStack Instance Exporter
+    group_exporter_job: openstack-instance-exporter
+    group_rules:
+
+      ############################################################
+      # 1) Instance Scores (CRITICAL THREAT & ATTENTION)
+      ############################################################
+
+      - alert: OpenStackInstanceAttentionHigh
+        expr: |
+          max by (domain, instance_uuid, project_uuid, user_uuid) (
+            oie_instance_attention_score
+          ) >= 60
+        for: "5m" 
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} attention score high (>= 60)"
+          description: "Combined resource+threat attention score for instance {{ $labels.instance_uuid }} is elevated. Needs review."
+
+      - alert: OpenStackInstanceAttentionSevere
+        expr: |
+          max by (domain, instance_uuid, project_uuid, user_uuid) (
+            oie_instance_attention_score
+          ) >= 85
+        for: "5m"
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} attention score severe (>= 85)"
+          description: "Instance {{ $labels.instance_uuid }} shows severe combined load/threat behaviour. Likely P0/P1 outcome."
+
+      - alert: OpenStackInstanceThreatScoreHigh
+        expr: |
+          max by (domain, instance_uuid, project_uuid, user_uuid) (
+            oie_instance_threat_score
+          ) >= 40
+        for: "5m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} threat score high (>= 40)"
+          description: "Malicious activity has crossed the warning threshold (40), indicating a single major threat intelligence hit or multiple lower hits."
+
+      - alert: OpenStackInstanceThreatScoreSevere
+        expr: |
+          max by (domain, instance_uuid, project_uuid, user_uuid) (
+            oie_instance_threat_score
+          ) >= 85
+        for: "1m"
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} threat score severe (>= 85)"
+          description: "Threat score is near max, confirming a severe P0 (Infra Attack) or P1 (Local Aggression) event. Requires immediate response."
+
+      - alert: OpenStackInstanceHighResourcePressure
+        expr: |
+          max by (domain, instance_uuid, project_uuid, user_uuid) (
+            oie_instance_resource_score
+          ) >= 70
+        for: "5m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} high resource pressure (>= 70)"
+          description: "Resource score (CPU, RAM, Disk, Net) is high (>= 70). The VM is thrashing shared resources, indicating a Noisy Neighbor or Victim."
+
+      - alert: OpenStackProjectManyHotInstances
+        expr: |
+          count by (project_uuid, project_name) (
+            oie_instance_attention_score >= 60
+          ) >= 10
+        for: "10m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Project {{ $labels.project_name }} has many hot instances"
+          description: "More than 10 instances in project {{ $labels.project_name }} have attention score >= 60. Macro workload/risk shift."
+
+      ############################################################
+      # 2) Raw Utilization & Health (SUSTAINED WORKLOAD - 30m / 6h)
+      ############################################################
+
+      - alert: OpenStackInstanceHighCPUUsage
+        # Note: Keeping your existing escape sequence for the empty string here
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_cpu_vcpu_percent{domain!=\\\"\\\"} > 75)"
+        for: "30m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected for OpenStack instance {{ $labels.instance_uuid }}"
+          description: "CPU usage has been over 75% for more than thirty minutes for OpenStack instance {{ $labels.instance_uuid }}."
+
+      - alert: "OpenStackInstanceHighDiskReadRequestsIOPS"
+        expr: |
+          avg_over_time(rate(oie_instance_disk_read_requests_total[1m])[3m:])
+          > on (disk_uuid, instance_uuid) group_left()
+          max by (disk_uuid, instance_uuid) (oie_instance_disk_read_alert_threshold)
+        for: "30m"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: "High disk read requests detected on OpenStack instance {{ $labels.instance_uuid }} disk {{ $labels.disk_uuid }}"
+          description: "Disk read requests have exceeded the configured tiered threshold for more than thirty minutes."
+
+      - alert: "OpenStackInstanceHighDiskWriteRequestsIOPS"
+        expr: |
+          avg_over_time(rate(oie_instance_disk_write_requests_total[1m])[3m:])
+          > on (disk_uuid, instance_uuid) group_left()
+          max by (disk_uuid, instance_uuid) (oie_instance_disk_write_alert_threshold)
+        for: "30m"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: "High disk write requests detected on OpenStack instance {{ $labels.instance_uuid }} disk {{ $labels.disk_uuid }}"
+          description: "Disk write requests have exceeded the configured tiered threshold for more than thirty minutes."
+
+      - alert: OpenStackInstanceHighDiskGBReadTotalLongTerm
+        expr: 'sum by (domain, instance_uuid, project_uuid, user_uuid) (increase(oie_instance_disk_read_gbytes_total[6h])) > 250'
+        for: "6h"
+        labels:
+          severity: warning
+        annotations:
+          summary: "High total disk read detected for OpenStack instance {{ $labels.instance_uuid }} over 6 hours"
+          description: "Total disk read has been high for more than six hours for OpenStack instance {{ $labels.instance_uuid }}."
+
+      - alert: OpenStackInstanceHighDiskGBWriteTotalLongTerm
+        expr: 'sum by (domain, instance_uuid, project_uuid, user_uuid) (increase(oie_instance_disk_write_gbytes_total[6h])) > 250'
+        for: "6h"
+        labels:
+          severity: warning
+        annotations:
+          summary: "High total disk write detected for OpenStack instance {{ $labels.instance_uuid }} over 6 hours"
+          description: "Total disk write has been high for more than six hours for OpenStack instance {{ $labels.instance_uuid }}."
+
+      - alert: OpenStackInstanceHighIncomingPacketRate
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(rate(oie_instance_net_rx_packets_total[1m])[3m:])) > 10000'
+        for: "30m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "High incoming packet rate detected for OpenStack instance {{ $labels.instance_uuid }}"
+          description: "Incoming packet rate has been over 10,000 packets/sec for more than thirty minutes."
+
+      - alert: OpenStackInstanceHighOutgoingPacketRate
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(rate(oie_instance_net_tx_packets_total[1m])[3m:])) > 10000'
+        for: "30m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "High outgoing packet rate detected for OpenStack instance {{ $labels.instance_uuid }}"
+          description: "Outgoing packet rate has been over 10,000 packets/sec for more than thirty minutes."
+          
+      - alert: OpenStackInstanceHighBandwidthRateRX
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_rx_gbytes_total[1m]) * 8) > 1'
+        for: "5m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} high sustained RX bandwidth rate"
+          description: "Network receive rate has exceeded 1 Gbit/s for 5 minutes. Critical capacity indicator."
+          
+      - alert: OpenStackInstanceHighBandwidthRateTX
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_tx_gbytes_total[1m]) * 8) > 1'
+        for: "5m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} high sustained TX bandwidth rate"
+          description: "Network transmit rate has exceeded 1 Gbit/s for 5 minutes. Critical capacity indicator."
+
+      - alert: OpenStackInstanceNetworkReceiveDropRatioHigh
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_rx_dropped_total[5m]) / clamp_min(rate(oie_instance_net_rx_packets_total[5m]), 1)) > 0.02'
+        for: "15m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Receive drop ratio high for OpenStack instance {{ $labels.instance_uuid }}"
+          description: "More than 2% of incoming packets dropped for fifteen minutes."
+
+      - alert: "OpenStackInstanceNetworkTransmitDropRatioHigh"
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_tx_dropped_total[5m]) / clamp_min(rate(oie_instance_net_tx_packets_total[5m]), 1)) > 0.02'
+        for: "15m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Transmit drop ratio high for OpenStack instance {{ $labels.instance_uuid }}"
+          description: "More than 2% of outgoing packets dropped for fifteen minutes."
+
+      ############################################################
+      # 3) Conntrack Abuse & Raw Flow Checks (P3/P5 Proxies)
+      ############################################################
+
+      - alert: OpenStackInstanceConntrackFlowsBurst
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (max_over_time(oie_instance_conntrack_ip_flows[1m])) > 20000'
+        for: "1m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} conntrack flow burst"
+          description: "Conntrack flow entries exceeded 20,000 for over one minute. Likely rapid scan or short-lived abuse."
+
+      - alert: OpenStackInstanceHighConntrackFlowsSustained
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_conntrack_ip_flows) > 50000'
+        for: "5m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} high sustained conntrack flows"
+          description: "Conntrack flow entries above 50,000 for 5 minutes suggests heavy abuse, DDoS, or runaway workload."
+          
+      - alert: OpenStackInstanceZombieFlowWarning
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_conntrack_ip_flows) > 5000'
+        for: "30m"
+        labels:
+          severity: info
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} sustained mid-range conntrack volume"
+          description: "Conntrack flow entries above 5,000 for 30 minutes. Potential P5 (Zombie Flow) application leak or sustained high-flow connection pool."
+
+      - alert: OpenStackInstanceConntrackFlowsGrowthRate
+        expr: 'max by (domain, instance_uuid, project_uuid, user_uuid) (clamp_min(deriv(oie_instance_conntrack_ip_flows[1m]), 0)) > 5000'
+        for: "2m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} rapid conntrack flow growth"
+          description: "Conntrack flows growing faster than ~5,000 flows/sec for 2 minutes. Strong scan/DDoS indicator."
+
+      ############################################################
+      # 4) Threat Lists & Host Health (Final Operational Checks)
+      ############################################################
+
+      - alert: OpenStackInstanceTorExitRepeatedContact
+        expr: 'increase(oie_instance_threat_tor_exit_contacts_total[5m]) >= 5'
+        for: "1m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} repeatedly contacted Tor exit nodes"
+          description: "5+ Tor exit contacts in 5 minutes. High security risk."
+
+      - alert: OpenStackInstanceSpamhausRepeatedContact
+        expr: 'increase(oie_instance_threat_spamhaus_contacts_total[5m]) >= 5'
+        for: "1m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} repeatedly contacted Spamhaus DROP IPs"
+          description: "5+ Spamhaus contacts in 5 minutes. High confidence botnet/malware C2."
+
+      - alert: OpenStackInstanceTorRelayRepeatedContact
+        expr: 'increase(oie_instance_threat_tor_relay_contacts_total[5m]) >= 5'
+        for: "1m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} repeatedly contacted Tor relays"
+          description: "5+ Tor relay contacts in 5 minutes."
+
+      - alert: OpenStackInstanceEmergingThreatsRepeatedContact
+        expr: 'increase(oie_instance_threat_emergingthreats_contacts_total[5m]) >= 5'
+        for: "1m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} repeatedly contacted EmergingThreats IPs"
+          description: "5+ EmergingThreats contacts in 5 minutes."
+
+      - alert: OpenStackInstanceCustomListRepeatedContact
+        expr: 'increase(oie_instance_threat_customlist_contacts_total[5m]) >= 5'
+        for: "1m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance {{ $labels.instance_uuid }} repeatedly contacted custom-listed IPs"
+          description: "5+ custom-list contacts in 5 minutes."
+
+      - alert: OpenStackExporterProcessCPUHigh
+        # FIX: Changed inner double quotes to single quotes to avoid collision with Ansible's outer double quotes
+        expr: 'rate(process_cpu_seconds_total{job=''openstack-instance-exporter''}[5m]) > 0.5'
+        for: "5m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Exporter process CPU consumption high"
+          description: "The OIE process is consuming more than 50% of a single CPU core for 5 minutes, indicating extreme processing load or a bug."
+
+      - alert: OpenStackExporterHostThreatListed
+        expr: 'max by (list, ip, family, job) (oie_host_threat_listed) > 0'
+        for: "0s"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hypervisor host IP listed in threat list {{ $labels.list }}"
+          description: "Host IP {{ $labels.ip }} ({{ $labels.family }}) is present in threat list {{ $labels.list }}."
+
+      - alert: OpenStackExporterHostConntrackUtilizationHigh
+        expr: 'oie_host_conntrack_utilization > 0.8'
+        for: "5m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Conntrack utilization high on host {{ $labels.instance }}"
+          description: "Conntrack table utilization above 80%."
+
+      - alert: OpenStackExporterHostConntrackReadErrors
+        expr: 'increase(oie_host_conntrack_read_errors_total[10m]) > 5'
+        for: "0s"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Conntrack read errors on host {{ $labels.instance }}"
+          description: "More than 5 conntrack read errors in 10 minutes. Indicates kernel instability or permission issues."
+
+      - alert: OpenStackExporterTorExitListRefreshStale
+        expr: '(time() - oie_host_threat_tor_exit_refresh_last_success_timestamp_seconds) > 43200'
+        for: "10m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tor exit-node list refresh stale"
+          description: "Tor exit list has not refreshed successfully in over 12 hours."
+
+      - alert: OpenStackExporterSpamhausListRefreshStale
+        expr: '(time() - oie_host_threat_spamhaus_refresh_last_success_timestamp_seconds) > 43200'
+        for: "30m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Spamhaus list refresh stale"
+          description: "Spamhaus list has not refreshed successfully in over 12 hours."
+
+      - alert: OpenStackExporterEmergingThreatsListRefreshStale
+        expr: '(time() - oie_host_threat_emergingthreats_refresh_last_success_timestamp_seconds) > 43200'
+        for: "30m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "EmergingThreats list refresh stale"
+          description: "EmergingThreats list has not refreshed successfully in over 12 hours."
+
+      - alert: OpenStackExporterCustomListRefreshStale
+        expr: '(time() - oie_host_threat_customlist_refresh_last_success_timestamp_seconds) > 43200'
+        for: "10m"
+        labels:
+          severity: warning
+        annotations:
+          summary: "Custom list refresh stale"
+          description: "Custom IP list has not refreshed successfully in over 12 hours."
