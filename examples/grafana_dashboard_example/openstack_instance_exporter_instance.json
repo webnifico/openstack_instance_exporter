@@ -1,0 +1,5095 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 7,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2000,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Number of instances matching current hypervisor/project/instance filters.\n\nSource: OIE inventory/mapping metrics emitted by the exporter (instance/project/user labels derived on the hypervisor).\nLimitations: Reflects what OIE can map at collection time; labels can be temporarily stale during rebuilds/migrations or if OpenStack metadata is unavailable. Counts are not traffic-based.",
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 0,
+            "y": 1
+          },
+          "id": 2001,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "count(oie_instance_info{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Filtered Instances",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total vCPUs allocated to filtered instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 6,
+            "y": 1
+          },
+          "id": 2002,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum(oie_instance_cpu_vcpu_count{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Filtered vCPUs",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total RAM allocated to filtered instances, in GB.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. RAM allocation is provisioned/configured (scheduler/accounting), not guest 'used'. Clouds may overcommit RAM (e.g., allocation ratios), and this excludes some host overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 12,
+            "y": 1
+          },
+          "id": 2003,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum(oie_instance_mem_allocated_mb{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}) / 1024",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Filtered RAM Allocated (GB)",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Average attention severity across filtered instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 18,
+            "y": 1
+          },
+          "id": 2004,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "avg(oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Avg Attention Severity",
+          "type": "stat"
+        }
+      ],
+      "title": "Instance Overview",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2010,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Per-instance attention severity, showing the top 100 highest Severities.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Attention Severity",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 2
+          },
+          "id": 2011,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Attention Severity (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Instance Behavior Severity (Top 100) in the selected scope.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Resource Severity",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 2
+          },
+          "id": 2085,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_behavior_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Behavior Severity (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Per-instance resource utilization severity, top 100 by severity.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Resource Severity",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 12
+          },
+          "id": 2012,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_resource_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Resource Severity (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Per-instance threat severity from threat lists and behavior, top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Threat Severity",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 12
+          },
+          "id": 2013,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_threat_list_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Threat Severity (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Top 100 instances by CPU pressure severity (stall/wait dominated).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Severity (0–100)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 22
+          },
+          "id": 2067,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_resource_cpu_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Resource CPU Severity (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Top 100 instances by memory pressure severity (paging/faulting dominated).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Severity (0–100)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 22
+          },
+          "id": 2068,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_resource_mem_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Resource Mem Severity (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Top 100 instances by disk pressure severity (latency/queueing dominated).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Severity (0–100)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 32
+          },
+          "id": 2069,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_resource_disk_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Resource Disk Severity (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Instance Resource Net Severity (Top 100).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Severity (0–100)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 32
+          },
+          "id": 2070,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_resource_net_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Resource Net Severity (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Instance Severities (Top 100)",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      },
+      "id": 2020,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "vCPU utilization percentage per instance, top 100 by usage.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "vCPU Usage (%)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 3
+          },
+          "id": 2021,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance vCPU Usage (%) (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Absolute memory usage (MB) per instance, top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Memory 'used' here is hypervisor-observed usage (not the guest OS free/used breakdown) and can be affected by ballooning and QEMU overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Memory Used (MB)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "decmbytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 3
+          },
+          "id": 2022,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_mem_used_mb{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Memory Used (MB, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Memory utilization as a percentage of allocated memory per instance, top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. RAM allocation is provisioned/configured (scheduler/accounting), not guest 'used'. Clouds may overcommit RAM (e.g., allocation ratios), and this excludes some host overhead. Memory 'used' here is hypervisor-observed usage (not the guest OS free/used breakdown) and can be affected by ballooning and QEMU overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Memory Used vs Allocated (%)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 13
+          },
+          "id": 2023,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, 100 * sum by (instance_uuid, instance, project_name, project_uuid) (\n  oie_instance_mem_used_mb{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}\n) /\nsum by (instance_uuid, instance, project_name, project_uuid) (\n  oie_instance_mem_allocated_mb{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Memory Used vs Allocated (%) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Resident set size (RSS) per instance. Rising RSS + faults suggests real host memory pressure.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Memory RSS (MB)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "decmbytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 13
+          },
+          "id": 2071,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_mem_rss_mb{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Memory RSS (MB, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Absolute memory usage (MB) per instance, top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. RAM allocation is provisioned/configured (scheduler/accounting), not guest 'used'. Clouds may overcommit RAM (e.g., allocation ratios), and this excludes some host overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Memory Used (MB)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "decmbytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 23
+          },
+          "id": 2086,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_mem_allocated_mb{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Memory Allocated (MB, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Minor/major fault rates. Major faults are the high-signal pain indicator.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Faults/s",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 23
+          },
+          "id": 2072,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,rate(oie_instance_mem_minor_faults_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]))",
+              "legendFormat": "minor - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,rate(oie_instance_mem_major_faults_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]))",
+              "legendFormat": "major - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Instance Page Faults (faults/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Any swap activity indicates shared-host impact is already occurring.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "MB/s",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "decmbytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 33
+          },
+          "id": 2073,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,rate(oie_instance_mem_swap_in_bytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) / 1024 / 1024)",
+              "legendFormat": "swap_in - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,rate(oie_instance_mem_swap_out_bytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) / 1024 / 1024)",
+              "legendFormat": "swap_out - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Instance Swap In/Out (MB/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Instance CPU & Memory Usage",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 2030,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Aggregate disk read throughput per instance (GB/s), top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Disk Read Throughput (GB/s)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "GBs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 4
+          },
+          "id": 2031,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (\n  rate(oie_instance_disk_read_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Read Throughput (GB/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Aggregate disk write throughput per instance (GB/s), top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Disk Write Throughput (GB/s)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "GBs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 4
+          },
+          "id": 2032,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (\n  rate(oie_instance_disk_write_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Write Throughput (GB/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total disk IOPS (read + write) per instance, top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Disk IOPS",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "iops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 14
+          },
+          "id": 2033,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (\n  rate(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n+ rate(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk IOPS (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Disk read throughput by disk (GB/s), top 100 volumes across instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Disk Read Throughput (GB/s)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "GBs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 14
+          },
+          "id": 2061,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_read_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Read by Disk (GB/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Disk write throughput by disk (GB/s), top 100 volumes across instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Disk Write Throughput (GB/s)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "GBs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 24
+          },
+          "id": 2062,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_write_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Write by Disk (GB/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Read IOPS by disk, top 100 volumes across instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Disk Read IOPS",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "iops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 24
+          },
+          "id": 2063,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Read IOPS by Disk (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Write IOPS by disk, top 100 volumes across instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Disk Write IOPS",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "iops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 34
+          },
+          "id": 2064,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Write IOPS by Disk (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Avg read latency derived from time spent (seconds_total) / request rate.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Avg Read Latency (ms)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 34
+          },
+          "id": 2074,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, (sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_disk_read_seconds_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) / clamp_min(sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])), 0.001)) * 1000)",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Avg Read Latency (ms, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Avg write latency derived from time spent (seconds_total) / request rate.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Avg Write Latency (ms)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 44
+          },
+          "id": 2075,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, (sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_disk_write_seconds_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) / clamp_min(sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])), 0.001)) * 1000)",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Avg Write Latency (ms, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total disk service time rate (read_seconds + write_seconds). Higher means more time spent waiting/servicing IO.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Service seconds/s",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 44
+          },
+          "id": 2076,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, (sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_disk_read_seconds_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) + sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_disk_write_seconds_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]))))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Service Time (rsec+wsec, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Aggregate disk flush time per instance, top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Disk Flush Seconds Total by Instance",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 54
+          },
+          "id": 2089,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_disk_flush_seconds_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Disk Flush Time (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Instance Disk I/O",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2040,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Inbound packets per second per instance, top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "RX Packets/s",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 5
+          },
+          "id": 2041,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (\n  rate(oie_instance_net_rx_packets_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance RX Packets per Second (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Outbound packets per second per instance, top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "TX Packets/s",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 5
+          },
+          "id": 2042,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (\n  rate(oie_instance_net_tx_packets_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance TX Packets per Second (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Inbound network throughput per instance (Gbit/s), top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "RX Throughput (Gbit/s)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "Gbits"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 15
+          },
+          "id": 2043,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (\n  rate(oie_instance_net_rx_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m]) * 8\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance RX Network Throughput (Gbit/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Outbound network throughput per instance (Gbit/s), top 100.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "TX Throughput (Gbit/s)",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "Gbits"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 15
+          },
+          "id": 2044,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (\n  rate(oie_instance_net_tx_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m]) * 8\n))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance TX Network Throughput (Gbit/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total RX+TX interface error rate attributed to this instance.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Errors/s",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 25
+          },
+          "id": 2077,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_net_rx_errors_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m]) + rate(oie_instance_net_tx_errors_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Net Errors (errors/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total RX+TX packet drops attributed to this instance.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Dropped packets/s",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 25
+          },
+          "id": 2078,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_net_rx_dropped_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m]) + rate(oie_instance_net_tx_dropped_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Net Drops (drops/s, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Instance Network Usage",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 2050,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Instance Conntrack Total Flows (Top 100).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Conntrack Flows",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 6
+          },
+          "id": 2052,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_conntrack_ip_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Conntrack Total Flows (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Instance Conntrack Outbound Flows (Top 100).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Outbound Flows",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 6
+          },
+          "id": 2053,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_conntrack_ip_flows_outbound{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Conntrack Outbound Flows (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Instance Conntrack Inbound Flows (Top 100).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Inbound Flows",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 16
+          },
+          "id": 2054,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, oie_instance_conntrack_ip_flows_inbound{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Instance Conntrack Inbound Flows (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Vertical scan / port sweep indicator.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Ports",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 16
+          },
+          "id": 2080,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_outbound_unique_dst_ports{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} unique - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_outbound_new_dst_ports{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} new - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Outbound Unique/New Dst Ports (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Scanning / wide fan-out indicator: number of unique outbound remote IPs.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Unique remotes",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 26
+          },
+          "id": 2079,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_outbound_unique_remotes{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} unique - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_outbound_new_remotes{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} new - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Outbound Unique/New Remotes (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Concentration on a single target: max flows to a single remote / dst port.\n\nSource: Linux kernel conntrack table on the hypervisor, attributed to instances by OIE.\nLimitations: Only traffic visible to that host is counted. NAT/asymmetric routing, conntrack eviction/limits, and short-lived flows can skew counts; counters can reset on reboot/exporter restart.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Flows",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 26
+          },
+          "id": 2082,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_outbound_max_flows_single_remote{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} single_remote - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_outbound_max_flows_single_dst_port{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} single_dst_port - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Outbound Concentration (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Vertical scan / port sweep indicator.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Ports",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 36
+          },
+          "id": 2087,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_inbound_unique_dst_ports{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} unique - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_inbound_new_dst_ports{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} new - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Inbound Unique/New Dst Ports (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Inbound spray / probing indicator.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Remotes",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 36
+          },
+          "id": 2081,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_inbound_unique_remotes{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} unique - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_inbound_new_remotes{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} new - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Inbound Unique/New Remotes (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Concentration on a single target: max flows to a single remote / dst port.\n\nSource: Linux kernel conntrack table on the hypervisor, attributed to instances by OIE.\nLimitations: Only traffic visible to that host is counted. NAT/asymmetric routing, conntrack eviction/limits, and short-lived flows can skew counts; counters can reset on reboot/exporter restart.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Flows",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 46
+          },
+          "id": 2088,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_inbound_max_flows_single_remote{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} single_remote - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100,oie_instance_inbound_max_flows_single_dst_port{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+              "legendFormat": "{{ family }} single_dst_port - {{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Inbound Concentration (Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total active flows involving any threat-list match (summed across lists + directions).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Active flows",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 46
+          },
+          "id": 2083,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, (sum by (instance_uuid, instance, project_name, project_uuid) (oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}) + sum by (instance_uuid, instance, project_name, project_uuid) (oie_instance_threat_tor_exit_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}) + sum by (instance_uuid, instance, project_name, project_uuid) (oie_instance_threat_tor_relay_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}) + sum by (instance_uuid, instance, project_name, project_uuid) (oie_instance_threat_emergingthreats_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}) + sum by (instance_uuid, instance, project_name, project_uuid) (oie_instance_threat_customlist_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"})))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Threat Active Flows (All Lists, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total threat-list contact events per second (summed across lists + directions).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Contacts/s",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 56
+          },
+          "id": 2084,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "topk(100, (sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_threat_spamhaus_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) + sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_threat_tor_exit_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) + sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_threat_tor_relay_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) + sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_threat_emergingthreats_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) + sum by (instance_uuid, instance, project_name, project_uuid) (rate(oie_instance_threat_customlist_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]))))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Threat Contacts Rate (All Lists, Top 100) | PN/PU/IU:",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Instance Conntrack",
+      "type": "row"
+    }
+  ],
+  "preload": false,
+  "refresh": "10s",
+  "schemaVersion": 42,
+  "tags": [
+    "openstack",
+    "openstack_instance_exporter"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(oie_host_mem_mb_total,instance)",
+        "hide": 2,
+        "includeAll": true,
+        "label": "Hypervisor",
+        "multi": true,
+        "name": "gvar_oie_hypervisor",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(oie_host_mem_mb_total,instance)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "/^([^:]+)/",
+        "sort": 2,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(oie_instance_info{instance=~\"$gvar_oie_hypervisor.*\"},project_uuid)",
+        "includeAll": true,
+        "label": "Project UUID",
+        "multi": true,
+        "name": "gvar_oie_project_uuid",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(oie_instance_info{instance=~\"$gvar_oie_hypervisor.*\"},project_uuid)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "/.*/",
+        "sort": 2,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(oie_instance_info{instance=~\"$gvar_oie_hypervisor.*\",project_uuid=~\"$gvar_oie_project_uuid\"},project_name)",
+        "includeAll": true,
+        "label": "Project Name",
+        "multi": true,
+        "name": "gvar_oie_project_name",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(oie_instance_info{instance=~\"$gvar_oie_hypervisor.*\",project_uuid=~\"$gvar_oie_project_uuid\"},project_name)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "/.*/",
+        "sort": 2,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(oie_instance_info{instance=~\"$gvar_oie_hypervisor.*\",project_uuid=~\"$gvar_oie_project_uuid\",project_name=~\"$gvar_oie_project_name\"},instance_uuid)",
+        "includeAll": true,
+        "label": "Instance UUID",
+        "multi": true,
+        "name": "gvar_oie_instance_uuid",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(oie_instance_info{instance=~\"$gvar_oie_hypervisor.*\",project_uuid=~\"$gvar_oie_project_uuid\",project_name=~\"$gvar_oie_project_name\"},instance_uuid)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "/.*/",
+        "sort": 2,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "Prometheus",
+          "value": "${datasource}"
+        },
+        "includeAll": false,
+        "label": "Datasource",
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "OpenStack Instance Exporter — Instance Overview",
+  "uid": "i92k2mnsf0p4z",
+  "version": 15
+}

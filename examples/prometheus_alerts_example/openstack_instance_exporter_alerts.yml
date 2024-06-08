@@ -1,0 +1,626 @@
+prometheus_alert_rules:
+  - group_name: OpenStack Instance Exporter
+    group_exporter_job: openstack-instance-exporter
+    group_rules:
+      - alert: "OpenStackInstanceAttentionHigh"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_attention_severity) >= 60"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Combined resource+threat attention score for instance {{ $labels.instance_uuid }} is elevated. Needs review."
+          summary: "Instance {{ $labels.instance_uuid }} attention severity high (>= 60)"
+
+      - alert: "OpenStackInstanceAttentionSevere"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_attention_severity) >= 85"
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          description: "Instance {{ $labels.instance_uuid }} shows severe combined load/threat behaviour. Likely P0/P1 outcome."
+          summary: "Instance {{ $labels.instance_uuid }} attention severity severe (>= 85)"
+
+      - alert: "OpenStackInstanceThreatScoreHigh"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_threat_list_severity) >= 40"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Threat score is high, high rate of threat list contact."
+          summary: "Instance {{ $labels.instance_uuid }} threat severity high (>= 40)"
+
+      - alert: "OpenStackInstanceThreatScoreSevere"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_threat_list_severity) >= 85"
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          description: "Threat score is near max, extremely high rate of threat list contact."
+          summary: "Instance {{ $labels.instance_uuid }} threat severity severe (>= 85)"
+
+      - alert: "OpenStackInstanceBehaviorScoreHigh"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_behavior_severity) >= 60"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Behavioral anomaly score is high, indicating significant deviation from baseline (e.g., unusual scanning, high flow cardinality)."
+          summary: "Instance {{ $labels.instance_uuid }} behavior severity high (>= 60)"
+
+      - alert: "OpenStackInstanceBehaviorScoreCritical"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_behavior_severity) >= 80"
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          description: "Behavioral anomaly score is critical, indicating critical deviation from baseline (e.g., unusual scanning, critical flow cardinality)."
+          summary: "Instance {{ $labels.instance_uuid }} behavior severity critical (>= 80)"
+
+      - alert: "OpenStackInstanceHighResourcePressure"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_severity) >= 70"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Resource pressure is high (>= 70). The VM is thrashing shared resources, indicating a Noisy Neighbor or Victim."
+          summary: "Instance {{ $labels.instance_uuid }} high resource pressure (>= 70)"
+
+      - alert: "OpenStackInstanceSevereResourcePressure"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_severity) >= 85"
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          description: "Resource pressure is severe (>= 85). Strong indicator of real contention impacting shared infrastructure."
+          summary: "Instance {{ $labels.instance_uuid }} severe resource pressure (>= 85)"
+
+      - alert: "OpenStackInstanceResourceCPUHigh"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_cpu_severity) >= 70"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "CPU axis resource severity is high (>= 70). Indicates sustained CPU pressure for this VM."
+          summary: "Instance {{ $labels.instance_uuid }} CPU resource pressure high (>= 70)"
+
+      - alert: "OpenStackInstanceResourceCPUSevere"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_cpu_severity) >= 85"
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          description: "CPU axis resource severity is severe (>= 85). Strong sustained CPU contention/pressure."
+          summary: "Instance {{ $labels.instance_uuid }} CPU resource pressure severe (>= 85)"
+
+      - alert: "OpenStackInstanceResourceMemHigh"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_mem_severity) >= 70"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Memory axis resource severity is high (>= 70). Indicates sustained memory pressure or paging signals."
+          summary: "Instance {{ $labels.instance_uuid }} memory resource pressure high (>= 70)"
+
+      - alert: "OpenStackInstanceResourceMemSevere"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_mem_severity) >= 85"
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          description: "Memory axis resource severity is severe (>= 85). Strong memory thrash risk or sustained paging."
+          summary: "Instance {{ $labels.instance_uuid }} memory resource pressure severe (>= 85)"
+
+      - alert: "OpenStackInstanceResourceDiskHigh"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_disk_severity) >= 70"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Disk axis resource severity is high (>= 70). Indicates sustained disk pressure for this VM."
+          summary: "Instance {{ $labels.instance_uuid }} disk resource pressure high (>= 70)"
+
+      - alert: "OpenStackInstanceResourceDiskSevere"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_disk_severity) >= 85"
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          description: "Disk axis resource severity is severe (>= 85). Strong sustained disk contention/latency impact."
+          summary: "Instance {{ $labels.instance_uuid }} disk resource pressure severe (>= 85)"
+
+      - alert: "OpenStackInstanceResourceNetHigh"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_net_severity) >= 70"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Network axis resource severity is high (>= 70). Indicates sustained network drops or conntrack pressure."
+          summary: "Instance {{ $labels.instance_uuid }} network resource pressure high (>= 70)"
+
+      - alert: "OpenStackInstanceResourceNetSevere"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_resource_net_severity) >= 85"
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          description: "Network axis resource severity is severe (>= 85). Strong sustained network degradation pressure."
+          summary: "Instance {{ $labels.instance_uuid }} network resource pressure severe (>= 85)"
+
+      - alert: "OpenStackProjectManyHotInstances"
+        expr: "count by (project_uuid, project_name) (oie_instance_attention_severity >= 60) >= 10"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "More than 10 instances in project {{ $labels.project_name }} have attention severity >= 60. Macro workload/risk shift."
+          summary: "Project {{ $labels.project_name }} has many hot instances"
+
+      - alert: "OpenStackInstanceHighCPUUsage"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_cpu_vcpu_percent{domain!=\\\"\\\"}) > 75"
+        for: "30m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "CPU usage has been over 75% for more than thirty minutes for OpenStack instance {{ $labels.instance_uuid }}."
+          summary: "High CPU usage detected for OpenStack instance {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceHighStealRate"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_cpu_steal_seconds_total[5m])) > 0.05"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "This instance is losing more than 5% of vCPU time to the host scheduler, indicating severe hypervisor CPU overcommitment."
+          summary: "Instance {{ $labels.instance_uuid }} vCPU steal time is high"
+
+      - alert: "OpenStackInstanceHighMemorySwapInRate"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_mem_swap_in_bytes_total[5m])) > (64 * 1024 * 1024)"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Swap-in rate exceeded 64MiB/s for 2 minutes, indicating memory thrash inside the guest."
+          summary: "Instance {{ $labels.instance_uuid }} high swap-in rate"
+
+      - alert: "OpenStackInstanceHighMajorFaultRate"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_mem_major_faults_total[5m])) > 200"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Major faults rate is high for 5 minutes, indicating heavy paging/IO-backed memory pressure."
+          summary: "Instance {{ $labels.instance_uuid }} high major fault rate"
+
+      - alert: "OpenStackInstanceHighDiskReadIOPSLocal"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\\\"local\\\"}) > 8000"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Disk read IOPS exceeded local tier threshold for 10 minutes."
+          summary: "High local read IOPS on {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceHighDiskReadIOPSVolumes"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\\\"volumes\\\"}) > 2000"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Disk read IOPS exceeded volumes tier threshold for 10 minutes."
+          summary: "High volumes read IOPS on {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceHighDiskReadIOPSPremium"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\\\"premium\\\"}) > 6000"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Disk read IOPS exceeded premium tier threshold for 10 minutes."
+          summary: "High premium read IOPS on {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceHighDiskReadIOPSUltra"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\\\"ultra\\\"}) > 12000"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Disk read IOPS exceeded ultra tier threshold for 10 minutes."
+          summary: "High ultra read IOPS on {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceHighDiskWriteIOPSLocal"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\\\"local\\\"}) > 8000"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Disk write IOPS exceeded local tier threshold for 10 minutes."
+          summary: "High local write IOPS on {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceHighDiskWriteIOPSVolumes"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\\\"volumes\\\"}) > 2000"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Disk write IOPS exceeded volumes tier threshold for 10 minutes."
+          summary: "High volumes write IOPS on {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceHighDiskWriteIOPSPremium"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\\\"premium\\\"}) > 6000"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Disk write IOPS exceeded premium tier threshold for 10 minutes."
+          summary: "High premium write IOPS on {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceHighDiskWriteIOPSUltra"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\\\"ultra\\\"}) > 12000"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Disk write IOPS exceeded ultra tier threshold for 10 minutes."
+          summary: "High ultra write IOPS on {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceDiskReadLatencyHigh"
+        expr: "rate(oie_instance_disk_read_seconds_total[5m]) / clamp_min(rate(oie_instance_disk_read_requests_total[5m]), 1) > 0.15"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Average read latency exceeded 150ms for 2 minutes. Indicates backend saturation or VM I/O bottleneck."
+          summary: "Instance {{ $labels.instance_uuid }} disk read latency high"
+
+      - alert: "OpenStackInstanceDiskWriteLatencyHigh"
+        expr: "rate(oie_instance_disk_write_seconds_total[5m]) / clamp_min(rate(oie_instance_disk_write_requests_total[5m]), 1) > 0.10"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Average write latency exceeded 100ms for 2 minutes. Often more damaging than reads."
+          summary: "Instance {{ $labels.instance_uuid }} disk write latency high"
+
+      - alert: "OpenStackInstanceDiskFlushLatencyHigh"
+        expr: "rate(oie_instance_disk_flush_seconds_total[5m]) / clamp_min(rate(oie_instance_disk_flush_requests_total[5m]), 1) > 0.04"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Average flush latency exceeded 40ms for 2 minutes. Strong DB/fsync pain signal."
+          summary: "Instance {{ $labels.instance_uuid }} disk flush latency high"
+
+      - alert: "OpenStackInstanceHighDiskGBReadTotalLongTerm"
+        expr: "sum by (domain, instance_uuid, project_uuid, user_uuid) (increase(oie_instance_disk_read_gbytes_total[6h])) > 250"
+        for: "6h"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Total disk read has been high for more than six hours for OpenStack instance {{ $labels.instance_uuid }}."
+          summary: "High disk read volume over 6 hours ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceHighDiskGBWriteTotalLongTerm"
+        expr: "sum by (domain, instance_uuid, project_uuid, user_uuid) (increase(oie_instance_disk_write_gbytes_total[6h])) > 250"
+        for: "6h"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Total disk write has been high for more than six hours for OpenStack instance {{ $labels.instance_uuid }}."
+          summary: "High disk write volume over 6 hours ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceHighIncomingPacketRate"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(rate(oie_instance_net_rx_packets_total[1m])[3m:])) > 10000"
+        for: "30m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Incoming packet rate has been over 10,000 packets/sec for more than thirty minutes."
+          summary: "High incoming packet rate ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceHighOutgoingPacketRate"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(rate(oie_instance_net_tx_packets_total[1m])[3m:])) > 10000"
+        for: "30m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Outgoing packet rate has been over 10,000 packets/sec for more than thirty minutes."
+          summary: "High outgoing packet rate ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceHighBandwidthRateRX"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_rx_gbytes_total[1m]) * 8) > 1"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Network receive rate has exceeded 1 Gbit/s for 5 minutes. Critical capacity indicator."
+          summary: "High sustained RX bandwidth ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceHighBandwidthRateTX"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_tx_gbytes_total[1m]) * 8) > 1"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Network transmit rate has exceeded 1 Gbit/s for 5 minutes. Critical capacity indicator."
+          summary: "High sustained TX bandwidth ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceNetworkReceiveDropRatioHigh"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_rx_dropped_total[5m]) / clamp_min(rate(oie_instance_net_rx_packets_total[5m]), 1)) > 0.02"
+        for: "15m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "More than 2% of incoming packets dropped for fifteen minutes."
+          summary: "RX drop ratio high ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceNetworkTransmitDropRatioHigh"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_tx_dropped_total[5m]) / clamp_min(rate(oie_instance_net_tx_packets_total[5m]), 1)) > 0.02"
+        for: "15m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "More than 2% of outgoing packets dropped for fifteen minutes."
+          summary: "TX drop ratio high ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceConntrackFlowsBurst"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (max_over_time(oie_instance_conntrack_ip_flows[1m])) > 20000"
+        for: "1m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Conntrack flow entries exceeded 20,000 for over one minute. Likely rapid scan or short-lived abuse."
+          summary: "Conntrack flow burst ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceHighConntrackFlowsSustained"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_conntrack_ip_flows) > 50000"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Conntrack flow entries above 50,000 for 5 minutes suggests heavy abuse, DDoS, or runaway workload."
+          summary: "High sustained conntrack flows ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceZombieFlowWarning"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_conntrack_ip_flows) > 5000"
+        for: "30m"
+        labels:
+          severity: "info"
+        annotations:
+          description: "Conntrack flow entries above 5,000 for 30 minutes. Potential P5 (Zombie Flow) application leak or sustained high-flow connection pool."
+          summary: "Sustained mid-range conntrack volume ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceOutboundPortScanBurst"
+        expr: "(max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_outbound_new_dst_ports[2m])) > 200) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_outbound_unique_remotes[2m])) > 25) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_outbound_flows[2m])) > 5000)"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Outbound behavior looks like a port scan (rapid new destination ports + broad remote fanout)."
+          summary: "Instance {{ $labels.instance_uuid }} outbound port-scan burst"
+
+      - alert: "OpenStackInstanceInboundPortScanBurst"
+        expr: "(max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_inbound_new_dst_ports[2m])) > 200) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_inbound_unique_remotes[2m])) > 25) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_inbound_flows[2m])) > 5000)"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Inbound behavior looks like a port scan (rapid new destination ports + broad source fanout)."
+          summary: "Instance {{ $labels.instance_uuid }} inbound port-scan burst"
+
+      - alert: "OpenStackInstanceOutboundSingleTargetFlood"
+        expr: "(max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_outbound_max_flows_single_remote[2m])) > 25000) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_outbound_unique_remotes[2m])) < 5)"
+        for: "3m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Outbound behavior is concentrated to a single remote (very high max flows to one remote, low unique remotes). Brute-force/flood indicator."
+          summary: "Instance {{ $labels.instance_uuid }} outbound single-target flood"
+
+      - alert: "OpenStackInstanceInboundSingleSourceFlood"
+        expr: "(max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_inbound_max_flows_single_remote[2m])) > 25000) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_inbound_unique_remotes[2m])) < 5)"
+        for: "3m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Inbound behavior is dominated by a single source (very high max flows from one remote, low unique remotes). Likely targeted attack."
+          summary: "Instance {{ $labels.instance_uuid }} inbound single-source flood"
+
+      - alert: "OpenStackInstanceOutboundSprayOnSinglePort"
+        expr: "(max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_outbound_new_remotes[2m])) > 300) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_outbound_unique_dst_ports[2m])) <= 3) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_outbound_flows[2m])) > 8000)"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Outbound spray pattern: many new remotes with very few destination ports (worm/brute-force on a fixed service port)."
+          summary: "Instance {{ $labels.instance_uuid }} outbound spray behavior"
+
+      - alert: "OpenStackInstanceInboundSprayOnSinglePort"
+        expr: "(max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_inbound_new_remotes[2m])) > 300) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_inbound_unique_dst_ports[2m])) <= 3) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_inbound_flows[2m])) > 8000)"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Inbound spray pattern: many new sources hitting very few ports (common during broad brute-force activity)."
+          summary: "Instance {{ $labels.instance_uuid }} inbound spray behavior"
+
+      - alert: "OpenStackInstanceOutboundZombieFlowLowThroughput"
+        expr: "(max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (avg_over_time(oie_instance_outbound_flows[30m])) > 5000) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (avg_over_time(oie_instance_outbound_bytes_per_flow[30m])) < 2000) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (avg_over_time(oie_instance_outbound_packets_per_flow[30m])) < 20)"
+        for: "30m"
+        labels:
+          severity: "info"
+        annotations:
+          description: "Sustained high outbound flow volume with very low throughput per flow (zombie-flow / connection leak signature). Requires nf_conntrack_acct=1."
+          summary: "Instance {{ $labels.instance_uuid }} outbound zombie-flow signature"
+
+      - alert: "OpenStackInstanceInboundZombieFlowLowThroughput"
+        expr: "(max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (avg_over_time(oie_instance_inbound_flows[30m])) > 5000) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (avg_over_time(oie_instance_inbound_bytes_per_flow[30m])) < 2000) and (max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (avg_over_time(oie_instance_inbound_packets_per_flow[30m])) < 20)"
+        for: "30m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Sustained high inbound flow volume with very low throughput per flow (zombie-flow / SYN-storm-like signature). Requires nf_conntrack_acct=1."
+          summary: "Instance {{ $labels.instance_uuid }} inbound zombie-flow signature"
+
+      - alert: "OpenStackInstanceOutboundExtremeRemoteFanout"
+        expr: "max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_outbound_unique_remotes[5m])) > 1500"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Outbound unique remote fanout is extreme. Often seen in scanning, proxying, or bot-like traffic."
+          summary: "Instance {{ $labels.instance_uuid }} outbound remote fanout extreme"
+
+      - alert: "OpenStackInstanceInboundExtremeRemoteFanout"
+        expr: "max by (domain, instance_uuid, project_uuid, project_name, user_uuid) (max_over_time(oie_instance_inbound_unique_remotes[5m])) > 1500"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Inbound unique remote fanout is extreme. Often seen during widespread probing/DDoS."
+          summary: "Instance {{ $labels.instance_uuid }} inbound remote fanout extreme"
+
+
+      - alert: "OpenStackInstanceConntrackFlowsGrowthRate"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (clamp_min(deriv(oie_instance_conntrack_ip_flows[1m]), 0)) > 5000"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Conntrack flows growing faster than ~5,000 flows/sec for 2 minutes. Strong scan/DDoS indicator."
+          summary: "Rapid conntrack flow growth ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceTorExitRepeatedContact"
+        expr: "increase(oie_instance_threat_tor_exit_contacts_total[5m]) >= 5"
+        for: "1m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "5+ Tor exit contacts in 5 minutes. High security risk."
+          summary: "Repeated Tor exit contacts ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceSpamhausRepeatedContact"
+        expr: "increase(oie_instance_threat_spamhaus_contacts_total[5m]) >= 5"
+        for: "1m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "5+ Spamhaus contacts in 5 minutes. High confidence botnet/malware C2."
+          summary: "Repeated Spamhaus contacts ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceTorRelayRepeatedContact"
+        expr: "increase(oie_instance_threat_tor_relay_contacts_total[5m]) >= 5"
+        for: "1m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "5+ Tor relay contacts in 5 minutes."
+          summary: "Repeated Tor relay contacts ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceEmergingThreatsRepeatedContact"
+        expr: "increase(oie_instance_threat_emergingthreats_contacts_total[5m]) >= 5"
+        for: "1m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "5+ EmergingThreats contacts in 5 minutes."
+          summary: "Repeated EmergingThreats contacts ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackInstanceCustomListRepeatedContact"
+        expr: "increase(oie_instance_threat_customlist_contacts_total[5m]) >= 5"
+        for: "1m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "5+ custom-list contacts in 5 minutes."
+          summary: "Repeated custom-list contacts ({{ $labels.instance_uuid }})"
+
+      - alert: "OpenStackExporterProcessCPUHigh"
+        expr: "rate(process_cpu_seconds_total{job=\\\"openstack-instance-exporter\\\"}[5m]) > 0.5"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "The OIE process is consuming more than 50% of a single CPU core for 5 minutes, indicating extreme processing load or a bug."
+          summary: "Exporter process CPU consumption high"
+
+      - alert: "OpenStackExporterHostThreatListed"
+        expr: "max by (list, ip, family, job) (oie_host_threat_listed) > 0"
+        for: "0s"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Host IP {{ $labels.ip }} ({{ $labels.family }}) is present in threat list {{ $labels.list }}."
+          summary: "Hypervisor host IP listed in threat list {{ $labels.list }}"
+
+      - alert: "OpenStackExporterHostConntrackUtilizationHigh"
+        expr: "oie_host_conntrack_utilization > 0.8"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Conntrack table utilization above 80%."
+          summary: "Conntrack utilization high on host {{ $labels.instance }}"
+
+      - alert: "OpenStackExporterHostConntrackReadErrors"
+        expr: "increase(oie_host_conntrack_read_errors_total[10m]) > 5"
+        for: "0s"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "More than 5 conntrack read errors in 10 minutes. Indicates kernel instability or permission issues."
+          summary: "Conntrack read errors on host {{ $labels.instance }}"
+
+      - alert: "OpenStackExporterConntrackRawReaderFailed"
+        expr: "max by (instance, job) (oie_host_conntrack_raw_ok{job=\\\"openstack-instance-exporter\\\"}) == 0"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Raw conntrack reader failed on this host (raw_ok=0). Conntrack-derived metrics may be stale or missing."
+          summary: "Conntrack raw reader failing on host {{ $labels.instance }}"
+
+      - alert: "OpenStackExporterConntrackReadStale"
+        expr: "max by (instance, job) (oie_host_conntrack_stale_seconds{job=\\\"openstack-instance-exporter\\\"}) > 120"
+        for: "2m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Conntrack has not been read successfully for > 120 seconds. Conntrack-based metrics are stale."
+          summary: "Conntrack read stale on host {{ $labels.instance }}"
+
+
+      - alert: "OpenStackExporterTorExitListRefreshStale"
+        expr: "(time() - oie_host_threat_tor_exit_refresh_last_success_timestamp_seconds) > 43200"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Tor exit list has not refreshed successfully in over 12 hours."
+          summary: "Tor exit-node list refresh stale"
+
+      - alert: "OpenStackExporterSpamhausListRefreshStale"
+        expr: "(time() - oie_host_threat_spamhaus_refresh_last_success_timestamp_seconds) > 43200"
+        for: "30m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Spamhaus list has not refreshed successfully in over 12 hours."
+          summary: "Spamhaus list refresh stale"
+
+      - alert: "OpenStackExporterEmergingThreatsListRefreshStale"
+        expr: "(time() - oie_host_threat_emergingthreats_refresh_last_success_timestamp_seconds) > 43200"
+        for: "30m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "EmergingThreats list has not refreshed successfully in over 12 hours."
+          summary: "EmergingThreats list refresh stale"
+
+      - alert: "OpenStackExporterCustomListRefreshStale"
+        expr: "(time() - oie_host_threat_customlist_refresh_last_success_timestamp_seconds) > 43200"
+        for: "10m"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Custom IP list has not refreshed successfully in over 12 hours."
+          summary: "Custom list refresh stale"

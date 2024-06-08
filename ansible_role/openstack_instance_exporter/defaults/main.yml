@@ -1,0 +1,264 @@
+---
+# Core switch
+openstack_instance_exporter_enabled: false
+
+# Version / install
+openstack_instance_exporter_version: "v1.0.0"
+openstack_instance_exporter_sha256: "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/sha256sums.txt"
+openstack_instance_exporter_install_dir: "/opt/openstack_instance_exporter"
+
+# Bind / web
+openstack_instance_exporter_network_interface: br-monitoring
+openstack_instance_exporter_web_listen_address: ""
+# openstack_instance_exporter_web_telemetry_path: "/metrics"
+# openstack_instance_exporter_bind_port: 9120
+
+# Collection
+# openstack_instance_exporter_libvirt_uri: "qemu:///system"
+# openstack_instance_exporter_collection_interval: 15s
+# openstack_instance_exporter_worker_count: 0  # 0 = Auto (NumCPU)
+# openstack_instance_exporter_contacts_direction: out
+
+# Conntrack reader (performance)
+#
+# Raw-only conntrack reader (NETLINK_NETFILTER dump parser).
+#
+# Raw reader receive buffer (SO_RCVBUF) in bytes.
+#
+# Notes:
+# - The kernel caps this to net.core.rmem_max.
+# - Linux may report ~2x the value due to accounting.
+#
+# Suggested starting points:
+# - Small/normal hosts:        33554432   (32 MiB)
+# - ~2,000,000 flows:         134217728  (128 MiB)
+# - If ENOBUFS increments:    268435456  (256 MiB)
+#
+# Watch exporter metrics:
+# - oie_host_conntrack_raw_enobufs_total
+# - oie_host_conntrack_raw_parse_errors_total
+# - oie_host_conntrack_raw_ok
+# openstack_instance_exporter_conntrack_raw_rcvbuf_bytes: 33554432
+#
+# Enable/disable families. If you truly don't need v6, disable it to avoid extra work.
+# openstack_instance_exporter_conntrack_ipv4_enable: true
+# openstack_instance_exporter_conntrack_ipv6_enable: true
+
+# Scoring / attention
+# Scoring Weights (EWMA engine)
+# These control how the Attention Score is calculated:
+# Attention = (Resource * 0.45 + Behavior * 0.45 + ThreatList * 0.10) / 1.0
+#
+# openstack_instance_exporter_severity_weight_resource: 0.45
+# openstack_instance_exporter_severity_weight_behavior: 0.45
+# openstack_instance_exporter_severity_weight_threat_list: 0.10
+
+# Behavior sensitivity (scales behavior thresholds; >1 more sensitive, <1 less sensitive)
+# openstack_instance_exporter_behavior_sensitivity: 1.0
+
+# Behavior EWMA time constants
+# openstack_instance_exporter_behavior_ewma_fast_tau: 3m
+# openstack_instance_exporter_behavior_ewma_slow_tau: 2h
+
+# Optional behavior ports YAML (port naming / readability)
+# openstack_instance_exporter_behavior_ports_config_path: "{{ openstack_instance_exporter_install_dir }}/behavior-ports.yaml"
+
+# Optional behavior rules YAML (external port_sets + rules; loaded once at startup, no hot-reload)
+# openstack_instance_exporter_behavior_rules_config_path: "{{ openstack_instance_exporter_install_dir }}/behavior-rules.yaml"
+#
+# RULE EVALUATION SEMANTICS:
+#
+# - Rules are evaluated in the order they appear in the YAML file.
+# - The FIRST rule whose conditions match is the one that applies.
+# - There is no automatic "best match" or specificity ranking.
+# - YAML ordering matters when rules overlap.
+# - Severity does NOT affect rule selection; it is only an output attribute.
+#
+# Provide YAML content directly via Ansible var (templated to the path above).
+# If unset/empty, no file is rendered. There are built-in rules already defined.
+#
+# openstack_instance_exporter_behavior_rules_config_yaml: |
+#   port_sets:
+#     admin:
+#       - 22
+#       - 3389
+#   rules:
+#     - id: inbound_admin_exposure
+#       direction: inbound
+#       dst_port_set: admin
+#       kind: inbound_admin
+#       severity: high
+
+# Provide YAML content directly via Ansible var (templated to the path above).
+# If unset/empty, no file is rendered. There are internal ports already defined.
+# This allows overriding or extending built-in port names.
+#
+# openstack_instance_exporter_behavior_ports_config_yaml: |
+#   inbound:
+#     - port: 22
+#       name: ssh
+#   outbound:
+#     - port: 25
+#       name: smtp
+
+# Inbound behavior summaries (counts only, no per-port/per-remote series)
+# openstack_instance_exporter_inbound_behavior_enable: false
+
+# Outbound behavior summaries (counts only, no per-port/per-remote series)
+# openstack_instance_exporter_outbound_behavior_enable: false
+
+# Enable kernel conntrack accounting (nf_conntrack_acct).
+# Required for exporter behavior features:
+# - oie_instance_{inbound,outbound}_bytes_per_flow
+# - oie_instance_{inbound,outbound}_packets_per_flow
+# If disabled, exporter still works; those metrics/features are omitted.
+openstack_instance_exporter_nf_conntrack_acct_enable: false
+
+# Value to set for net.netfilter.nf_conntrack_acct (1 = enable, 0 = disable).
+openstack_instance_exporter_nf_conntrack_acct_value: 1
+
+# Host threat matching (checks host NIC IPs against enabled lists)
+# openstack_instance_exporter_host_threats_enable: false
+# openstack_instance_exporter_host_ips_allow_private: false
+# openstack_instance_exporter_host_interfaces: []
+# openstack_instance_exporter_host_interfaces:
+#   - "bgp-nic"
+
+# Tor exit list
+# openstack_instance_exporter_tor_exit_enable: false
+# openstack_instance_exporter_tor_exit_url: "https://onionoo.torproject.org/details?search=flag:exit&fields=or_addresses"
+# openstack_instance_exporter_tor_exit_refresh: 1h
+# openstack_instance_exporter_tor_exit_direction: ""
+
+# Tor relay list
+# openstack_instance_exporter_tor_relay_enable: false
+# openstack_instance_exporter_tor_relay_url: "https://onionoo.torproject.org/details?search=flag:running&fields=or_addresses"
+# openstack_instance_exporter_tor_relay_refresh: 1h
+# openstack_instance_exporter_tor_relay_direction: ""
+
+# Spamhaus DROP/DROPv6
+# openstack_instance_exporter_spamhaus_enable: false
+# openstack_instance_exporter_spamhaus_url: "https://www.spamhaus.org/drop/drop.txt"
+# openstack_instance_exporter_spamhaus_ipv6_url: "https://www.spamhaus.org/drop/dropv6.txt"
+# openstack_instance_exporter_spamhaus_refresh: 6h
+# openstack_instance_exporter_spamhaus_direction: ""
+
+# EmergingThreats compromised IPs
+# openstack_instance_exporter_emergingthreats_enable: false
+# openstack_instance_exporter_emergingthreats_url: "https://rules.emergingthreats.net/blockrules/compromised-ips.txt"
+# openstack_instance_exporter_emergingthreats_refresh: 6h
+# openstack_instance_exporter_emergingthreats_direction: ""
+
+# Custom user IP list (enable + path required)
+# openstack_instance_exporter_customlist_enable: false
+# openstack_instance_exporter_customlist_path: "/opt/openstack_instance_exporter/custom-ips.txt"
+# openstack_instance_exporter_customlist_refresh: 10m
+# openstack_instance_exporter_customlist_direction: ""
+# openstack_instance_exporter_custom_ip_list: []
+# openstack_instance_exporter_custom_ip_list:
+#   - "1.2.3.4"
+#   - "2001:db8::1"
+# openstack_instance_exporter_customlist_src: ""
+
+# Logging (override only if you want non-defaults)
+# openstack_instance_exporter_log_level: "error"
+openstack_instance_exporter_log_file_enable: false
+openstack_instance_exporter_log_file_path: "/var/log/openstack_instance_exporter.log"
+
+# Threat-hit logging now goes to the main logger (same destination as above).
+# Throttle repeated identical threat hits (list+instance+src+dst+direction).
+# openstack_instance_exporter_threat_log_min_interval: 5m
+
+# Logrotate Config
+openstack_instance_exporter_logrotate_content: |
+  {% if openstack_instance_exporter_log_file_enable and (openstack_instance_exporter_log_file_path is defined and openstack_instance_exporter_log_file_path|length > 0) %}
+  {{ openstack_instance_exporter_log_file_path }} {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    create 0640 root root
+  }
+  {% endif %}
+
+# OIE resource/threat profile presets
+openstack_instance_exporter_profile: disabled
+
+openstack_instance_exporter_profile_defaults:
+
+  ################################
+  # RESOURCE-ONLY
+  ################################
+
+  resource-only:
+    severity_weight_resource: 1.0
+    severity_weight_behavior: 0.0
+    severity_weight_threat_list: 0.0
+
+  ################################
+  # OUTBOUND-ONLY (Standard/Observant/Max)
+  ################################
+
+  outbound-standard:
+    outbound_behavior_enable: true
+    spamhaus_enable: true
+    emergingthreats_enable: true
+    behavior_sensitivity: 1.0
+
+  outbound-observant:
+    outbound_behavior_enable: true
+    spamhaus_enable: true
+    emergingthreats_enable: true
+    tor_exit_enable: true
+    tor_relay_enable: true
+    behavior_sensitivity: 1.25
+
+  outbound-max:
+    outbound_behavior_enable: true
+    spamhaus_enable: true
+    emergingthreats_enable: true
+    tor_exit_enable: true
+    tor_relay_enable: true
+    behavior_sensitivity: 1.5
+
+  ################################
+  # BIDIRECTIONAL (Standard/Observant/Max)
+  ################################
+
+  bidir-standard:
+    inbound_behavior_enable: true
+    outbound_behavior_enable: true
+    spamhaus_enable: true
+    spamhaus_direction: "any"
+    emergingthreats_enable: true
+    emergingthreats_direction: "any"
+    behavior_sensitivity: 1.0
+
+  bidir-observant:
+    inbound_behavior_enable: true
+    outbound_behavior_enable: true
+    spamhaus_enable: true
+    spamhaus_direction: "any"
+    emergingthreats_enable: true
+    emergingthreats_direction: "any"
+    tor_exit_enable: true
+    tor_exit_direction: "any"
+    tor_relay_enable: true
+    tor_relay_direction: "any"
+    behavior_sensitivity: 1.25
+
+  bidir-max:
+    inbound_behavior_enable: true
+    outbound_behavior_enable: true
+    spamhaus_enable: true
+    spamhaus_direction: "any"
+    emergingthreats_enable: true
+    emergingthreats_direction: "any"
+    tor_exit_enable: true
+    tor_exit_direction: "any"
+    tor_relay_enable: true
+    tor_relay_direction: "any"
+    behavior_sensitivity: 1.5

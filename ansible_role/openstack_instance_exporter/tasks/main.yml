@@ -1,0 +1,208 @@
+- name: Installation and Configuration
+  tags: install_oie
+  when: "'cleanup_oie' not in ansible_run_tags"
+  block:
+
+    - name: Enable nf_conntrack_acct
+      become: true
+      ansible.posix.sysctl:
+        name: net.netfilter.nf_conntrack_acct
+        value: "{{ openstack_instance_exporter_nf_conntrack_acct_value }}"
+        state: present
+        sysctl_set: true
+        reload: true
+      when: openstack_instance_exporter_nf_conntrack_acct_enable
+      notify: Restart openstack_instance_exporter service
+
+    - name: Ensure the openstack_instance_exporter install directory exists
+      become: true
+      ansible.builtin.file:
+        path: "{{ openstack_instance_exporter_install_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Download openstack_instance_exporter tarball
+      become: true
+      get_url:
+        url: "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/openstack_instance_exporter-{{ openstack_instance_exporter_version }}-linux-amd64.tar.xz"
+        dest: "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter.tar.xz"
+        owner: root
+        group: root
+        mode: '0644'
+        checksum: "sha256:{{ openstack_instance_exporter_sha256 }}"
+      register: oie_tar_download_result
+
+    - name: Extract openstack_instance_exporter tarball
+      become: true
+      ansible.builtin.unarchive:
+        src: "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter.tar.xz"
+        dest: "{{ openstack_instance_exporter_install_dir }}"
+        remote_src: yes
+      when: oie_tar_download_result.changed
+      notify: Restart openstack_instance_exporter service
+
+    - name: Create systemd service file for openstack_instance_exporter
+      become: true
+      ansible.builtin.template:
+        src: openstack_instance_exporter.service.j2
+        dest: /etc/systemd/system/openstack_instance_exporter.service
+        owner: root
+        group: root
+        mode: '0640'
+      register: oie_template_result
+      notify: Restart openstack_instance_exporter service
+
+    - name: install openstack_instance_exporter logrotate rules
+      become: true
+      ansible.builtin.copy:
+        dest: /etc/logrotate.d/openstack_instance_exporter
+        owner: root
+        group: root
+        mode: "0644"
+        content: "{{ openstack_instance_exporter_logrotate_content }}"
+      when: openstack_instance_exporter_log_file_enable or openstack_instance_exporter_threat_log_file_enable
+
+    - name: Write custom IP list from variable
+      become: true
+      ansible.builtin.copy:
+        dest: "{{ openstack_instance_exporter_customlist_path }}"
+        content: "{{ openstack_instance_exporter_custom_ip_list | join('\n') ~ '\n' }}"
+        owner: root
+        group: root
+        mode: '0644'
+      when:
+        - openstack_instance_exporter_customlist_path is defined
+        - openstack_instance_exporter_custom_ip_list is defined
+        - openstack_instance_exporter_custom_ip_list | length > 0
+      notify: Restart openstack_instance_exporter service
+
+    - name: Copy custom IP list file
+      become: true
+      ansible.builtin.copy:
+        src: "{{ openstack_instance_exporter_customlist_src }}"
+        dest: "{{ openstack_instance_exporter_customlist_path }}"
+        owner: root
+        group: root
+        mode: '0644'
+      when:
+        - openstack_instance_exporter_customlist_path is defined
+        - openstack_instance_exporter_customlist_src is defined
+        - openstack_instance_exporter_custom_ip_list is not defined or openstack_instance_exporter_custom_ip_list | length == 0
+      notify: Restart openstack_instance_exporter service
+
+    - name: Render behavior ports configuration (optional)
+      become: true
+      ansible.builtin.template:
+        dest: "{{ openstack_instance_exporter_behavior_ports_config_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          {{ openstack_instance_exporter_behavior_ports_config_yaml | trim }}
+      when:
+        - openstack_instance_exporter_behavior_ports_config_path is defined
+        - openstack_instance_exporter_behavior_ports_config_yaml is defined
+        - openstack_instance_exporter_behavior_ports_config_yaml | length > 0
+      notify: Restart openstack_instance_exporter service
+
+    - name: Render behavior rules configuration (optional)
+      become: true
+      ansible.builtin.template:
+        dest: "{{ openstack_instance_exporter_behavior_rules_config_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          {{ openstack_instance_exporter_behavior_rules_config_yaml | trim }}
+      when:
+        - openstack_instance_exporter_behavior_rules_config_path is defined
+        - openstack_instance_exporter_behavior_rules_config_yaml is defined
+        - openstack_instance_exporter_behavior_rules_config_yaml | length > 0
+      notify: Restart openstack_instance_exporter service
+
+    - name: Reload openstack_instance_exporter service if changed
+      become: true
+      ansible.builtin.systemd_service:
+        name: openstack_instance_exporter
+        daemon_reload: yes
+      when: oie_tar_download_result.changed or oie_template_result.changed
+
+    - name: Enable and start openstack_instance_exporter service
+      become: true
+      ansible.builtin.systemd_service:
+        name: openstack_instance_exporter
+        enabled: yes
+        state: started
+
+- name: OpenStack Instance Exporter Cleanup Tasks
+  tags: never, cleanup_oie
+  when: "'cleanup_oie' in ansible_run_tags"
+  block:
+
+    - name: Check if openstack_instance_exporter service file exists
+      become: true
+      ansible.builtin.stat:
+        path: /etc/systemd/system/openstack_instance_exporter.service
+      register: oie_service_file
+
+    - name: Ensure openstack_instance_exporter service is stopped and disabled
+      become: true
+      ansible.builtin.systemd_service:
+        name: openstack_instance_exporter
+        state: stopped
+        enabled: no
+      when: oie_service_file.stat.exists
+
+    - name: Remove openstack_instance_exporter systemd service file
+      become: true
+      ansible.builtin.file:
+        path: /etc/systemd/system/openstack_instance_exporter.service
+        state: absent
+      register: service_file_removed
+
+    - name: Reload systemd daemon if service file was removed
+      become: true
+      ansible.builtin.systemd_service:
+        daemon_reload: yes
+      when: service_file_removed.changed
+
+    - name: Remove openstack_instance_exporter logrotate configuration
+      become: true
+      ansible.builtin.file:
+        path: /etc/logrotate.d/openstack_instance_exporter
+        state: absent
+
+    - name: Remove custom IP list file (if path is defined)
+      become: true
+      ansible.builtin.file:
+        path: "{{ openstack_instance_exporter_customlist_path }}"
+        state: absent
+      when: openstack_instance_exporter_customlist_path is defined
+
+    - name: Remove behavior ports config file
+      become: true
+      ansible.builtin.file:
+        path: "{{ openstack_instance_exporter_behavior_ports_config_path }}"
+        state: absent
+      when: openstack_instance_exporter_behavior_ports_config_path is defined
+
+    - name: Remove behavior rules config file
+      become: true
+      ansible.builtin.file:
+        path: "{{ openstack_instance_exporter_behavior_rules_config_path }}"
+        state: absent
+      when: openstack_instance_exporter_behavior_rules_config_path is defined
+
+    - name: Remove standard openstack_instance_exporter log files
+      become: true
+      ansible.builtin.shell:
+        cmd: "rm -f {{ openstack_instance_exporter_log_file_path }}*"
+      when: openstack_instance_exporter_log_file_path is defined
+
+    - name: Remove the openstack_instance_exporter installation directory
+      become: true
+      ansible.builtin.file:
+        path: "{{ openstack_instance_exporter_install_dir }}"
+        state: absent
