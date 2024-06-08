@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenStack Instance Exporter
+After=network.target
+
+[Service]
+User=root
+Group=root
+ExecStart={{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter -web.listen-address {% if openstack_instance_exporter_network_interface is defined and openstack_instance_exporter_network_interface | length > 0 %}{{ hostvars[inventory_hostname]['ansible_' + (openstack_instance_exporter_network_interface | replace('-', '_'))]['ipv4']['address'] }}{% else %}0.0.0.0{% endif %}:{{ openstack_instance_exporter_bind_port | default('9410') }} -web.telemetry-path {{ openstack_instance_exporter_web_telemetry_path }} {% if openstack_instance_exporter_read_thresholds is defined and openstack_instance_exporter_read_thresholds | length > 0 %}-read.thresholds {% for item in openstack_instance_exporter_read_thresholds %}{{ item.disk_tier }}:{{ item.threshold }}{% if not loop.last %},{% endif %}{% endfor %} {% endif %} {% if openstack_instance_exporter_write_thresholds is defined and openstack_instance_exporter_write_thresholds | length > 0 %}-write.thresholds {% for item in openstack_instance_exporter_write_thresholds %}{{ item.disk_tier }}:{{ item.threshold }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %} {% if openstack_instance_exporter_collection_interval is defined %}-collection.interval {{ openstack_instance_exporter_collection_interval }} {% endif %} {% if openstack_instance_exporter_enable_logging is defined %}-enable_logging {{ openstack_instance_exporter_enable_logging }}{% endif %}
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
