@@ -29,6 +29,647 @@
         "x": 0,
         "y": 0
       },
+      "id": 28,
+      "panels": [],
+      "title": "Conntrack & Threat Metrics",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Conntrack flows per fixed IP address for selected instances and projects (only IPs with > 1000 flows shown).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd",
+            "seriesBy": "max"
+          },
+          "custom": {
+            "axisBorderShow": true,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Conntrack Flows",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": -1,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 15000
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "id": 29,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sum by (instance_uuid, project_uuid, ip) (oie_conntrack_ip_total{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}) > 1000",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "0",
+          "legendFormat": "IP {{ ip }} | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Conntrack Flows per IP (Hot Only)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Total conntrack flows per instance (sum of all fixed IPs, only instances with > 3000 flows shown).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd",
+            "seriesBy": "max"
+          },
+          "custom": {
+            "axisBorderShow": true,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Conntrack Flows",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": -1,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 15000
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 30,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sum by (instance_uuid, project_uuid) (oie_conntrack_ip_total{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}) > 3000",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "0",
+          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Conntrack Flows per Instance (Hot Only)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Threat-intel contact density per instance (Tor, Spamhaus, EmergingThreats, Custom list). Values represent approximate hits per 5-minute window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "custom": {
+            "axisBorderShow": true,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Hits per 5m",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": true,
+            "lineInterpolation": "stepAfter",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "max": 10,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sum_over_time(oie_tor_contact{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "0",
+          "legendFormat": "Tor | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sum_over_time(oie_spamhaus_contact{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "0",
+          "legendFormat": "Spamhaus | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sum_over_time(oie_emergingthreats_contact{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "0",
+          "legendFormat": "EmergingThreats | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "range": true,
+          "refId": "C",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "sum_over_time(oie_customlist_contact{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "0",
+          "legendFormat": "Custom List | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "range": true,
+          "refId": "D",
+          "useBackend": false
+        }
+      ],
+      "title": "Threat-Intel Contacts Timeline (Tor / Spamhaus / ET / Custom)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Top 100 IPs by current conntrack flow count over time for the selected hypervisors/projects/instances.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "custom": {
+            "axisBorderShow": true,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Conntrack Flows",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": -1,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5000
+              },
+              {
+                "color": "red",
+                "value": 15000
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "min",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Last",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "topk(100, oie_conntrack_ip_total{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"})",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "0",
+          "legendFormat": "IP {{ ip }} | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Conntrack Top IPs (Time Series)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Threat-intel hit summary over the current time range (total combined hits per instance, only instances with > 3 hits shown).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "custom": {
+            "axisBorderShow": true,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Hits",
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "barAlignment": -1,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "id": 33,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last",
+            "min",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "Last",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (instance_uuid) (sum_over_time(oie_tor_contact{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[$__range]) + sum_over_time(oie_spamhaus_contact{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[$__range]) + sum_over_time(oie_emergingthreats_contact{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[$__range]) + sum_over_time(oie_customlist_contact{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[$__range])) > 3",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "0",
+          "legendFormat": "Instance {{ instance_uuid }}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Threat-Intel Hit Summary (Total per Instance)",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      },
       "id": 19,
       "panels": [],
       "title": "CPU Usage",
@@ -107,7 +748,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 1
+        "y": 54
       },
       "id": 2,
       "options": {
@@ -151,13 +792,14 @@
       "title": "Instance CPU Usage",
       "type": "timeseries"
     },
+
     {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 66
       },
       "id": 20,
       "panels": [],
@@ -169,7 +811,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Display disk write request IOPS above tier threshold. Thresholds are dynamic per tier. If it is on here, it is over its threshold!",
+      "description": "Display disk read/write request IOPS above tier threshold. Thresholds are dynamic per tier. If it is on here, it is over its threshold.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -180,7 +822,7 @@
             "axisBorderShow": true,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "IOPS",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": -1,
@@ -236,7 +878,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 67
       },
       "id": 13,
       "options": {
@@ -267,118 +909,16 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "rate(oie_disk_w_requests{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) > oie_disk_w_alert_threshold\n",
-          "format": "time_series",
+          "expr": "irate(oie_disk_w_requests{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m]) > oie_disk_w_alert_threshold",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Disk Type: {{ disk_type }}  | Disk Type: {{ disk_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "W | Instance {{ instance_uuid }} | Disk Type: {{ disk_type }} | Disk: {{ disk_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "W",
           "useBackend": false
-        }
-      ],
-      "title": "Disk Write Requests (IOPS)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Display disk read request IOPS above tier threshold. Thresholds are dynamic per tier. If it is on here, it is over its threshold!",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd",
-            "seriesBy": "max"
-          },
-          "custom": {
-            "axisBorderShow": true,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": -1,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "log": 2,
-              "type": "log"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "rps"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 26
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last",
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "Last",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -386,18 +926,18 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(oie_disk_r_requests{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) > oie_disk_r_alert_threshold\n",
+          "expr": "irate(oie_disk_r_requests{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m]) > oie_disk_r_alert_threshold",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Disk Type: {{ disk_type }}  | Disk Type: {{ disk_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "R | Instance {{ instance_uuid }} | Disk Type: {{ disk_type }} | Disk: {{ disk_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "R",
           "useBackend": false
         }
       ],
-      "title": "Disk Read Requests (IOPS)",
+      "title": "Disk Read/Write Requests (IOPS)",
       "type": "timeseries"
     },
     {
@@ -405,7 +945,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Display disk write throughput above 50MB/s for more than 5 consecutive minutes",
+      "description": "Display disk read/write throughput above 50MB/s for more than 5 consecutive minutes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -416,7 +956,7 @@
             "axisBorderShow": true,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "Throughput (GB/s)",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": -1,
@@ -466,38 +1006,13 @@
           },
           "unit": "GBs"
         },
-        "overrides": [
-          {
-            "__systemRef": "hideSeriesFrom",
-            "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                  "Instance a12d36a0-5049-4674-a761-12b91c298d41 | Disk Type: volumes  | Disk Type: volume-2bf4bd27-3b50-4c2b-bea1-ba35cbcd43e1 | Project: afad02877a8d4afbbab7931f4aecf353 | Hypervisor: openstack-compute1-canada-west-cloud.ad.blackswerk.com"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": true
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 38
+        "y": 79
       },
       "id": 15,
       "options": {
@@ -528,116 +1043,16 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "min_over_time(rate(oie_disk_w_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])[5m:]) > 0.05\n",
+          "expr": "min_over_time(rate(oie_disk_w_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])[5m:]) > 0.05",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Disk Type: {{ disk_type }}  | Disk Type: {{ disk_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "W | Instance {{ instance_uuid }} | Disk Type: {{ disk_type }} | Disk: {{ disk_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "W",
           "useBackend": false
-        }
-      ],
-      "title": "Disk Write Throughput",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Display disk read throughput above 50MB/s for more than 5 consecutive minutes",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd",
-            "seriesBy": "max"
-          },
-          "custom": {
-            "axisBorderShow": true,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": -1,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "log": 2,
-              "type": "log"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "GBs"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 50
-      },
-      "id": 16,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last",
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "Last",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -645,18 +1060,18 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "min_over_time(rate(oie_disk_r_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])[5m:]) > 0.05\n",
+          "expr": "min_over_time(rate(oie_disk_r_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])[5m:]) > 0.05",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Disk Type: {{ disk_type }}  | Disk Type: {{ disk_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "R | Instance {{ instance_uuid }} | Disk Type: {{ disk_type }} | Disk: {{ disk_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "R",
           "useBackend": false
         }
       ],
-      "title": "Disk Read Throughput",
+      "title": "Disk Read/Write Throughput",
       "type": "timeseries"
     },
     {
@@ -664,7 +1079,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Display disk write high usage if greater than 20GB in a 30 minute span. Note that this is not cumulative, it only represents the period in which it was high.",
+      "description": "Display disk read/write high usage if greater than 20GB in a 30 minute span. Not cumulative; only shows periods where usage was high.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -675,7 +1090,7 @@
             "axisBorderShow": true,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "GB in 30m",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": -1,
@@ -731,7 +1146,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 62
+        "y": 91
       },
       "id": 11,
       "options": {
@@ -760,114 +1175,16 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "(\n  increase(oie_disk_w_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20\n) OR absent(increase(oie_disk_w_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]))\n",
+          "expr": "increase(oie_disk_w_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Disk Type: {{ disk_type }}  | Disk Type: {{ disk_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "W | Instance {{ instance_uuid }} | Disk Type: {{ disk_type }} | Disk: {{ disk_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "W",
           "useBackend": false
-        }
-      ],
-      "title": "Disk Write High Usage (GB)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Display disk read high usage if greater than 20GB in a 30 minute span. Note that this is not cumulative, it only represents the period in which it was high.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd",
-            "seriesBy": "max"
-          },
-          "custom": {
-            "axisBorderShow": true,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": -1,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "log": 2,
-              "type": "log"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "decgbytes"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 74
-      },
-      "id": 27,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "Last",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -875,27 +1192,28 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "(\n  increase(oie_disk_r_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20\n) OR absent(increase(oie_disk_r_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]))\n",
+          "expr": "increase(oie_disk_r_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Disk Type: {{ disk_type }}  | Disk Type: {{ disk_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "R | Instance {{ instance_uuid }} | Disk Type: {{ disk_type }} | Disk: {{ disk_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "R",
           "useBackend": false
         }
       ],
-      "title": "Disk Read High Usage (GB)",
+      "title": "Disk Read/Write High Usage (GB in 30m)",
       "type": "timeseries"
     },
+
     {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 86
+        "y": 103
       },
       "id": 21,
       "panels": [],
@@ -907,7 +1225,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Display network receive usage in gigabytes if greater than 20GB in a 30 minute consecutive period.",
+      "description": "Display network RX/TX usage in gigabytes if greater than 20GB in a 30 minute consecutive period.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -918,7 +1236,7 @@
             "axisBorderShow": true,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "GB in 30m",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": -1,
@@ -974,7 +1292,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 87
+        "y": 104
       },
       "id": 4,
       "options": {
@@ -1003,114 +1321,16 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "(\n  increase(oie_net_rx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20\n) OR absent(count_over_time(oie_net_rx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]))\n",
+          "expr": "increase(oie_net_rx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "RX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "RX",
           "useBackend": false
-        }
-      ],
-      "title": "Network RX Usage (GB)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Display network transmit usage in gigabytes if greater than 20GB in a 30 minute consecutive period.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd",
-            "seriesBy": "max"
-          },
-          "custom": {
-            "axisBorderShow": true,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": -1,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "log": 2,
-              "type": "log"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "decgbytes"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 99
-      },
-      "id": 22,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "Last",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -1118,18 +1338,18 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "(\n  increase(oie_net_tx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20\n) OR absent(count_over_time(oie_net_tx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]))\n",
+          "expr": "increase(oie_net_tx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "TX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "TX",
           "useBackend": false
         }
       ],
-      "title": "Network TX Usage (GB)",
+      "title": "Network RX/TX Usage (GB in 30m)",
       "type": "timeseries"
     },
     {
@@ -1137,7 +1357,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Display network receive throughput if greater than 125Mbit/s and transfer total is greater than 20 gigabytes in 30 consecutive minutes.",
+      "description": "Display network RX/TX throughput if greater than 125Mbit/s and transfer total is greater than 20 gigabytes in 30 consecutive minutes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1148,7 +1368,7 @@
             "axisBorderShow": true,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "Gbit/s",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": -1,
@@ -1204,7 +1424,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 111
+        "y": 116
       },
       "id": 17,
       "options": {
@@ -1233,114 +1453,16 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "(rate(oie_net_rx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) / 8) > 0.125\nand \nincrease(oie_net_rx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20\n\n",
+          "expr": "(rate(oie_net_rx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) / 8) > 0.125 and increase(oie_net_rx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "RX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "RX",
           "useBackend": false
-        }
-      ],
-      "title": "Network RX Throughput",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Display network transmit throughput if greater than 125Mbit/s and transfer total is greater than 20 gigabytes in 30 consecutive minutes.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd",
-            "seriesBy": "max"
-          },
-          "custom": {
-            "axisBorderShow": true,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": -1,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "log": 2,
-              "type": "log"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "Gbits"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 123
-      },
-      "id": 23,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "Last",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -1348,18 +1470,18 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "(rate(oie_net_tx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) / 8) > 0.125\nand \nincrease(oie_net_tx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20\n\n",
+          "expr": "(rate(oie_net_tx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) / 8) > 0.125 and increase(oie_net_tx_gbytes{project_uuid=~\"$gvar_oie_project_uuid\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[30m]) > 20",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "TX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "TX",
           "useBackend": false
         }
       ],
-      "title": "Network TX Throughput",
+      "title": "Network RX/TX Throughput",
       "type": "timeseries"
     },
     {
@@ -1367,7 +1489,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Display network receive packets per second above 10000/pps if consecutive for more than 1 minute.",
+      "description": "Display network RX/TX packets per second above 10000/pps if consecutive for more than 1 minute.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1377,7 +1499,7 @@
             "axisBorderShow": true,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "Packets/s",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": -1,
@@ -1433,7 +1555,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 135
+        "y": 128
       },
       "id": 5,
       "options": {
@@ -1467,108 +1589,11 @@
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "RX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "RX",
           "useBackend": false
-        }
-      ],
-      "title": "Network RX Packets PPS",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Display network transmit packets per second above 10000/pps if consecutive for more than 1 minute.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "custom": {
-            "axisBorderShow": true,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": -1,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "log": 2,
-              "type": "log"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "pps"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 147
-      },
-      "id": 24,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "Last",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -1581,13 +1606,13 @@
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "TX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "TX",
           "useBackend": false
         }
       ],
-      "title": "Network TX Packets PPS",
+      "title": "Network RX/TX Packets PPS",
       "type": "timeseries"
     },
     {
@@ -1595,7 +1620,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Display network receive dropped packets if greater than 0.",
+      "description": "Display network RX/TX dropped packets if greater than 0.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1606,7 +1631,7 @@
             "axisBorderShow": true,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "Dropped packets/s",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": -1,
@@ -1662,7 +1687,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 159
+        "y": 140
       },
       "id": 7,
       "options": {
@@ -1696,109 +1721,11 @@
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "RX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "RX",
           "useBackend": false
-        }
-      ],
-      "title": "Network RX Dropped Packets",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Display network transmit dropped packets if greater than 0.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd",
-            "seriesBy": "max"
-          },
-          "custom": {
-            "axisBorderShow": true,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": -1,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "log": 2,
-              "type": "log"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 171
-      },
-      "id": 25,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "Last",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -1811,13 +1738,13 @@
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "TX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "TX",
           "useBackend": false
         }
       ],
-      "title": "Network TX Dropped Packets",
+      "title": "Network RX/TX Dropped Packets",
       "type": "timeseries"
     },
     {
@@ -1825,7 +1752,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Display network receive packet errors if greater than 0.",
+      "description": "Display network RX/TX packet errors if greater than 0.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1836,7 +1763,7 @@
             "axisBorderShow": true,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "",
+            "axisLabel": "Errors/s",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": -1,
@@ -1892,7 +1819,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 183
+        "y": 152
       },
       "id": 9,
       "options": {
@@ -1926,109 +1853,11 @@
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "RX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "RX",
           "useBackend": false
-        }
-      ],
-      "title": "Network RX Packet Errors",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Display network transmit packet errors if greater than 0.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd",
-            "seriesBy": "max"
-          },
-          "custom": {
-            "axisBorderShow": true,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "axisSoftMin": 0,
-            "barAlignment": -1,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "log": 2,
-              "type": "log"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "none"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 195
-      },
-      "id": 26,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "Last",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -2041,13 +1870,13 @@
           "includeNullMetadata": true,
           "instant": false,
           "interval": "0",
-          "legendFormat": "Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
+          "legendFormat": "TX | Instance {{ instance_uuid }} | Project: {{ project_uuid }}",
           "range": true,
-          "refId": "A",
+          "refId": "TX",
           "useBackend": false
         }
       ],
-      "title": "Network TX Packet Errors",
+      "title": "Network RX/TX Packet Errors",
       "type": "timeseries"
     }
   ],
@@ -2184,6 +2013,6 @@
   "timezone": "browser",
   "title": "OpenStack Instance Exporter Monitoring",
   "uid": "fdnvwgpq7hqm8f",
-  "version": 1,
+  "version": 5,
   "weekStart": ""
 }

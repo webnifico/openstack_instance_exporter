@@ -1,36 +1,156 @@
-openstack_instance_exporter_web_telemetry_path: "/metrics"
-openstack_instance_exporter_install_dir: "/opt/openstack_instance_exporter"
-openstack_instance_exporter_bind_port: 9120
-openstack_instance_exporter_network_interface: br-monitoring # if not defined will use 0.0.0.0
-openstack_instance_exporter_version: "v1.0.0"
+---
+openstack_instance_exporter_enabled: false                             # Temp false so runs in stg only
+openstack_instance_exporter_network_interface: br-monitoring           # If undefined, exporter binds to 0.0.0.0
+openstack_instance_exporter_version: "v1.1.0"
 openstack_instance_exporter_sha256: "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/sha256sums.txt"
-# Example of user defined IOP thresholds by tier
+openstack_instance_exporter_install_dir: "/opt/openstack_instance_exporter"
+openstack_instance_exporter_web_telemetry_path: "/metrics"
+openstack_instance_exporter_bind_port: 9120
+
+# -----------------------------------------------------------------------------
+# COLLECTION + CACHE SETTINGS
+# -----------------------------------------------------------------------------
+
+# Minimum number of conntrack flows required before exporting oie_conntrack_ip_total
+# Default inside the exporter is 20; override here if needed.
+# openstack_instance_exporter_conntrack_min: 20
+
+# How often the exporter performs background collection of libvirt + conntrack.
+# Default inside exporter is 10s.
+# openstack_instance_exporter_collection_interval: 10s
+
+# How long static values stay cached before expiration (e.g. labels, configs).
+# Default inside exporter is 1h.
+# openstack_instance_exporter_static_cache_expiration: 1h
+
+# How long dynamic values stay cached before expiration (per-instance metrics).
+# Default inside exporter is 10s.
+# openstack_instance_exporter_dynamic_cache_expiration: 10s
+
+# -----------------------------------------------------------------------------
+# LOGGING
+# -----------------------------------------------------------------------------
+# Single source of truth for -log.level flag.
+# Valid values: debug, info, error
+# If unset, the service template defaults to "error".
+# NOTE: threat-intel HIT log lines (TOR/SPAMHAUS/EMTHREATS/CUSTOMLIST) are
+# always emitted when the corresponding feature is enabled, regardless of
+# log.level. log.level only controls debug/info noise, not HIT logging.
+# openstack_instance_exporter_log_level: "debug"
+
+# -----------------------------------------------------------------------------
+# DISK IOPS THRESHOLDS
+# -----------------------------------------------------------------------------
+
+# Default read IOPS threshold (used when no per-tier match exists)
+# openstack_instance_exporter_default_read_threshold: 100
+
+# Default write IOPS threshold (used when no per-tier match exists)
+# openstack_instance_exporter_default_write_threshold: 100
+
+# Per-tier read thresholds:
 # openstack_instance_exporter_read_thresholds:
-#   - disk_tier: volumes #standard tier
+#   - disk_tier: volumes
 #     threshold: 500
-#   - disk_tier: premium
-#     threshold: 1500
 #   - disk_tier: ultra
 #     threshold: 2500
-#   - disk_tier: local
-#     threshold: 5000
+#   - disk_tier: premium
+#     threshold: 1000
 
+# Per-tier write thresholds:
 # openstack_instance_exporter_write_thresholds:
-#   - disk_tier: volumes # standard tier
+#   - disk_tier: volumes
 #     threshold: 500
-#   - disk_tier: premium
-#     threshold: 1500
 #   - disk_tier: ultra
 #     threshold: 2500
-#   - disk_tier: local
-#     threshold: 5000
+#   - disk_tier: premium
+#     threshold: 1000
 
-# Cache expiration settings
-# openstack_instance_exporter_static_cache_expiration: 1h   # Default 1 hour
-# openstack_instance_exporter_dynamic_cache_expiration: 10s # Default 10 seconds
+# -----------------------------------------------------------------------------
+# CPU MINIMUM EXPORT THRESHOLD
+# -----------------------------------------------------------------------------
+# Minimum CPU % required before exporting CPU metrics.
+# CPU values below this threshold are suppressed.
+# openstack_instance_exporter_cpu_min: 10
 
-# Collection interval setting
-# openstack_instance_exporter_collection_interval: 10s # Default 10 seconds
+# -----------------------------------------------------------------------------
+# THREAT-INTELLIGENCE MASTER SWITCH
+# -----------------------------------------------------------------------------
+# When enabled, this overrides individual Tor/Spamhaus/EmergingThreats flags
+# and forces all threat-intel detection on. Threat hits will always be logged
+# when they occur, regardless of log.level.
+# -----------------------------------------------------------------------------
+openstack_instance_exporter_threats_enable: false
 
-# Logging settings
-# openstack_instance_exporter_enable_logging: false # Default is false (logging off)
+# -----------------------------------------------------------------------------
+# TOR EXIT NODE DETECTION
+# -----------------------------------------------------------------------------
+# If enabled, exporter will download Tor exit-node list and emit a boolean
+# metric when an instance communicates with any exit node.
+# Tor HITs are always logged when detected, regardless of log.level.
+# -----------------------------------------------------------------------------
+openstack_instance_exporter_tor_enable: true
+
+# Default Tor list URL
+# openstack_instance_exporter_tor_url: "https://onionoo.torproject.org/details?search=flag:exit&fields=or_addresses"
+
+# Refresh interval for Tor exit-node list (defaults to 1h)
+# openstack_instance_exporter_tor_refresh: 1h
+
+# -----------------------------------------------------------------------------
+# SPAMHAUS DROP CIDR DETECTION (IPv4 + IPv6)
+# -----------------------------------------------------------------------------
+# If enabled, exporter will download Spamhaus DROP and DROPv6 CIDR lists and
+# flag any instance that talks to those ranges.
+# Spamhaus HITs are always logged when detected, regardless of log.level.
+# -----------------------------------------------------------------------------
+openstack_instance_exporter_spamhaus_enable: true
+
+# Default Spamhaus DROP (IPv4) list URL
+# openstack_instance_exporter_spamhaus_url: "https://www.spamhaus.org/drop/drop.txt"
+
+# Default Spamhaus DROPv6 list URL
+# openstack_instance_exporter_spamhaus_ipv6_url: "https://www.spamhaus.org/drop/dropv6.txt"
+
+# Unified refresh interval for Spamhaus DROP CIDRs (applies to both v4 and v6; defaults to 6h)
+# openstack_instance_exporter_spamhaus_refresh: 6h
+
+# -----------------------------------------------------------------------------
+# EMERGINGTHREATS COMPROMISED IP DETECTION
+# -----------------------------------------------------------------------------
+# This list contains IPs of actively compromised servers observed attacking.
+# EmergingThreats HITs are always logged when detected, regardless of log.level.
+# -----------------------------------------------------------------------------
+openstack_instance_exporter_emergingthreats_enable: true
+
+# Default EmergingThreats list URL
+# openstack_instance_exporter_emergingthreats_url: "https://rules.emergingthreats.net/blockrules/compromised-ips.txt"
+
+# Refresh interval for EmergingThreats (small list; defaults to 6h)
+# openstack_instance_exporter_emergingthreats_refresh: 6h
+
+# -----------------------------------------------------------------------------
+# CUSTOM USER IP LIST (PER-LINE IPv4 / IPv6)
+# -----------------------------------------------------------------------------
+# When enabled, exporter will load a local file of IPs (one per line)
+# and raise a boolean contact metric when any instance talks to them.
+# Custom-list HITs are always logged when detected, regardless of log.level.
+# -----------------------------------------------------------------------------
+openstack_instance_exporter_customlist_enable: false
+
+# Path on the target host to custom IP list file (one IP per line, IPv4 or IPv6)
+# This is where the role will write/copy the file to.
+# openstack_instance_exporter_customlist_path: "/opt/openstack_instance_exporter/custom-ips.txt"
+
+# Refresh interval for re-reading the custom IP list (defaults to 6h)
+# openstack_instance_exporter_customlist_refresh: 6h
+
+# Option A: provide IPs inline (one per element). If set and non-empty, the role
+# will render these into the customlist_path on the target host.
+# openstack_instance_exporter_custom_ip_list:
+#   - "1.2.3.4"
+#   - "2001:db8::1"
+
+# Option B: copy from a static file shipped with this role (roles/<role>/files/).
+# For example, put files/custom-ips.txt in the role and set:
+# openstack_instance_exporter_customlist_src: "custom-ips.txt"
