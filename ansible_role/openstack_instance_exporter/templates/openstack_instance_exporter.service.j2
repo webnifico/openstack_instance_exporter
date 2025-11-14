@@ -5,9 +5,159 @@ After=network.target
 [Service]
 User=root
 Group=root
-ExecStart={{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter -web.listen-address {% if openstack_instance_exporter_network_interface is defined and openstack_instance_exporter_network_interface | length > 0 %}{{ hostvars[inventory_hostname]['ansible_' + (openstack_instance_exporter_network_interface | replace('-', '_'))]['ipv4']['address'] }}{% else %}0.0.0.0{% endif %}:{{ openstack_instance_exporter_bind_port | default('9410') }} -web.telemetry-path {{ openstack_instance_exporter_web_telemetry_path }} {% if openstack_instance_exporter_read_thresholds is defined and openstack_instance_exporter_read_thresholds | length > 0 %}-read.thresholds {% for item in openstack_instance_exporter_read_thresholds %}{{ item.disk_tier }}:{{ item.threshold }}{% if not loop.last %},{% endif %}{% endfor %} {% endif %} {% if openstack_instance_exporter_write_thresholds is defined and openstack_instance_exporter_write_thresholds | length > 0 %}-write.thresholds {% for item in openstack_instance_exporter_write_thresholds %}{{ item.disk_tier }}:{{ item.threshold }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %} {% if openstack_instance_exporter_collection_interval is defined %}-collection.interval {{ openstack_instance_exporter_collection_interval }} {% endif %} {% if openstack_instance_exporter_enable_logging is defined %}-enable_logging {{ openstack_instance_exporter_enable_logging }}{% endif %}
+{% set flags = [] -%}
+{%- if openstack_instance_exporter_web_listen_address is defined and openstack_instance_exporter_web_listen_address|length > 0 -%}
+{%- set _ = flags.append('-web.listen-address=' ~ openstack_instance_exporter_web_listen_address) -%}
+{%- else -%}
+{%- set bind_ip = '0.0.0.0' -%}
+{%- if openstack_instance_exporter_network_interface is defined and openstack_instance_exporter_network_interface|length > 0 -%}
+{%- set iface_key = 'ansible_' + (openstack_instance_exporter_network_interface | replace('-', '_')) -%}
+{%- if hostvars[inventory_hostname][iface_key] is defined and hostvars[inventory_hostname][iface_key]['ipv4'] is defined -%}
+{%- set bind_ip = hostvars[inventory_hostname][iface_key]['ipv4']['address'] -%}
+{%- endif -%}
+{%- endif -%}
+{%- set _ = flags.append('-web.listen-address=' ~ bind_ip ~ ':' ~ (openstack_instance_exporter_bind_port|default('9120'))) -%}
+{%- endif -%}
+{%- set _ = flags.append('-web.telemetry-path=' ~ (openstack_instance_exporter_web_telemetry_path|default('/metrics'))) -%}
+{%- if openstack_instance_exporter_libvirt_uri is defined and openstack_instance_exporter_libvirt_uri|length > 0 -%}
+{%- set _ = flags.append('-libvirt.uri=' ~ openstack_instance_exporter_libvirt_uri) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_contacts_direction is defined and openstack_instance_exporter_contacts_direction|length > 0 -%}
+{%- set _ = flags.append('-contacts.direction=' ~ openstack_instance_exporter_contacts_direction) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_read_thresholds|default([])|length > 0 -%}
+{%- set rt = [] -%}
+{%- for item in openstack_instance_exporter_read_thresholds -%}
+{%- set _ = rt.append(item.disk_tier ~ ':' ~ item.threshold) -%}
+{%- endfor -%}
+{%- set _ = flags.append('-read.thresholds=' ~ rt|join(',')) -%}
+{%- elif openstack_instance_exporter_default_read_threshold is defined -%}
+{%- set _ = flags.append('-default.read.threshold=' ~ openstack_instance_exporter_default_read_threshold) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_write_thresholds|default([])|length > 0 -%}
+{%- set wt = [] -%}
+{%- for item in openstack_instance_exporter_write_thresholds -%}
+{%- set _ = wt.append(item.disk_tier ~ ':' ~ item.threshold) -%}
+{%- endfor -%}
+{%- set _ = flags.append('-write.thresholds=' ~ wt|join(',')) -%}
+{%- elif openstack_instance_exporter_default_write_threshold is defined -%}
+{%- set _ = flags.append('-default.write.threshold=' ~ openstack_instance_exporter_default_write_threshold) -%}
+{%- endif -%}
+{%- set _ = flags.append('-collection.interval=' ~ (openstack_instance_exporter_collection_interval|default('10s'))) -%}
+{%- if openstack_instance_exporter_conntrack_min is defined -%}
+{%- set _ = flags.append('-conntrack.min=' ~ openstack_instance_exporter_conntrack_min) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_cpu_min is defined -%}
+{%- set _ = flags.append('-cpu.min=' ~ openstack_instance_exporter_cpu_min) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_outbound_behavior_enable is defined -%}
+{%- set _ = flags.append('-outbound.behavior.enable=' ~ (openstack_instance_exporter_outbound_behavior_enable|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_static_cache_expiration is defined -%}
+{%- set _ = flags.append('-static.cache.expiration=' ~ openstack_instance_exporter_static_cache_expiration) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_dynamic_cache_expiration is defined -%}
+{%- set _ = flags.append('-dynamic.cache.expiration=' ~ openstack_instance_exporter_dynamic_cache_expiration) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_host_threats_enable is defined -%}
+{%- set _ = flags.append('-host.threats.enable=' ~ (openstack_instance_exporter_host_threats_enable|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_host_threats_enable|default(false)|bool and openstack_instance_exporter_host_interfaces is defined and openstack_instance_exporter_host_interfaces|length > 0 -%}
+{%- set _ = flags.append('-host.interfaces=' ~ (openstack_instance_exporter_host_interfaces|join(','))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_host_ips_allow_private is defined -%}
+{%- set _ = flags.append('-host.ips.allow-private=' ~ (openstack_instance_exporter_host_ips_allow_private|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_tor_exit_enable is defined -%}
+{%- set _ = flags.append('-tor.exit.enable=' ~ (openstack_instance_exporter_tor_exit_enable|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_tor_exit_url is defined -%}
+{%- set _ = flags.append('-tor.exit.url=' ~ openstack_instance_exporter_tor_exit_url) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_tor_exit_refresh is defined -%}
+{%- set _ = flags.append('-tor.exit.refresh=' ~ openstack_instance_exporter_tor_exit_refresh) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_tor_exit_direction is defined and openstack_instance_exporter_tor_exit_direction|length > 0 -%}
+{%- set _ = flags.append('-tor.exit.direction=' ~ openstack_instance_exporter_tor_exit_direction) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_tor_relay_enable is defined -%}
+{%- set _ = flags.append('-tor.relay.enable=' ~ (openstack_instance_exporter_tor_relay_enable|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_tor_relay_url is defined -%}
+{%- set _ = flags.append('-tor.relay.url=' ~ openstack_instance_exporter_tor_relay_url) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_tor_relay_refresh is defined -%}
+{%- set _ = flags.append('-tor.relay.refresh=' ~ openstack_instance_exporter_tor_relay_refresh) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_tor_relay_direction is defined and openstack_instance_exporter_tor_relay_direction|length > 0 -%}
+{%- set _ = flags.append('-tor.relay.direction=' ~ openstack_instance_exporter_tor_relay_direction) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_spamhaus_enable is defined -%}
+{%- set _ = flags.append('-spamhaus.enable=' ~ (openstack_instance_exporter_spamhaus_enable|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_spamhaus_url is defined -%}
+{%- set _ = flags.append('-spamhaus.url=' ~ openstack_instance_exporter_spamhaus_url) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_spamhaus_ipv6_url is defined -%}
+{%- set _ = flags.append('-spamhaus.ipv6.url=' ~ openstack_instance_exporter_spamhaus_ipv6_url) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_spamhaus_refresh is defined -%}
+{%- set _ = flags.append('-spamhaus.refresh=' ~ openstack_instance_exporter_spamhaus_refresh) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_spamhaus_direction is defined and openstack_instance_exporter_spamhaus_direction|length > 0 -%}
+{%- set _ = flags.append('-spamhaus.direction=' ~ openstack_instance_exporter_spamhaus_direction) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_emergingthreats_enable is defined -%}
+{%- set _ = flags.append('-emergingthreats.enable=' ~ (openstack_instance_exporter_emergingthreats_enable|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_emergingthreats_url is defined -%}
+{%- set _ = flags.append('-emergingthreats.url=' ~ openstack_instance_exporter_emergingthreats_url) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_emergingthreats_refresh is defined -%}
+{%- set _ = flags.append('-emergingthreats.refresh=' ~ openstack_instance_exporter_emergingthreats_refresh) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_emergingthreats_direction is defined and openstack_instance_exporter_emergingthreats_direction|length > 0 -%}
+{%- set _ = flags.append('-emergingthreats.direction=' ~ openstack_instance_exporter_emergingthreats_direction) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_customlist_enable is defined -%}
+{%- set _ = flags.append('-customlist.enable=' ~ (openstack_instance_exporter_customlist_enable|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_customlist_path is defined and openstack_instance_exporter_customlist_path|length > 0 -%}
+{%- set _ = flags.append('-customlist.path=' ~ openstack_instance_exporter_customlist_path) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_customlist_refresh is defined -%}
+{%- set _ = flags.append('-customlist.refresh=' ~ openstack_instance_exporter_customlist_refresh) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_customlist_direction is defined and openstack_instance_exporter_customlist_direction|length > 0 -%}
+{%- set _ = flags.append('-customlist.direction=' ~ openstack_instance_exporter_customlist_direction) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_threat_log_file_enable is defined -%}
+{%- set _ = flags.append('-threatfile.enable=' ~ (openstack_instance_exporter_threat_log_file_enable|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_threat_log_file_path is defined and openstack_instance_exporter_threat_log_file_path|length > 0 -%}
+{%- set _ = flags.append('-threatfile.path=' ~ openstack_instance_exporter_threat_log_file_path) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_log_file_enable is defined -%}
+{%- set _ = flags.append('-log.file.enable=' ~ (openstack_instance_exporter_log_file_enable|ternary('true','false'))) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_log_file_path is defined and openstack_instance_exporter_log_file_path|length > 0 -%}
+{%- set _ = flags.append('-log.file.path=' ~ openstack_instance_exporter_log_file_path) -%}
+{%- endif -%}
+{% if openstack_instance_exporter_log_level is defined and openstack_instance_exporter_log_level|length > 0 %}
+{% set _ = flags.append('-log.level=' ~ openstack_instance_exporter_log_level) %}
+{% endif %}
 
+ExecStart={{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter {{ flags|join(' ') }}
 Restart=always
+RestartSec=3s
+{% if openstack_instance_exporter_log_file_enable|default(false)|bool %}
+# If these are null it is set to log to file in /var/log/..
+StandardOutput=null
+StandardError=null
+{% else %}
+StandardOutput=journal
+StandardError=journal
+{% endif %}
 
 [Install]
 WantedBy=multi-user.target
