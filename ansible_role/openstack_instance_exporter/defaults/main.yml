@@ -1,36 +1,125 @@
-openstack_instance_exporter_web_telemetry_path: "/metrics"
-openstack_instance_exporter_install_dir: "/opt/openstack_instance_exporter"
-openstack_instance_exporter_bind_port: 9120
-openstack_instance_exporter_network_interface: br-monitoring # if not defined will use 0.0.0.0
-openstack_instance_exporter_version: "v1.0.0"
+---
+# Core switch
+openstack_instance_exporter_enabled: false
+
+# Bind / web
+openstack_instance_exporter_network_interface: br-monitoring
+openstack_instance_exporter_web_listen_address: ""
+openstack_instance_exporter_version: "v1.1.0"
 openstack_instance_exporter_sha256: "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/sha256sums.txt"
-# Example of user defined IOP thresholds by tier
+openstack_instance_exporter_install_dir: "/opt/openstack_instance_exporter"
+
+# Web exposure (override only if you want non-defaults)
+# openstack_instance_exporter_web_telemetry_path: "/metrics"
+# openstack_instance_exporter_bind_port: 9120
+
+# Collection / cache (override only if you want non-defaults)
+# openstack_instance_exporter_libvirt_uri: "qemu:///system"
+# openstack_instance_exporter_collection_interval: 10s
+# openstack_instance_exporter_static_cache_expiration: 1h
+# openstack_instance_exporter_dynamic_cache_expiration: 10s
+# openstack_instance_exporter_conntrack_min: 20
+# openstack_instance_exporter_cpu_min: 10.0
+# openstack_instance_exporter_contacts_direction: out
+
+# Disk tier thresholds (role renders lists into CLI strings)
+# openstack_instance_exporter_default_read_threshold: 100
+# openstack_instance_exporter_default_write_threshold: 100
+# openstack_instance_exporter_read_thresholds: []
 # openstack_instance_exporter_read_thresholds:
-#   - disk_tier: volumes #standard tier
-#     threshold: 500
-#   - disk_tier: premium
-#     threshold: 1500
-#   - disk_tier: ultra
-#     threshold: 2500
-#   - disk_tier: local
-#     threshold: 5000
-
+# - disk_tier: default
+#   threshold: 500
+# - disk_tier: local
+#   threshold: 200
+# - disk_tier: ceph
+#   threshold: 1000
+# openstack_instance_exporter_write_thresholds: []
 # openstack_instance_exporter_write_thresholds:
-#   - disk_tier: volumes # standard tier
-#     threshold: 500
-#   - disk_tier: premium
-#     threshold: 1500
-#   - disk_tier: ultra
-#     threshold: 2500
-#   - disk_tier: local
-#     threshold: 5000
+# - disk_tier: default
+#   threshold: 500
+# - disk_tier: local
+#   threshold: 200
+# - disk_tier: ceph
+#   threshold: 1000
 
-# Cache expiration settings
-# openstack_instance_exporter_static_cache_expiration: 1h   # Default 1 hour
-# openstack_instance_exporter_dynamic_cache_expiration: 10s # Default 10 seconds
+# Outbound behavior summaries (counts only, no per-port/per-remote series)
+# openstack_instance_exporter_outbound_behavior_enable: false
 
-# Collection interval setting
-# openstack_instance_exporter_collection_interval: 10s # Default 10 seconds
+# Host threat matching (checks host NIC IPs against enabled lists)
+# openstack_instance_exporter_host_threats_enable: false
+# openstack_instance_exporter_host_ips_allow_private: false
+# openstack_instance_exporter_host_interfaces: []
+# openstack_instance_exporter_host_interfaces:
+# - "bgp-nic"
 
-# Logging settings
-# openstack_instance_exporter_enable_logging: false # Default is false (logging off)
+# Tor exit list
+# openstack_instance_exporter_tor_exit_enabled: false
+# openstack_instance_exporter_tor_exit_url: "https://onionoo.torproject.org/details?search=flag:exit&fields=or_addresses"
+# openstack_instance_exporter_tor_exit_refresh: 1h
+# openstack_instance_exporter_tor_exit_direction: ""
+
+# Tor relay list
+# openstack_instance_exporter_tor_relay_enable: false
+# openstack_instance_exporter_tor_relay_url: "https://onionoo.torproject.org/details?search=flag:running&fields=or_addresses"
+# openstack_instance_exporter_tor_relay_refresh: 1h
+# openstack_instance_exporter_tor_relay_direction: ""
+
+# Spamhaus DROP/DROPv6
+# openstack_instance_exporter_spamhaus_enable: false
+# openstack_instance_exporter_spamhaus_url: "https://www.spamhaus.org/drop/drop.txt"
+# openstack_instance_exporter_spamhaus_ipv6_url: "https://www.spamhaus.org/drop/dropv6.txt"
+# openstack_instance_exporter_spamhaus_refresh: 6h
+# openstack_instance_exporter_spamhaus_direction: ""
+
+# EmergingThreats compromised IPs
+# openstack_instance_exporter_emergingthreats_enable: false
+# openstack_instance_exporter_emergingthreats_url: "https://rules.emergingthreats.net/blockrules/compromised-ips.txt"
+# openstack_instance_exporter_emergingthreats_refresh: 6h
+# openstack_instance_exporter_emergingthreats_direction: ""
+
+# Custom user IP list (enable + path required)
+# openstack_instance_exporter_customlist_enable: false
+# openstack_instance_exporter_customlist_path: "/opt/openstack_instance_exporter/custom-ips.txt"
+# openstack_instance_exporter_customlist_refresh: 10m
+# openstack_instance_exporter_customlist_direction: ""
+# openstack_instance_exporter_custom_ip_list: []
+# openstack_instance_exporter_custom_ip_list:
+# - "1.2.3.4"
+# - "2001:db8::1"
+# openstack_instance_exporter_customlist_src: ""
+
+# Logging (override only if you want non-defaults)
+# openstack_instance_exporter_log_level: "error"
+openstack_instance_exporter_log_file_enable: false
+openstack_instance_exporter_log_file_path: "/var/log/openstack_instance_exporter.log"
+
+# Threat hit file log
+openstack_instance_exporter_threat_log_file_enable: false
+openstack_instance_exporter_threat_log_file_path: "/var/log/openstack_instance_exporter.threat.log"
+
+# Logrotate Config
+openstack_instance_exporter_logrotate_content: |
+  {% if openstack_instance_exporter_log_file_enable and (openstack_instance_exporter_log_file_path is defined and openstack_instance_exporter_log_file_path|length > 0) %}
+  {{ openstack_instance_exporter_log_file_path }} {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    create 0640 root root
+  }
+  {% endif %}
+  {% if openstack_instance_exporter_threat_log_file_enable and (openstack_instance_exporter_threat_log_file_path is defined and openstack_instance_exporter_threat_log_file_path|length > 0) %}
+  {{ openstack_instance_exporter_threat_log_file_path }} {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    create 0640 root root
+  }
+  {% endif %}

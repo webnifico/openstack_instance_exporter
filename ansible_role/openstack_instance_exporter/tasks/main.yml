@@ -39,6 +39,42 @@
   register: oie_template_result
   notify: Restart openstack_instance_exporter service
 
+- name: install openstack_instance_exporter logrotate rules
+  become: true
+  copy:
+    dest: /etc/logrotate.d/openstack_instance_exporter
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ openstack_instance_exporter_logrotate_content }}"
+  when: openstack_instance_exporter_log_file_enable or openstack_instance_exporter_threat_log_file_enable
+
+- name: Write custom IP list from variable
+  become: true
+  copy:
+    dest: "{{ openstack_instance_exporter_customlist_path }}"
+    content: "{{ openstack_instance_exporter_custom_ip_list | join('\n') ~ '\n' }}"
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - openstack_instance_exporter_custom_ip_list is defined
+    - openstack_instance_exporter_custom_ip_list | length > 0
+  notify: Restart openstack_instance_exporter service
+
+- name: Copy custom IP list file
+  become: true
+  copy:
+    src: "{{ openstack_instance_exporter_customlist_src }}"
+    dest: "{{ openstack_instance_exporter_customlist_path }}"
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - openstack_instance_exporter_custom_ip_list is not defined or openstack_instance_exporter_custom_ip_list | length == 0
+    - openstack_instance_exporter_customlist_src is defined
+  notify: Restart openstack_instance_exporter service
+
 - name: Reload openstack_instance_exporter service if changed
   become: true
   systemd:
