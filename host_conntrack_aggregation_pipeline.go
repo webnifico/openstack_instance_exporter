@@ -3,51 +3,13 @@ package main
 import (
 	"fmt"
 	"net"
-	"os"
-	"strconv"
-	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const maxSpamhausHitsPerInstance = 5000
 const maxProviderHitsPerInstance = 5000
-
-// -----------------------------------------------------------------------------
-// Host System Info & Conntrack Logic
-// -----------------------------------------------------------------------------
-
-func hostTotalMemBytes() uint64 {
-	var si syscall.Sysinfo_t
-	if err := syscall.Sysinfo(&si); err != nil {
-		return 0
-	}
-	return si.Totalram * uint64(si.Unit)
-}
-
-func hostConntrackMax() uint64 {
-	data, err := os.ReadFile("/proc/sys/net/netfilter/nf_conntrack_max")
-	if err != nil {
-		return 0
-	}
-	s := strings.TrimSpace(string(data))
-	if s == "" {
-		return 0
-	}
-	v, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return 0
-	}
-	return v
-}
-
-// -----------------------------------------------------------------------------
-// Conntrack Manager Implementation
-// -----------------------------------------------------------------------------
 
 func (cm *ConntrackManager) readConntrack() ([]ConntrackFlowLite, []ConntrackFlowLite, error) {
 	v4, v6, err := cm.readConntrackRawLite()
@@ -142,8 +104,8 @@ func (cm *ConntrackManager) newConntrackAggregator(
 		}
 	}
 
-	pairKey := func(a, b IPKey) PairKey {
-		return MakePairKey(a, b)
+	pairKey := func(srcIP IPKey, srcPort uint16, dstIP IPKey, dstPort uint16, proto uint8) PairKey {
+		return MakePairKey(srcIP, srcPort, dstIP, dstPort, proto)
 	}
 
 	isSpamhaus := func(k IPKey) bool {
@@ -276,11 +238,17 @@ func (cm *ConntrackManager) newConntrackAggregator(
 		}
 	}
 
+	var zoneToInstance map[uint16]string
+	var zoneToIPs map[uint16]map[IPKey]struct{}
+	if cm.ovnMapper != nil {
+		zoneToInstance, zoneToIPs = cm.ovnMapper.SnapshotRefs()
+	}
+
 	zoneInfo := func(zone uint16) (string, map[IPKey]struct{}) {
-		if zone == 0 || cm.ovnMapper == nil {
+		if zoneToInstance == nil {
 			return "", nil
 		}
-		return cm.ovnMapper.GetInstance(zone), cm.ovnMapper.GetIPs(zone)
+		return zoneToInstance[zone], zoneToIPs[zone]
 	}
 
 	consumeOne := func(flow ConntrackFlowLite) {
@@ -299,59 +267,9 @@ func (cm *ConntrackManager) newConntrackAggregator(
 			instDst string
 		)
 
-		inst, ips := zoneInfo(flow.Zone)
-		if inst != "" {
-			if _, ok := ips[srcKey]; ok {
-				if idx, ok2 := vmIndex[VMIPIdentity{InstanceUUID: inst, IP: srcKey}]; ok2 {
-					idxSrc = idx
-					vmSrc = true
-					instSrc = inst
-				}
-			}
-			if _, ok := ips[dstKey]; ok {
-				if idx, ok2 := vmIndex[VMIPIdentity{InstanceUUID: inst, IP: dstKey}]; ok2 {
-					idxDst = idx
-					vmDst = true
-					instDst = inst
-				}
-			}
-
-			if !vmSrc && !vmDst {
-				if idx, ok := vmIndex[VMIPIdentity{InstanceUUID: inst, IP: srcKey}]; ok {
-					idxSrc = idx
-					vmSrc = true
-					instSrc = inst
-				}
-				if idx, ok := vmIndex[VMIPIdentity{InstanceUUID: inst, IP: dstKey}]; ok {
-					idxDst = idx
-					vmDst = true
-					instDst = inst
-				}
-			}
-
-			if !vmSrc && !vmDst {
-				inst = ""
-			}
-		}
-
-		if inst == "" {
-			if inst2 := ipToSingle[srcKey]; inst2 != "" {
-				if idx, ok := vmIndex[VMIPIdentity{InstanceUUID: inst2, IP: srcKey}]; ok {
-					idxSrc = idx
-					vmSrc = true
-					instSrc = inst2
-				}
-			}
-			if inst2 := ipToSingle[dstKey]; inst2 != "" {
-				if idx, ok := vmIndex[VMIPIdentity{InstanceUUID: inst2, IP: dstKey}]; ok {
-					idxDst = idx
-					vmDst = true
-					instDst = inst2
-				}
-			}
-			if !vmSrc && !vmDst {
-				return
-			}
+		idxSrc, idxDst, vmSrc, vmDst, instSrc, instDst = resolveFlowVMIndices(flow, vmIndex, ipToSingle, zoneInfo)
+		if !vmSrc && !vmDst {
+			return
 		}
 
 		status := uint32(0)
@@ -365,8 +283,8 @@ func (cm *ConntrackManager) newConntrackAggregator(
 		bytes := uint64(0)
 		packets := uint64(0)
 		if cm.conntrackAcctEnabled {
-			bytes = flow.ForwardBytes
-			packets = flow.ForwardPackets
+			bytes = flow.ForwardBytes + flow.ReverseBytes
+			packets = flow.ForwardPackets + flow.ReversePackets
 		}
 
 		if vmSrc {
@@ -380,7 +298,7 @@ func (cm *ConntrackManager) newConntrackAggregator(
 					s = newBehaviorStats(cm.conntrackAcctEnabled)
 					agg.OutboundStats[i] = s
 				}
-				s.updateDetailed(dstKey, flow.DstPort, flow.Proto, status, 0, bytes, packets)
+				s.updateDetailed(dstKey, flow.DstPort, flow.Proto, status, flow.Zone, bytes, packets)
 			}
 		}
 
@@ -395,7 +313,7 @@ func (cm *ConntrackManager) newConntrackAggregator(
 					s = newBehaviorStats(cm.conntrackAcctEnabled)
 					agg.InboundStats[i] = s
 				}
-				s.updateDetailed(srcKey, flow.DstPort, flow.Proto, status, 0, bytes, packets)
+				s.updateDetailed(srcKey, flow.DstPort, flow.Proto, status, flow.Zone, bytes, packets)
 			}
 		}
 
@@ -403,7 +321,7 @@ func (cm *ConntrackManager) newConntrackAggregator(
 			return
 		}
 
-		k := pairKey(srcKey, dstKey)
+		k := pairKey(srcKey, flow.SrcPort, dstKey, flow.DstPort, flow.Proto)
 
 		if spamEnabled {
 			spamSrc := isSpamhaus(srcKey)
@@ -482,7 +400,7 @@ func (cm *ConntrackManager) readAndAggregateConntrack(
 		if !enabled {
 			return
 		}
-		c, p, e, err := conntrackDumpFamilyLiteConsume(family, cm.conntrackRawRcvBufBytes, consumeOne)
+		c, p, e, err := conntrackDumpFamilyLiteConsume(family, cm.conntrackRawRcvBufBytes, cm.conntrackNetlinkRecvTimeout, consumeOne)
 		count += int(c)
 		parseErrs += p
 		enobufs += e
@@ -499,200 +417,24 @@ func (cm *ConntrackManager) readAndAggregateConntrack(
 		atomic.AddUint64(&cm.conntrackRawENOBUFSTotal, enobufs)
 	}
 
-	if errV4 != nil || errV6 != nil {
+	enabledV4 := cm.conntrackIPv4Enable
+	enabledV6 := cm.conntrackIPv6Enable
+	okV4 := !enabledV4 || errV4 == nil
+	okV6 := !enabledV6 || errV6 == nil
+
+	if !okV4 && !okV6 {
 		atomic.StoreUint64(&cm.conntrackRawOK, 0)
 		return nil, count, fmt.Errorf("conntrack raw read errors: v4=%v v6=%v", errV4, errV6)
+	}
+
+	if !okV4 {
+		logConntrackMetric.Notice("conntrack_raw_partial_failure", "family", "v4", "err", errV4)
+	}
+	if !okV6 {
+		logConntrackMetric.Notice("conntrack_raw_partial_failure", "family", "v6", "err", errV6)
 	}
 
 	atomic.StoreUint64(&cm.conntrackRawOK, 1)
 	atomic.StoreInt64(&cm.conntrackLastSuccessUnix, time.Now().Unix())
 	return agg, count, nil
-}
-
-func (cm *ConntrackManager) cleanupBehaviorMaps(activeSet map[string]struct{}) {
-	now := time.Now().Unix()
-
-	cleanupShard := func(mu *sync.Mutex, prevR map[BehaviorKey]outboundPrev, prevP map[BehaviorKey]outboundPrevDstPorts, seen map[BehaviorKey]int64) {
-		mu.Lock()
-		defer mu.Unlock()
-
-		for k := range prevR {
-			last, okSeen := seen[k]
-			if _, ok := activeSet[k.InstanceUUID]; !ok || !okSeen || (now-last) > behaviorPrevKeyTTLSeconds {
-				delete(prevR, k)
-				delete(prevP, k)
-				delete(seen, k)
-			}
-		}
-
-		for k := range prevP {
-			if _, ok := prevR[k]; ok {
-				continue
-			}
-			last, okSeen := seen[k]
-			if _, ok := activeSet[k.InstanceUUID]; !ok || !okSeen || (now-last) > behaviorPrevKeyTTLSeconds {
-				delete(prevP, k)
-				delete(seen, k)
-			}
-		}
-	}
-
-	for i := 0; i < shardCount; i++ {
-		cleanupShard(&cm.outboundMu[i], cm.outboundPrev[i], cm.outboundPrevDstPorts[i], cm.outboundPrevLastSeen[i])
-		cleanupShard(&cm.inboundMu[i], cm.inboundPrev[i], cm.inboundPrevDstPorts[i], cm.inboundPrevLastSeen[i])
-	}
-}
-
-func (cm *ConntrackManager) describeConntrackMetrics(ch chan<- *prometheus.Desc) {
-	descs := []*prometheus.Desc{
-		cm.instanceConntrackIPFlowsDesc, cm.instanceConntrackIPFlowsInboundDesc, cm.instanceConntrackIPFlowsOutboundDesc,
-		cm.instanceOutboundUniqueRemotesDesc, cm.instanceOutboundNewRemotesDesc, cm.instanceOutboundFlowsDesc,
-		cm.instanceOutboundMaxFlowsSingleRemoteDesc, cm.instanceOutboundUniqueDstPortsDesc, cm.instanceOutboundNewDstPortsDesc,
-		cm.instanceOutboundMaxFlowsSingleDstPortDesc,
-		cm.instanceInboundUniqueRemotesDesc, cm.instanceInboundNewRemotesDesc, cm.instanceInboundFlowsDesc,
-		cm.instanceInboundMaxFlowsSingleRemoteDesc, cm.instanceInboundUniqueDstPortsDesc, cm.instanceInboundNewDstPortsDesc,
-		cm.instanceInboundMaxFlowsSingleDstPortDesc,
-	}
-	for _, d := range descs {
-		ch <- d
-	}
-}
-
-func (cm *ConntrackManager) calculateConntrackMetrics(
-	fixedIPs []IP,
-	connAgg *ConntrackAgg,
-	ipSet map[string]struct{},
-	hostIPs map[string]struct{},
-	hostConntrackMax uint64,
-	name, instanceUUID, projectUUID, projectName, userUUID string,
-	dynamicMetrics *[]prometheus.Metric,
-) (float64, float64, int) {
-
-	var outboundSignal, inboundSignal float64
-	var maxIn, maxOut int
-
-	hostIPKeys := make(map[IPKey]struct{}, len(hostIPs))
-	for ipStr := range hostIPs {
-		k := IPStrToKey(ipStr)
-		if k == (IPKey{}) {
-			continue
-		}
-		hostIPKeys[k] = struct{}{}
-	}
-
-	ctx := BehaviorContext{HostIPs: hostIPs, HostIPKeys: hostIPKeys, HostConntrackMax: hostConntrackMax}
-
-	for _, ip := range fixedIPs {
-		addr := ip.Address
-		if addr == "" {
-			continue
-		}
-
-		addrKey := IPStrToKey(addr)
-
-		in := 0
-		out := 0
-
-		var outStats *behaviorStats
-		var inStats *behaviorStats
-
-		if connAgg != nil {
-			if connAgg.VMIndex != nil {
-				if idx, ok := connAgg.VMIndex[VMIPIdentity{InstanceUUID: instanceUUID, IP: addrKey}]; ok {
-					i := int(idx)
-					if i >= 0 && i < len(connAgg.FlowsIn) {
-						in = connAgg.FlowsIn[i]
-					}
-					if i >= 0 && i < len(connAgg.FlowsOut) {
-						out = connAgg.FlowsOut[i]
-					}
-
-					if cm.outboundBehaviorEnabled && i >= 0 && i < len(connAgg.OutboundStats) {
-						outStats = connAgg.OutboundStats[i]
-					}
-					if cm.inboundBehaviorEnabled && i >= 0 && i < len(connAgg.InboundStats) {
-						inStats = connAgg.InboundStats[i]
-					}
-				}
-			}
-		}
-
-		if in > maxIn {
-			maxIn = in
-		}
-		if out > maxOut {
-			maxOut = out
-		}
-
-		total := in + out
-
-		*dynamicMetrics = append(*dynamicMetrics,
-			prometheus.MustNewConstMetric(cm.instanceConntrackIPFlowsDesc, prometheus.GaugeValue, float64(total), name, instanceUUID, addr, ip.Family, projectUUID, projectName, userUUID),
-			prometheus.MustNewConstMetric(cm.instanceConntrackIPFlowsInboundDesc, prometheus.GaugeValue, float64(in), name, instanceUUID, addr, ip.Family, projectUUID, projectName, userUUID),
-			prometheus.MustNewConstMetric(cm.instanceConntrackIPFlowsOutboundDesc, prometheus.GaugeValue, float64(out), name, instanceUUID, addr, ip.Family, projectUUID, projectName, userUUID),
-		)
-
-		if cm.outboundBehaviorEnabled && outStats != nil {
-			val := cm.analyzeBehavior(
-				outStats,
-				addrKey,
-				addr,
-				ip.Family,
-				name, instanceUUID, projectUUID, projectName, userUUID,
-				dynamicMetrics,
-				metricDescGroup{
-					uniqueRemotes:      cm.instanceOutboundUniqueRemotesDesc,
-					newRemotes:         cm.instanceOutboundNewRemotesDesc,
-					flows:              cm.instanceOutboundFlowsDesc,
-					maxSingleRemote:    cm.instanceOutboundMaxFlowsSingleRemoteDesc,
-					uniqueDstPorts:     cm.instanceOutboundUniqueDstPortsDesc,
-					newDstPorts:        cm.instanceOutboundNewDstPortsDesc,
-					maxSingleDstPort:   cm.instanceOutboundMaxFlowsSingleDstPortDesc,
-					bytesPerFlow:       cm.instanceOutboundBytesPerFlowDesc,
-					packetsPerFlow:     cm.instanceOutboundPacketsPerFlowDesc,
-					thresholdConfigKey: "outbound",
-				},
-				ctx,
-			)
-			if val > outboundSignal {
-				outboundSignal = val
-			}
-		}
-
-		if cm.inboundBehaviorEnabled && inStats != nil {
-			val := cm.analyzeBehavior(
-				inStats,
-				addrKey,
-				addr,
-				ip.Family,
-				name, instanceUUID, projectUUID, projectName, userUUID,
-				dynamicMetrics,
-				metricDescGroup{
-					uniqueRemotes:      cm.instanceInboundUniqueRemotesDesc,
-					newRemotes:         cm.instanceInboundNewRemotesDesc,
-					flows:              cm.instanceInboundFlowsDesc,
-					maxSingleRemote:    cm.instanceInboundMaxFlowsSingleRemoteDesc,
-					uniqueDstPorts:     cm.instanceInboundUniqueDstPortsDesc,
-					newDstPorts:        cm.instanceInboundNewDstPortsDesc,
-					maxSingleDstPort:   cm.instanceInboundMaxFlowsSingleDstPortDesc,
-					bytesPerFlow:       cm.instanceInboundBytesPerFlowDesc,
-					packetsPerFlow:     cm.instanceInboundPacketsPerFlowDesc,
-					thresholdConfigKey: "inbound",
-				},
-				ctx,
-			)
-			if val > inboundSignal {
-				inboundSignal = val
-			}
-		}
-	}
-
-	maxConntrack := maxIn
-	if maxOut > maxConntrack {
-		maxConntrack = maxOut
-	}
-
-	_ = ipSet
-
-	return outboundSignal, inboundSignal, maxConntrack
 }

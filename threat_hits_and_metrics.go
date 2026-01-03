@@ -1,20 +1,13 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
-	"io"
+	"github.com/prometheus/client_golang/prometheus"
 	"net"
-	"net/http"
-	"net/netip"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 func normalizeDirectionForLog(dir string) string {
@@ -32,38 +25,6 @@ func normalizeDirectionForLog(dir string) string {
 // -----------------------------------------------------------------------------
 // Threat Metrics & Logging Logic
 // -----------------------------------------------------------------------------
-
-func initThreatMetrics(tm *ThreatManager) {
-	// Initialize Generic Providers
-	for _, p := range tm.Providers {
-		p.InstanceContactsTotalDesc = newThreatDomainInstanceDirectionDesc(p.InstanceContactsMetricName, fmt.Sprintf("Total %s contacts for this instance (presence over intervals)", p.Name))
-		p.InstanceActiveFlowsDesc = newThreatDomainInstanceDirectionDesc(p.InstanceActiveMetricName, fmt.Sprintf("Active %s flows for this instance", p.Name))
-		p.HostRefreshLastSuccessDesc = newHostMetricDesc(p.HostRefreshLastMetricName, fmt.Sprintf("Last successful %s refresh (unix timestamp)", p.Name))
-		p.HostRefreshDurationDesc = newHostMetricDesc(p.HostRefreshDurationMetricName, fmt.Sprintf("Duration of last %s refresh in seconds", p.Name))
-		p.HostRefreshErrorsDesc = newHostMetricDesc(p.HostRefreshErrorsMetricName, fmt.Sprintf("Total %s refresh errors", p.Name))
-		p.HostEntriesDesc = newHostMetricDesc(p.HostEntriesMetricName, fmt.Sprintf("Number of %s IPs currently loaded", p.Name))
-	}
-
-	// Initialize Spamhaus (Special Case: CIDRs)
-	tm.instanceSpamhausContactsTotalDesc = newThreatDomainInstanceDirectionDesc("oie_instance_threat_spamhaus_contacts_total", "Total Spamhaus DROP contacts for this instance (presence over intervals)")
-	tm.instanceSpamhausActiveFlowsDesc = newThreatDomainInstanceDirectionDesc("oie_instance_threat_spamhaus_active_flows", "Active Spamhaus DROP flows for this instance")
-	tm.hostSpamhausRefreshLastSuccessTimestampDesc = newHostMetricDesc("oie_host_threat_spamhaus_refresh_last_success_timestamp_seconds", "Last successful Spamhaus list refresh (unix timestamp)")
-	tm.hostSpamhausRefreshDurationSecondsDesc = newHostMetricDesc("oie_host_threat_spamhaus_refresh_duration_seconds", "Duration of last Spamhaus list refresh in seconds")
-	tm.hostSpamhausRefreshErrorsTotalDesc = newHostMetricDesc("oie_host_threat_spamhaus_refresh_errors_total", "Total Spamhaus list refresh errors")
-	tm.hostSpamhausEntriesDesc = newHostMetricDesc("oie_host_threat_spamhaus_entries", "Number of Spamhaus CIDRs currently loaded")
-
-	tm.hostThreatListedDesc = prometheus.NewDesc("oie_host_threat_provider_ip_listed", "Provider-owned host IP present in a threat list (1 = member)", []string{"list", "ip", "family"}, nil)
-}
-
-func (tm *ThreatManager) describeThreatMetrics(ch chan<- *prometheus.Desc) {
-	for _, p := range tm.Providers {
-		ch <- p.InstanceContactsTotalDesc
-		ch <- p.InstanceActiveFlowsDesc
-	}
-	ch <- tm.instanceSpamhausContactsTotalDesc
-	ch <- tm.instanceSpamhausActiveFlowsDesc
-}
-
 func (tm *ThreatManager) describeHostMetrics(ch chan<- *prometheus.Desc) {
 	for _, p := range tm.Providers {
 		ch <- p.HostRefreshLastSuccessDesc
@@ -77,7 +38,6 @@ func (tm *ThreatManager) describeHostMetrics(ch chan<- *prometheus.Desc) {
 	ch <- tm.hostSpamhausEntriesDesc
 	ch <- tm.hostThreatListedDesc
 }
-
 func (tm *ThreatManager) collectHostThreatMetrics(hostMetrics *[]prometheus.Metric) {
 	for _, p := range tm.Providers {
 		appendThreatHostMetrics(hostMetrics, p.Enabled, &p.Mu, &p.LastSuccess, &p.LastDuration, &p.ErrorCount, &p.EntryCount, p.HostRefreshLastSuccessDesc, p.HostRefreshDurationDesc, p.HostRefreshErrorsDesc, p.HostEntriesDesc)
@@ -107,7 +67,6 @@ func (tm *ThreatManager) collectHostThreatMetrics(hostMetrics *[]prometheus.Metr
 		}
 	}
 }
-
 func (tm *ThreatManager) addThreatCount(m map[string]float64, mu *sync.Mutex, uuid string, delta float64) float64 {
 	mu.Lock()
 	defer mu.Unlock()
@@ -117,7 +76,6 @@ func (tm *ThreatManager) addThreatCount(m map[string]float64, mu *sync.Mutex, uu
 	}
 	return m[uuid]
 }
-
 func (tm *ThreatManager) shouldLogThreatHit(key string, now time.Time) bool {
 	if tm.threatLogMinInterval <= 0 {
 		return true
@@ -133,10 +91,10 @@ func (tm *ThreatManager) shouldLogThreatHit(key string, now time.Time) bool {
 	}
 	return false
 }
-
 func (tm *ThreatManager) logThreatHit(
 	tag string,
 	domain string,
+	serverName string,
 	instanceUUID string,
 	projectUUID string,
 	projectName string,
@@ -157,6 +115,7 @@ func (tm *ThreatManager) logThreatHit(
 		"kind", tag,
 		"list", tag,
 		"domain", domain,
+		"server_name", serverName,
 		"instance_uuid", instanceUUID,
 		"project_uuid", projectUUID,
 		"project_name", projectName,
@@ -166,7 +125,6 @@ func (tm *ThreatManager) logThreatHit(
 		"direction", normalizeDirectionForLog(dirStr),
 	)
 }
-
 func (tm *ThreatManager) logHostThreatHit(listName, ip, family string) {
 	key := fmt.Sprintf("PROVIDER_IP_THREAT|%s|%s", listName, ip)
 	if !tm.shouldLogThreatHit(key, time.Now()) {
@@ -180,7 +138,6 @@ func (tm *ThreatManager) logHostThreatHit(listName, ip, family string) {
 		"family", family,
 	)
 }
-
 func (tm *ThreatManager) logThreatEvent(
 	tag string,
 	event string,
@@ -213,7 +170,6 @@ func (tm *ThreatManager) logThreatEvent(
 	args = append(args, kvpairs...)
 	logKV(LogLevelNotice, category, event, args...)
 }
-
 func (tm *ThreatManager) cleanupThreatCounts(activeInstances map[string]struct{}) {
 	for _, p := range tm.Providers {
 		// Cleanup Counters
@@ -253,7 +209,6 @@ func (tm *ThreatManager) cleanupThreatCounts(activeInstances map[string]struct{}
 	}
 	tm.spamPrevHitsMu.Unlock()
 }
-
 func (tm *ThreatManager) cleanupThreatLastHit() {
 	cutoff := time.Now().Add(-5 * time.Minute)
 	tm.threatLastHitMu.Lock()
@@ -264,7 +219,6 @@ func (tm *ThreatManager) cleanupThreatLastHit() {
 	}
 	tm.threatLastHitMu.Unlock()
 }
-
 func (tm *ThreatManager) anyThreatsEnabled() bool {
 	if tm.spamEnabled {
 		return true
@@ -280,13 +234,12 @@ func (tm *ThreatManager) anyThreatsEnabled() bool {
 // -----------------------------------------------------------------------------
 // Generic Threat Logic
 // -----------------------------------------------------------------------------
-
 func (tm *ThreatManager) exportThreatHitsCommon(
 	logTag string,
 	directionCfg ContactDirection,
 	hits map[PairKey]ConntrackEntry,
 	ipSet map[string]struct{},
-	domain, instanceUUID, projectUUID, projectName, userUUID string,
+	domain, serverName, instanceUUID, projectUUID, projectName, userUUID string,
 	dynamicMetrics *[]prometheus.Metric,
 	signal *float64,
 	activeDesc *prometheus.Desc,
@@ -300,9 +253,18 @@ func (tm *ThreatManager) exportThreatHitsCommon(
 		hits = map[PairKey]ConntrackEntry{}
 	}
 
+	ipKeySet := make(map[IPKey]struct{}, len(ipSet))
+	for s := range ipSet {
+		k := IPStrToKey(s)
+		if k == (IPKey{}) {
+			continue
+		}
+		ipKeySet[k] = struct{}{}
+	}
+
 	for _, ct := range hits {
-		dirStr := flowDirection(ipSet, ct)
-		tm.logThreatHit(logTag, domain, instanceUUID, projectUUID, projectName, userUUID, ct, dirStr, directionCfg)
+		dirStr := flowDirection(ipKeySet, ct)
+		tm.logThreatHit(logTag, domain, serverName, instanceUUID, projectUUID, projectName, userUUID, ct, dirStr, directionCfg)
 	}
 
 	hitCount := len(hits)
@@ -311,7 +273,7 @@ func (tm *ThreatManager) exportThreatHitsCommon(
 		activeDesc,
 		prometheus.GaugeValue,
 		float64(hitCount),
-		domain, instanceUUID, projectUUID, projectName, userUUID, directionCfg.String(),
+		domain, serverName, instanceUUID, projectUUID, projectName, userUUID, directionCfg.String(),
 	))
 
 	currentKeys := make(map[string]struct{}, hitCount)
@@ -339,18 +301,17 @@ func (tm *ThreatManager) exportThreatHitsCommon(
 		totalDesc,
 		prometheus.CounterValue,
 		val,
-		domain, instanceUUID, projectUUID, projectName, userUUID, directionCfg.String(),
+		domain, serverName, instanceUUID, projectUUID, projectName, userUUID, directionCfg.String(),
 	))
 
 	if hitCount > 0 {
 		*signal = clamp01(float64(hitCount) / 10.0)
 	}
 }
-
 func (tm *ThreatManager) exportSpamhausHits(
 	hits map[PairKey]ConntrackEntry,
 	ipSet map[string]struct{},
-	domain, instanceUUID, projectUUID, projectName, userUUID string,
+	domain, serverName, instanceUUID, projectUUID, projectName, userUUID string,
 	dynamicMetrics *[]prometheus.Metric,
 	spamSignal *float64,
 ) {
@@ -359,7 +320,7 @@ func (tm *ThreatManager) exportSpamhausHits(
 		tm.spamDir,
 		hits,
 		ipSet,
-		domain, instanceUUID, projectUUID, projectName, userUUID,
+		domain, serverName, instanceUUID, projectUUID, projectName, userUUID,
 		dynamicMetrics,
 		spamSignal,
 		tm.instanceSpamhausActiveFlowsDesc,
@@ -370,12 +331,11 @@ func (tm *ThreatManager) exportSpamhausHits(
 		&tm.spamPrevHitsMu,
 	)
 }
-
 func (tm *ThreatManager) exportProviderHits(
 	p *IPThreatProvider,
 	hits map[PairKey]ConntrackEntry,
 	ipSet map[string]struct{},
-	domain, instanceUUID, projectUUID, projectName, userUUID string,
+	domain, serverName, instanceUUID, projectUUID, projectName, userUUID string,
 	dynamicMetrics *[]prometheus.Metric,
 	signal *float64,
 ) {
@@ -387,7 +347,7 @@ func (tm *ThreatManager) exportProviderHits(
 		p.Direction,
 		hits,
 		ipSet,
-		domain, instanceUUID, projectUUID, projectName, userUUID,
+		domain, serverName, instanceUUID, projectUUID, projectName, userUUID,
 		dynamicMetrics,
 		signal,
 		p.InstanceActiveFlowsDesc,
@@ -406,46 +366,6 @@ func (tm *ThreatManager) exportProviderHits(
 // -----------------------------------------------------------------------------
 // Threat Refreshers
 // -----------------------------------------------------------------------------
-
-func (tm *ThreatManager) runProviderRefresher(p *IPThreatProvider) {
-	refreshOnce := func() {
-		start := time.Now()
-		fresh, err := p.Fetcher()
-		if err != nil {
-			atomic.AddUint64(&p.ErrorCount, 1)
-			p.Logger.Error(strings.ToLower(p.Name)+"_refresh_failed", "err", err)
-			return
-		}
-		dur := time.Since(start).Seconds()
-		nowUnix := float64(time.Now().Unix())
-		p.Mu.Lock()
-		p.Set = fresh
-		p.SetAtomic.Store(fresh)
-		p.LastSuccess = nowUnix
-		p.LastDuration = dur
-		p.EntryCount = len(fresh)
-		p.Mu.Unlock()
-		p.Logger.Info(strings.ToLower(p.Name)+"_refresh", "ips_total", len(fresh))
-		tm.updateHostThreatsFromIPSet(p.LogTag, fresh)
-	}
-
-	refreshOnce()
-	if p.RefreshInterval <= 0 {
-		<-tm.shutdownChan
-		return
-	}
-
-	for {
-		t := time.NewTimer(p.RefreshInterval)
-		select {
-		case <-tm.shutdownChan:
-			t.Stop()
-			return
-		case <-t.C:
-		}
-		refreshOnce()
-	}
-}
 func appendThreatHostMetrics(
 	metrics *[]prometheus.Metric,
 	enabled bool,
@@ -480,244 +400,6 @@ func appendThreatHostMetrics(
 // -----------------------------------------------------------------------------
 // Fetcher Helpers (Extraction of original logic)
 // -----------------------------------------------------------------------------
-
-func (tm *ThreatManager) fetchOnionoo(url string) (map[IPKey]struct{}, error) {
-	resp, err := tm.httpClient.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d for %s", resp.StatusCode, url)
-	}
-	var data OnionooSummary
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
-	}
-	fresh := make(map[IPKey]struct{})
-	for _, r := range data.Relays {
-		for _, raw := range r.OrAddresses {
-			host := raw
-			if strings.HasPrefix(host, "[") {
-				end := strings.Index(host, "]")
-				if end > 0 {
-					host = host[1:end]
-				}
-			} else {
-				if h, _, err := net.SplitHostPort(host); err == nil {
-					host = h
-				}
-			}
-			if i := strings.IndexByte(host, '%'); i >= 0 {
-				host = host[:i]
-			}
-			addr, err := netip.ParseAddr(host)
-			if err != nil {
-				continue
-			}
-			fresh[AddrToKey(addr)] = struct{}{}
-		}
-	}
-	return fresh, nil
-}
-
-func (tm *ThreatManager) fetchURLLines(url string) (map[IPKey]struct{}, error) {
-	resp, err := tm.httpClient.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d for %s", resp.StatusCode, url)
-	}
-	return scanIPLines(resp.Body)
-}
-
-func (tm *ThreatManager) fetchFileLines(path string) (map[IPKey]struct{}, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return scanIPLines(f)
-}
-
-func scanIPLines(r io.Reader) (map[IPKey]struct{}, error) {
-	scanner := bufio.NewScanner(r)
-	fresh := make(map[IPKey]struct{})
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		if i := strings.IndexByte(line, '%'); i >= 0 {
-			line = line[:i]
-		}
-		addr, err := netip.ParseAddr(line)
-		if err != nil {
-			continue
-		}
-		fresh[AddrToKey(addr)] = struct{}{}
-	}
-	return fresh, scanner.Err()
-}
-
-func (tm *ThreatManager) startSpamhausRefresher() {
-	tm.refreshSpamhausList()
-	if tm.spamRefresh <= 0 {
-		<-tm.shutdownChan
-		return
-	}
-	for {
-		t := time.NewTimer(tm.spamRefresh)
-		select {
-		case <-tm.shutdownChan:
-			t.Stop()
-			return
-		case <-t.C:
-		}
-		tm.refreshSpamhausList()
-	}
-}
-
-func parseSpamhausCIDRs(r io.Reader) ([]*net.IPNet, error) {
-	scanner := bufio.NewScanner(r)
-	nets := make([]*net.IPNet, 0, 4096)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		parts := strings.Split(line, ";")
-		cidrStr := strings.TrimSpace(parts[0])
-
-		_, netIP, err := net.ParseCIDR(cidrStr)
-		if err != nil {
-			continue
-		}
-		nets = append(nets, netIP)
-	}
-
-	return nets, scanner.Err()
-}
-
-func (tm *ThreatManager) refreshSpamhausList() {
-	start := time.Now()
-
-	fetchOne := func(url string) ([]*net.IPNet, error) {
-		resp, err := tm.httpClient.Get(url)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("http %d for %s", resp.StatusCode, url)
-		}
-		nets, err := parseSpamhausCIDRs(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		if len(nets) == 0 {
-			return nil, fmt.Errorf("empty list from %s", url)
-		}
-		return nets, nil
-	}
-
-	var (
-		nets4 []*net.IPNet
-		nets6 []*net.IPNet
-		err4  error
-		err6  error
-	)
-
-	if tm.spamURL != "" {
-		nets4, err4 = fetchOne(tm.spamURL)
-		if err4 != nil {
-			atomic.AddUint64(&tm.spamRefreshErrors, 1)
-			logSpamhausThreat.Error("spamhaus_v4_refresh_failed", "err", err4)
-		}
-	}
-	if tm.spamV6URL != "" {
-		nets6, err6 = fetchOne(tm.spamV6URL)
-		if err6 != nil {
-			atomic.AddUint64(&tm.spamRefreshErrors, 1)
-			logSpamhausThreat.Error("spamhaus_v6_refresh_failed", "err", err6)
-		}
-	}
-
-	if len(nets4) == 0 && len(nets6) == 0 {
-		return
-	}
-
-	bucketsV4 := make(map[uint16][]*net.IPNet)
-	wideV4 := make([]*net.IPNet, 0, 8)
-	for _, n := range nets4 {
-		ones, bits := n.Mask.Size()
-		if bits != 32 {
-			continue
-		}
-		if ones < 16 {
-			wideV4 = append(wideV4, n)
-			continue
-		}
-		ip4 := n.IP.To4()
-		if ip4 == nil || len(ip4) != 4 {
-			continue
-		}
-		key := uint16(ip4[0])<<8 | uint16(ip4[1])
-		bucketsV4[key] = append(bucketsV4[key], n)
-	}
-
-	bucketsV6 := make(map[uint32][]*net.IPNet)
-	wideV6 := make([]*net.IPNet, 0, 8)
-	for _, n := range nets6 {
-		ones, bits := n.Mask.Size()
-		if bits != 128 {
-			continue
-		}
-		if ones < 32 {
-			wideV6 = append(wideV6, n)
-			continue
-		}
-		ip16 := n.IP.To16()
-		if ip16 == nil || len(ip16) != 16 {
-			continue
-		}
-		key := (uint32(ip16[0]) << 24) | (uint32(ip16[1]) << 16) | (uint32(ip16[2]) << 8) | uint32(ip16[3])
-		bucketsV6[key] = append(bucketsV6[key], n)
-	}
-
-	dur := time.Since(start).Seconds()
-	nowUnix := float64(time.Now().Unix())
-
-	var combined []*net.IPNet
-
-	tm.spamMu.Lock()
-	if len(nets4) > 0 {
-		tm.spamNetsV4 = nets4
-		tm.spamBucketsV4 = bucketsV4
-		tm.spamWideV4 = wideV4
-	}
-	if len(nets6) > 0 {
-		tm.spamNetsV6 = nets6
-		tm.spamBucketsV6 = bucketsV6
-		tm.spamWideV6 = wideV6
-	}
-	tm.spamLastSuccessUnix = nowUnix
-	tm.spamLastRefreshSeconds = dur
-	tm.spamEntries = len(tm.spamNetsV4) + len(tm.spamNetsV6)
-
-	combined = make([]*net.IPNet, 0, tm.spamEntries)
-	combined = append(combined, tm.spamNetsV4...)
-	combined = append(combined, tm.spamNetsV6...)
-	tm.spamMu.Unlock()
-
-	tm.updateHostThreatsFromCIDRs("spamhaus", combined)
-	logSpamhausThreat.Info("spamhaus_refresh", "v4_nets", len(nets4), "v6_nets", len(nets6), "nets_total", len(combined))
-}
-
 func (tm *ThreatManager) getHostIPs() []IP {
 	if !tm.hostThreatsEnabled {
 		return nil
@@ -772,7 +454,6 @@ func (tm *ThreatManager) getHostIPs() []IP {
 	}
 	return out
 }
-
 func (tm *ThreatManager) setHostThreatHitsForList(listName string, hits map[string]string) {
 	if !tm.hostThreatsEnabled {
 		return
@@ -784,7 +465,6 @@ func (tm *ThreatManager) setHostThreatHitsForList(listName string, hits map[stri
 	}
 	tm.hostThreatHits[listName] = hits
 }
-
 func (tm *ThreatManager) updateHostThreatsFromIPSet(listName string, ipSet map[IPKey]struct{}) {
 	if !tm.hostThreatsEnabled {
 		return
@@ -803,7 +483,6 @@ func (tm *ThreatManager) updateHostThreatsFromIPSet(listName string, ipSet map[I
 	}
 	tm.setHostThreatHitsForList(listName, hits)
 }
-
 func (tm *ThreatManager) updateHostThreatsFromCIDRs(listName string, nets []*net.IPNet) {
 	if !tm.hostThreatsEnabled {
 		return

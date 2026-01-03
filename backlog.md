@@ -1,6 +1,6 @@
 # OIE Backlog
 
-- [ ] Add a test suite
+- [ ] Add a test suite - Partial
 - [ ] Improve Grafana dashboards (fix “Top” items, general cleanup)
 - [ ] Add a config file (reduce flag count)
 - [ ] Make internal heuristics overrideable (thresholds/weights/bands via config) - maybe

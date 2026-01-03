@@ -9,7 +9,6 @@ type resourceAxisV2 struct {
 	EWMA        float64
 	Initialized bool
 }
-
 type resourceV2State struct {
 	LastUpdate        time.Time
 	Cpu               resourceAxisV2
@@ -21,7 +20,6 @@ type resourceV2State struct {
 	LastTopAxis       string
 	LastCapActive     bool
 }
-
 type resourceAxisResult struct {
 	PRaw   float64
 	Conf   float64
@@ -32,7 +30,6 @@ type resourceAxisResult struct {
 	Alpha  float64
 	Tau    float64
 }
-
 type resourceV2Input struct {
 	Now time.Time
 
@@ -52,7 +49,6 @@ type resourceV2Input struct {
 	NetConf   float64
 	NetImpact float64
 }
-
 type resourceV2Output struct {
 	DtSeconds            float64
 	OverallRaw           float64
@@ -82,7 +78,6 @@ func updateAxisV2(a *resourceAxisV2, pEff, dtSeconds, riseTau, fallTau float64) 
 	a.EWMA = clamp01(a.EWMA + alphaOut*(pEff-a.EWMA))
 	return a.EWMA, alphaOut, tauUsed
 }
-
 func axisSeverityV2(ewma, scale, power, impact float64) float64 {
 	x := clamp01(ewma * scale)
 	if power > 0 {
@@ -90,7 +85,6 @@ func axisSeverityV2(ewma, scale, power, impact float64) float64 {
 	}
 	return clamp01(x) * 100.0 * clamp01(impact)
 }
-
 func lpBlend(p float64, cpu, mem, disk, net float64, wCPU, wMem, wDisk, wNet float64) float64 {
 	if p <= 0 {
 		p = 3
@@ -106,7 +100,6 @@ func lpBlend(p float64, cpu, mem, disk, net float64, wCPU, wMem, wDisk, wNet flo
 	s = s / sumW
 	return clamp01(math.Pow(s, 1.0/p)) * 100.0
 }
-
 func band30_60_85(overall float64) int {
 	if overall >= 85 {
 		return 85
@@ -119,7 +112,6 @@ func band30_60_85(overall float64) int {
 	}
 	return 0
 }
-
 func countAxesAbove90(cpu, mem, disk, net float64) int {
 	n := 0
 	if cpu >= 90 {
@@ -136,7 +128,6 @@ func countAxesAbove90(cpu, mem, disk, net float64) int {
 	}
 	return n
 }
-
 func topAxisName(cpu, mem, disk, net float64) string {
 	top := "cpu"
 	val := cpu
@@ -153,7 +144,6 @@ func topAxisName(cpu, mem, disk, net float64) string {
 	}
 	return top
 }
-
 func (mc *MetricsCollector) getResourceV2State(instanceUUID string) *resourceV2State {
 	mc.resourceV2Mu.Lock()
 	defer mc.resourceV2Mu.Unlock()
@@ -167,7 +157,6 @@ func (mc *MetricsCollector) getResourceV2State(instanceUUID string) *resourceV2S
 	}
 	return s
 }
-
 func (mc *MetricsCollector) cleanupResourceV2(activeSet map[string]struct{}) {
 	mc.resourceV2Mu.Lock()
 	defer mc.resourceV2Mu.Unlock()
@@ -180,7 +169,6 @@ func (mc *MetricsCollector) cleanupResourceV2(activeSet map[string]struct{}) {
 		}
 	}
 }
-
 func (mc *MetricsCollector) computeResourceV2(instanceUUID string, in resourceV2Input) (resourceV2Output, *resourceV2State) {
 	out := resourceV2Output{}
 	s := mc.getResourceV2State(instanceUUID)
@@ -268,7 +256,6 @@ func (mc *MetricsCollector) computeResourceV2(instanceUUID string, in resourceV2
 
 	return out, s
 }
-
 func appendAxisFieldsV2(kv *[]any, prefix string, r resourceAxisResult) {
 	*kv = append(*kv,
 		prefix+"_p_raw", roundToFiveDecimals(r.PRaw),
@@ -281,8 +268,7 @@ func appendAxisFieldsV2(kv *[]any, prefix string, r resourceAxisResult) {
 		prefix+"_tau", roundToFiveDecimals(r.Tau),
 	)
 }
-
-func (mc *MetricsCollector) maybeLogResourceV2Event(domain, instanceUUID, projectUUID, projectName, userUUID string, out resourceV2Output, s *resourceV2State) {
+func (mc *MetricsCollector) maybeLogResourceV2Event(domain, serverName, instanceUUID, projectUUID, projectName, userUUID string, out resourceV2Output, s *resourceV2State) {
 	if s == nil {
 		return
 	}
@@ -323,6 +309,7 @@ func (mc *MetricsCollector) maybeLogResourceV2Event(domain, instanceUUID, projec
 		kv := make([]any, 0, 128)
 		kv = append(kv,
 			"domain", domain,
+			"server_name", serverName,
 			"instance_uuid", instanceUUID,
 			"project_uuid", projectUUID,
 			"project_name", projectName,

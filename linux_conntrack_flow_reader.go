@@ -26,7 +26,6 @@ const (
 
 	nlaTypeMask = 0x3fff
 )
-
 const (
 	ctaTupleOrig     = 1
 	ctaCountersOrig  = 9
@@ -56,7 +55,6 @@ func (cm *ConntrackManager) conntrackStaleSeconds() float64 {
 	}
 	return time.Since(time.Unix(last, 0)).Seconds()
 }
-
 func (cm *ConntrackManager) readConntrackRawLite() ([]ConntrackFlowLite, []ConntrackFlowLite, error) {
 	var (
 		v4    []ConntrackFlowLite
@@ -74,7 +72,7 @@ func (cm *ConntrackManager) readConntrackRawLite() ([]ConntrackFlowLite, []Connt
 		go func() {
 			defer wg.Done()
 			var parseErrs, enobufs uint64
-			*out, parseErrs, enobufs, *errp = conntrackDumpFamilyLite(family, cm.conntrackRawRcvBufBytes)
+			*out, parseErrs, enobufs, *errp = conntrackDumpFamilyLite(family, cm.conntrackRawRcvBufBytes, cm.conntrackNetlinkRecvTimeout)
 			if parseErrs > 0 {
 				atomic.AddUint64(&cm.conntrackRawParseErrorsTotal, parseErrs)
 			}
@@ -89,14 +87,24 @@ func (cm *ConntrackManager) readConntrackRawLite() ([]ConntrackFlowLite, []Connt
 
 	wg.Wait()
 
-	if errV4 != nil || errV6 != nil {
+	v4Failed := cm.conntrackIPv4Enable && errV4 != nil
+	v6Failed := cm.conntrackIPv6Enable && errV6 != nil
+	anySuccess := (cm.conntrackIPv4Enable && errV4 == nil) || (cm.conntrackIPv6Enable && errV6 == nil)
+
+	if !anySuccess {
 		return v4, v6, fmt.Errorf("conntrack raw read errors: v4=%v v6=%v", errV4, errV6)
+	}
+	if v4Failed {
+		logKV(LogLevelNotice, "conntrack_raw", "read_partial_failure", "family", "v4", "err", errV4)
+	}
+	if v6Failed {
+		logKV(LogLevelNotice, "conntrack_raw", "read_partial_failure", "family", "v6", "err", errV6)
 	}
 
 	atomic.StoreUint64(&cm.conntrackRawOK, 1)
 	return v4, v6, nil
-}
 
+}
 func nativeEndian() binary.ByteOrder {
 	var x uint16 = 1
 	if *(*byte)(unsafe.Pointer(&x)) == 1 {
@@ -104,14 +112,13 @@ func nativeEndian() binary.ByteOrder {
 	}
 	return binary.BigEndian
 }
-
 func nlAlign(n int) int {
 	return (n + 3) &^ 3
 }
-
 func conntrackDumpFamilyLiteConsume(
 	family int,
 	rcvBufBytes int,
+	rcvTimeout time.Duration,
 	consume func(ConntrackFlowLite),
 ) (uint64, uint64, uint64, error) {
 	fd, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, netlinkNetfilter)
@@ -124,7 +131,11 @@ func conntrackDumpFamilyLiteConsume(
 		_ = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, rcvBufBytes)
 	}
 
-	tv := syscall.NsecToTimeval((5 * time.Second).Nanoseconds())
+	if rcvTimeout <= 0 {
+		rcvTimeout = 15 * time.Second
+	}
+
+	tv := syscall.NsecToTimeval(rcvTimeout.Nanoseconds())
 	if err := syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv); err != nil {
 		return 0, 0, 0, err
 	}
@@ -222,20 +233,18 @@ func conntrackDumpFamilyLiteConsume(
 		}
 	}
 }
-
-func conntrackDumpFamilyLite(family int, rcvBufBytes int) ([]ConntrackFlowLite, uint64, uint64, error) {
+func conntrackDumpFamilyLite(family int, rcvBufBytes int, rcvTimeout time.Duration) ([]ConntrackFlowLite, uint64, uint64, error) {
 	var (
 		flows     = make([]ConntrackFlowLite, 0, 4096)
 		parseErrs uint64
 		enobufs   uint64
 	)
 
-	_, parseErrs, enobufs, err := conntrackDumpFamilyLiteConsume(family, rcvBufBytes, func(flow ConntrackFlowLite) {
+	_, parseErrs, enobufs, err := conntrackDumpFamilyLiteConsume(family, rcvBufBytes, rcvTimeout, func(flow ConntrackFlowLite) {
 		flows = append(flows, flow)
 	})
 	return flows, parseErrs, enobufs, err
 }
-
 func parseConntrackMessageLite(payload []byte, family int, ne binary.ByteOrder, parseErrs *uint64) (ConntrackFlowLite, bool) {
 	if len(payload) < 4 {
 		(*parseErrs)++
@@ -252,9 +261,10 @@ func parseConntrackMessageLite(payload []byte, family int, ne binary.ByteOrder, 
 		proto   uint8
 		zone    uint16
 
-		origPkts  uint64
-		origBytes uint64
-		replyPkts uint64
+		origPkts   uint64
+		origBytes  uint64
+		replyPkts  uint64
+		replyBytes uint64
 	)
 
 	for i := 0; i+4 <= len(attrs); {
@@ -275,7 +285,7 @@ func parseConntrackMessageLite(payload []byte, family int, ne binary.ByteOrder, 
 		case ctaCountersOrig:
 			parseCounters(val, ne, &origPkts, &origBytes, parseErrs)
 		case ctaCountersReply:
-			parseCountersReply(val, ne, &replyPkts, parseErrs)
+			parseCountersReply(val, ne, &replyPkts, &replyBytes, parseErrs)
 		}
 		i += nlAlign(nlaLen)
 	}
@@ -294,9 +304,9 @@ func parseConntrackMessageLite(payload []byte, family int, ne binary.ByteOrder, 
 		ForwardPackets: origPkts,
 		ForwardBytes:   origBytes,
 		ReversePackets: replyPkts,
+		ReverseBytes:   replyBytes,
 	}, true
 }
-
 func parseTupleOrig(val []byte, family int, ne binary.ByteOrder, srcKey *IPKey, dstKey *IPKey, srcPort *uint16, dstPort *uint16, proto *uint8, parseErrs *uint64) {
 	for i := 0; i+4 <= len(val); {
 		nlaLen := int(ne.Uint16(val[i : i+2]))
@@ -315,7 +325,6 @@ func parseTupleOrig(val []byte, family int, ne binary.ByteOrder, srcKey *IPKey, 
 		i += nlAlign(nlaLen)
 	}
 }
-
 func parseTupleIP(val []byte, family int, ne binary.ByteOrder, srcKey *IPKey, dstKey *IPKey, parseErrs *uint64) {
 	for i := 0; i+4 <= len(val); {
 		nlaLen := int(ne.Uint16(val[i : i+2]))
@@ -338,7 +347,6 @@ func parseTupleIP(val []byte, family int, ne binary.ByteOrder, srcKey *IPKey, ds
 		i += nlAlign(nlaLen)
 	}
 }
-
 func parseTupleProto(val []byte, ne binary.ByteOrder, srcPort *uint16, dstPort *uint16, proto *uint8, parseErrs *uint64) {
 	for i := 0; i+4 <= len(val); {
 		nlaLen := int(ne.Uint16(val[i : i+2]))
@@ -365,7 +373,6 @@ func parseTupleProto(val []byte, ne binary.ByteOrder, srcPort *uint16, dstPort *
 		i += nlAlign(nlaLen)
 	}
 }
-
 func parseCounters(val []byte, ne binary.ByteOrder, packets *uint64, bytes *uint64, parseErrs *uint64) {
 	for i := 0; i+4 <= len(val); {
 		nlaLen := int(ne.Uint16(val[i : i+2]))
@@ -388,8 +395,7 @@ func parseCounters(val []byte, ne binary.ByteOrder, packets *uint64, bytes *uint
 		i += nlAlign(nlaLen)
 	}
 }
-
-func parseCountersReply(val []byte, ne binary.ByteOrder, packets *uint64, parseErrs *uint64) {
+func parseCountersReply(val []byte, ne binary.ByteOrder, packets *uint64, bytes *uint64, parseErrs *uint64) {
 	for i := 0; i+4 <= len(val); {
 		nlaLen := int(ne.Uint16(val[i : i+2]))
 		nlaType := ne.Uint16(val[i+2:i+4]) & nlaTypeMask
@@ -398,9 +404,14 @@ func parseCountersReply(val []byte, ne binary.ByteOrder, packets *uint64, parseE
 			break
 		}
 		v := val[i+4 : i+nlaLen]
-		if nlaType == ctaCountersPackets {
+		switch nlaType {
+		case ctaCountersPackets:
 			if len(v) >= 8 {
 				*packets = binary.BigEndian.Uint64(v[:8])
+			}
+		case ctaCountersBytes:
+			if len(v) >= 8 {
+				*bytes = binary.BigEndian.Uint64(v[:8])
 			}
 		}
 		i += nlAlign(nlaLen)
