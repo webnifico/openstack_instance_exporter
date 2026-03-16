@@ -56,12 +56,10 @@ func evictBehaviorRuleLogStateLocked(maxEntries int) int {
 
 	return removed
 }
-func ruleLogStateForKey(k behaviorEmitKey) *behaviorRuleLogState {
-	behaviorRuleLogMu.Lock()
-	defer behaviorRuleLogMu.Unlock()
+func ensureRuleLogStateLocked(k behaviorEmitKey) *behaviorRuleLogState {
 	if len(behaviorRuleLogStateMap) > 50000 {
 		removed := evictBehaviorRuleLogStateLocked(50000)
-		logKV(LogLevelNotice, "behavior", "behavior_rule_log_state_evict", "max", 50000, "removed", removed, "size", len(behaviorRuleLogStateMap))
+		logKV(LogLevelNotice, "behavior", "behavior", "behavior_rule_log_state_evict", "max", 50000, "removed", removed, "size", len(behaviorRuleLogStateMap))
 	}
 	s, ok := behaviorRuleLogStateMap[k]
 	if !ok {
@@ -69,6 +67,28 @@ func ruleLogStateForKey(k behaviorEmitKey) *behaviorRuleLogState {
 		behaviorRuleLogStateMap[k] = s
 	}
 	return s
+}
+
+func ruleLogStateMarkSuppressed(k behaviorEmitKey, nowUnix int64) bool {
+	behaviorRuleLogMu.Lock()
+	defer behaviorRuleLogMu.Unlock()
+	st := ensureRuleLogStateLocked(k)
+	if (nowUnix - st.LastSuppressedUnix) < 60 {
+		return false
+	}
+	st.LastSuppressedUnix = nowUnix
+	return true
+}
+
+func ruleLogStateMarkSummary(k behaviorEmitKey, nowUnix int64) bool {
+	behaviorRuleLogMu.Lock()
+	defer behaviorRuleLogMu.Unlock()
+	st := ensureRuleLogStateLocked(k)
+	if (nowUnix - st.LastSummaryUnix) < 60 {
+		return false
+	}
+	st.LastSummaryUnix = nowUnix
+	return true
 }
 
 func (cm *ConntrackManager) analyzeBehavior(
@@ -341,7 +361,7 @@ func (cm *ConntrackManager) analyzeBehavior(
 	ident := behaviorIdentityKey{InstanceUUID: instanceUUID, IP: addrKey, Direction: descs.thresholdConfigKey}
 	behaviorSignal, anoms := cm.updateBehaviorEWMA(ident, feature)
 
-	hitAlert, kind, reason, ruleID, ruleSource := cm.classifyBehavior(&feature, hostImpact, anoms)
+	hitAlert, kind, reason, ruleID, ruleSource := cm.classifyBehavior(&feature, hostImpact, anoms, s.perDstPort)
 	pressure := clamp01(math.Log10(1 + 9*hostImpact))
 	severity := clamp01(pressure + behaviorSignal)
 
@@ -441,10 +461,8 @@ func (cm *ConntrackManager) analyzeBehavior(
 			suppressReason = "cooldown"
 		}
 		if suppressReason != "" {
-			st := ruleLogStateForKey(emitKey)
-			if (nowUnix - st.LastSuppressedUnix) >= 60 {
-				st.LastSuppressedUnix = nowUnix
-				logKV(LogLevelDebug, "behavior", "behavior_rule_suppressed",
+			if ruleLogStateMarkSuppressed(emitKey, nowUnix) {
+				logKV(LogLevelDebug, "behavior", "behavior", "behavior_rule_suppressed",
 					"project_uuid", projectUUID,
 					"instance_uuid", instanceUUID,
 					"direction", feature.Direction,
@@ -466,10 +484,8 @@ func (cm *ConntrackManager) analyzeBehavior(
 
 		if shouldEmit {
 			if emitReason == "new_kind" || emitReason == "escalated" || emitReason == "band_cross" {
-				st := ruleLogStateForKey(emitKey)
-				if (nowUnix - st.LastSummaryUnix) >= 60 {
-					st.LastSummaryUnix = nowUnix
-					logKV(LogLevelNotice, "behavior", "behavior_rule_summary",
+				if ruleLogStateMarkSummary(emitKey, nowUnix) {
+					logKV(LogLevelNotice, "behavior", "behavior", "behavior_rule_summary",
 						"project_uuid", projectUUID,
 						"instance_uuid", instanceUUID,
 						"direction", feature.Direction,
@@ -520,7 +536,7 @@ func (cm *ConntrackManager) analyzeBehavior(
 		alertKVs := []interface{}{
 			"kind", kind,
 			"reason", reason,
-			"msg", msg,
+			"detail", msg,
 			"direction", feature.Direction,
 			"synergy_darkspace_scan", feature.SynergyDarkScan,
 			"synergy_darkspace_physics", feature.SynergyDarkPhysics,
@@ -569,7 +585,7 @@ func (cm *ConntrackManager) analyzeBehavior(
 		} else {
 			kvs := append([]interface{}{"domain", domain, "server_name", serverName}, alertKVs...)
 			kvs = append(kvs, "instance_uuid", instanceUUID)
-			logKV(LogLevelNotice, "behavior", "behavior_alert", kvs...)
+			logKV(LogLevelNotice, "behavior", "behavior", "behavior_alert", kvs...)
 		}
 
 		return severity

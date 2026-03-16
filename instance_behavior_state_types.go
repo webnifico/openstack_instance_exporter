@@ -205,7 +205,8 @@ type RuleThresholds struct {
 }
 
 type RuleCtx struct {
-	Thresholds RuleThresholds
+	Thresholds    RuleThresholds
+	DstPortCounts map[uint16]int
 }
 type BehaviorRule struct {
 	ID     string

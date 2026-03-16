@@ -43,15 +43,15 @@ func LoadBehaviorExternalRules(path string) ([]BehaviorRule, BehaviorRulesConfig
 	var compiled []BehaviorRule
 	for i, r := range rf.Rules {
 		if len(compiled) >= maxExternalBehaviorRules {
-			logKV(LogLevelNotice, "behavior", "behavior_rules_yaml_truncated", "path", path, "max_rules", maxExternalBehaviorRules)
+			logKV(LogLevelNotice, "behavior", "behavior_rules", "behavior_rules_yaml_truncated", "path", path, "max_rules", maxExternalBehaviorRules)
 			break
 		}
 		if r.ID == "" {
-			logKV(LogLevelNotice, "behavior", "behavior_rules_yaml_bad_rule", "path", path, "index", i, "error", "missing id")
+			logKV(LogLevelNotice, "behavior", "behavior_rules", "behavior_rules_yaml_bad_rule", "path", path, "index", i, "error", "missing id")
 			continue
 		}
 		if r.Kind == "" {
-			logKV(LogLevelNotice, "behavior", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "missing kind")
+			logKV(LogLevelNotice, "behavior", "behavior_rules", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "missing kind")
 			continue
 		}
 		dir := r.Direction
@@ -59,7 +59,7 @@ func LoadBehaviorExternalRules(path string) ([]BehaviorRule, BehaviorRulesConfig
 			dir = "any"
 		}
 		if dir != "any" && dir != "inbound" && dir != "outbound" {
-			logKV(LogLevelNotice, "behavior", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "invalid direction")
+			logKV(LogLevelNotice, "behavior", "behavior_rules", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "invalid direction")
 			continue
 		}
 
@@ -67,7 +67,7 @@ func LoadBehaviorExternalRules(path string) ([]BehaviorRule, BehaviorRulesConfig
 		if r.PortSet != "" {
 			ps, ok := portSets[r.PortSet]
 			if !ok {
-				logKV(LogLevelNotice, "behavior", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "unknown port_set")
+				logKV(LogLevelNotice, "behavior", "behavior_rules", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "unknown port_set")
 				continue
 			}
 			for p := range ps {
@@ -81,7 +81,7 @@ func LoadBehaviorExternalRules(path string) ([]BehaviorRule, BehaviorRulesConfig
 			portSet[uint16(pi)] = struct{}{}
 		}
 		if len(portSet) == 0 {
-			logKV(LogLevelNotice, "behavior", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "no ports specified")
+			logKV(LogLevelNotice, "behavior", "behavior_rules", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "no ports specified")
 			continue
 		}
 
@@ -100,7 +100,7 @@ func LoadBehaviorExternalRules(path string) ([]BehaviorRule, BehaviorRulesConfig
 
 		evMode := r.EvidenceMode
 		if evMode != "" && evMode != "dominant_remote" && evMode != "dominant_port" && evMode != "distributed" && evMode != "mixed" {
-			logKV(LogLevelNotice, "behavior", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "invalid evidence_mode")
+			logKV(LogLevelNotice, "behavior", "behavior_rules", "behavior_rules_yaml_bad_rule", "path", path, "rule_id", r.ID, "error", "invalid evidence_mode")
 			continue
 		}
 
@@ -122,10 +122,21 @@ func LoadBehaviorExternalRules(path string) ([]BehaviorRule, BehaviorRulesConfig
 				if !ruleDirMatch(dir, feature.Direction) {
 					return false
 				}
-				if _, ok := portSet[feature.TopDstPort]; !ok {
+				matchedPort := false
+				if ctx != nil && len(ctx.DstPortCounts) > 0 {
+					for port := range portSet {
+						if ctx.DstPortCounts[port] > 0 {
+							matchedPort = true
+							break
+						}
+					}
+				} else if _, ok := portSet[feature.TopDstPort]; ok {
+					matchedPort = true
+				}
+				if !matchedPort {
 					return false
 				}
-				if flowsMin > 0 && feature.MaxSingleDstPort < flowsMin {
+				if flowsMin > 0 && feature.Flows < flowsMin {
 					return false
 				}
 				if remotesMin > 0 && feature.UniqueRemotes < remotesMin {

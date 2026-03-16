@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"strings"
+	"sync/atomic"
 )
 
 var logFileHandle *os.File
+var currentLogLevelVal atomic.Value
 
 type LogLevel int
 
@@ -21,28 +24,14 @@ func getRootLogger() *slog.Logger {
 }
 
 // InitLogging sets up slog with JSON output.
-func InitLogging(logLevelStr, logFilePath string, enableFile bool) {
+func InitLogging(logLevelStr, logFilePath string, enableFile bool) string {
 	logMu.Lock()
 	defer logMu.Unlock()
 
-	if logFileHandle != nil {
-		logFileHandle.Close()
-		logFileHandle = nil
-	}
+	oldFileHandle := logFileHandle
+	logFileHandle = nil
 
-	var level slog.Level
-	switch strings.ToLower(strings.TrimSpace(logLevelStr)) {
-	case "debug":
-		level = slog.LevelDebug
-	case "info":
-		level = slog.LevelInfo
-	case "warn", "notice":
-		level = slog.LevelWarn
-	case "error":
-		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
-	}
+	level, appliedLevel := normalizeLogLevel(logLevelStr)
 
 	opts := &slog.HandlerOptions{
 		Level: level,
@@ -54,7 +43,7 @@ func InitLogging(logLevelStr, logFilePath string, enableFile bool) {
 		// O_APPEND support for copytruncate rotation
 		f, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			slog.Error("failed_to_open_logfile", "err", err)
+			fmt.Fprintf(os.Stderr, "openstack_instance_exporter failed_to_open_logfile path=%q err=%v\n", logFilePath, err)
 		} else {
 			logFileHandle = f
 			writer = io.MultiWriter(os.Stdout, f)
@@ -64,7 +53,35 @@ func InitLogging(logLevelStr, logFilePath string, enableFile bool) {
 	handler := slog.NewJSONHandler(writer, opts)
 	rl := slog.New(handler)
 	rootLoggerVal.Store(rl)
+	currentLogLevelVal.Store(appliedLevel)
 	slog.SetDefault(rl)
+	if oldFileHandle != nil && oldFileHandle != logFileHandle {
+		_ = oldFileHandle.Close()
+	}
+	return appliedLevel
+}
+
+func normalizeLogLevel(logLevelStr string) (slog.Level, string) {
+	switch strings.ToLower(strings.TrimSpace(logLevelStr)) {
+	case "debug":
+		return slog.LevelDebug, "debug"
+	case "info":
+		return slog.LevelInfo, "info"
+	case "warn", "notice":
+		return slog.LevelWarn, "warn"
+	case "error":
+		return slog.LevelError, "error"
+	default:
+		return slog.LevelInfo, "info"
+	}
+}
+
+func CurrentLogLevel() string {
+	v := currentLogLevelVal.Load()
+	if v == nil {
+		return "unknown"
+	}
+	return v.(string)
 }
 
 // -----------------------------------------------------------------------------
@@ -85,7 +102,8 @@ func (l ComponentLogger) Info(msg string, kvpairs ...interface{}) {
 	getRootLogger().Info(msg, l.argsToAttrs(msg, kvpairs)...)
 }
 func (l ComponentLogger) Notice(msg string, kvpairs ...interface{}) {
-	getRootLogger().Info(msg, l.argsToAttrs(msg, kvpairs)...)
+	args := append([]interface{}{"severity_class", "notice"}, kvpairs...)
+	getRootLogger().Warn(msg, l.argsToAttrs(msg, args)...)
 }
 func (l ComponentLogger) Error(msg string, kvpairs ...interface{}) {
 	getRootLogger().Error(msg, l.argsToAttrs(msg, kvpairs)...)
@@ -96,17 +114,22 @@ func (l ComponentLogger) Error(msg string, kvpairs ...interface{}) {
 // -----------------------------------------------------------------------------
 
 // logKV is used by metrics_engine.go
-func logKV(level LogLevel, category, msg string, kvpairs ...interface{}) {
-	args := make([]interface{}, 0, len(kvpairs)+2)
-	args = append(args, "category", category)
+func logKV(level LogLevel, category, component, msg string, kvpairs ...interface{}) {
+	args := make([]interface{}, 0, len(kvpairs)+4)
+	args = append(args, "category", category, "component", component)
 	args = append(args, kvpairs...)
+	if level == LogLevelNotice {
+		args = append(args, "severity_class", "notice")
+	}
 
 	ctx := context.Background()
 	switch level {
 	case LogLevelDebug:
 		getRootLogger().DebugContext(ctx, msg, args...)
-	case LogLevelInfo, LogLevelNotice:
+	case LogLevelInfo:
 		getRootLogger().InfoContext(ctx, msg, args...)
+	case LogLevelNotice:
+		getRootLogger().WarnContext(ctx, msg, args...)
 	case LogLevelError:
 		getRootLogger().ErrorContext(ctx, msg, args...)
 	default:

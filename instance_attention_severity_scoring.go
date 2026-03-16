@@ -327,7 +327,7 @@ func (mc *MetricsCollector) maybeLogResourceV2Event(domain, serverName, instance
 		appendAxisFieldsV2(&kv, "mem", out.MEM)
 		appendAxisFieldsV2(&kv, "disk", out.DISK)
 		appendAxisFieldsV2(&kv, "net", out.NET)
-		logKV(LogLevelInfo, "severity", "resource_v2_event", kv...)
+		logKV(LogLevelInfo, "severity", "severity", "resource_v2_event", kv...)
 	}
 	s.LastBand = band
 	s.LastTopAxis = top

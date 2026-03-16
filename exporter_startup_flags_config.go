@@ -110,7 +110,7 @@ func main() {
 
 	flag.BoolVar(&logFileEnable, "log.file.enable", false, "Enable file logging")
 	flag.StringVar(&logFilePath, "log.file.path", "/var/log/openstack_instance_exporter.log", "Log file path")
-	flag.StringVar(&logLevelFlag, "log.level", "error", "Log level")
+	flag.StringVar(&logLevelFlag, "log.level", "info", "Log level (debug, info, warn, error; notice is accepted as an alias for warn)")
 	flag.DurationVar(&threatLogMinInterval, "threat.log.min_interval", 5*time.Minute, "Throttle repeated threat/behavior notice logs")
 
 	flag.Parse()
@@ -120,8 +120,8 @@ func main() {
 	// ───────────────────────────────────────────────────────────────
 	//  LOGGING INITIALIZATION (Slog)
 	// ───────────────────────────────────────────────────────────────
-	InitLogging(logLevelFlag, logFilePath, logFileEnable)
-	logMain.Info("exporter_startup", "log_level", logLevelFlag)
+	appliedLogLevel := InitLogging(logLevelFlag, logFilePath, logFileEnable)
+	logMain.Info("exporter_startup", "log_level_requested", logLevelFlag, "log_level_applied", appliedLogLevel)
 
 	effectiveWorkers := workerCount
 	if effectiveWorkers <= 0 {
@@ -135,7 +135,8 @@ func main() {
 		"worker_count", workerCount,
 		"worker_count_effective", effectiveWorkers,
 		"contacts_direction", contactsDirection,
-		"log_level", logLevelFlag,
+		"log_level_requested", logLevelFlag,
+		"log_level_applied", appliedLogLevel,
 		"log_file_enabled", logFileEnable,
 		"log_file_path", logFilePath,
 		"outbound_behavior_enabled", outboundBehavior,
@@ -298,10 +299,10 @@ func main() {
 			return
 		}
 		if levelStr := r.URL.Query().Get("level"); levelStr != "" {
-			InitLogging(levelStr, logFilePath, logFileEnable)
-			fmt.Fprintf(w, "log level set to %s\n", levelStr)
+			appliedLevel := InitLogging(levelStr, logFilePath, logFileEnable)
+			fmt.Fprintf(w, "log level set to %s\n", appliedLevel)
 		} else {
-			fmt.Fprintf(w, "current log level: %v\n", "unknown")
+			fmt.Fprintf(w, "current log level: %s\n", CurrentLogLevel())
 		}
 	})
 

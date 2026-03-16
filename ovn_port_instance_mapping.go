@@ -205,7 +205,7 @@ func (m *OVNMapper) Refresh(instanceByPort map[string]string, ipsByPort map[stri
 		linesParsed++
 	}
 
-	logKV(LogLevelDebug, "ovn_mapper", "refresh_success", "zones_found", len(newZones), "lines_total", linesTotal, "lines_parsed", linesParsed, "lines_no_uuid", linesNoUUID, "lines_no_zone", linesNoZone, "lines_unknown_port", linesUnknownPort)
+	logKV(LogLevelDebug, "mapping", "ovn_mapper", "refresh_success", "zones_found", len(newZones), "lines_total", linesTotal, "lines_parsed", linesParsed, "lines_no_uuid", linesNoUUID, "lines_no_zone", linesNoZone, "lines_unknown_port", linesUnknownPort)
 
 	m.Lock()
 	m.zoneToInstance = newZones

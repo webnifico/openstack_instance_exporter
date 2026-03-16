@@ -57,10 +57,10 @@ func (s behaviorScaler) anomThresh(base float64) float64 {
 	}
 	return v
 }
-func (cm *ConntrackManager) classifyBehavior(feature *BehaviorFeature, hostImpact float64, anoms behaviorAnomalies) (bool, string, string, string, string) {
+func (cm *ConntrackManager) classifyBehavior(feature *BehaviorFeature, hostImpact float64, anoms behaviorAnomalies, dstPortCounts map[uint16]int) (bool, string, string, string, string) {
 	sc := newBehaviorScaler(cm.behaviorSensitivity)
 	ev := buildBehaviorEvidence(*feature)
-	ctx := &RuleCtx{Thresholds: defaultRuleThresholds}
+	ctx := &RuleCtx{Thresholds: defaultRuleThresholds, DstPortCounts: dstPortCounts}
 
 	restrictedHit, restrictedRuleID, restrictedKind, restrictedReason, restrictedSource := evalRules(*feature, sc, ev, ctx, rulesRestrictedLocal)
 	if restrictedHit {
@@ -69,6 +69,8 @@ func (cm *ConntrackManager) classifyBehavior(feature *BehaviorFeature, hostImpac
 
 	darkHit, darkRuleID, darkKind, darkReason, darkSource := evalRules(*feature, sc, ev, ctx, rulesDarkspace)
 	scanHit, scanKind, scanReason := cm.classifyOutboundScanning(*feature, anoms, sc)
+	inboundExposureHit, inboundExposureKind, inboundExposureReason := cm.classifyInboundExposure(*feature, sc)
+	inboundAttackHit, inboundAttackKind, inboundAttackReason := cm.classifyInboundAttackPatterns(*feature, sc)
 	protoHit, protoRuleID, protoKind, protoReason, protoSource := evalRules(*feature, sc, ev, ctx, rulesProtocol)
 
 	feature.SynergyDarkScan = darkHit && scanHit
@@ -88,6 +90,12 @@ func (cm *ConntrackManager) classifyBehavior(feature *BehaviorFeature, hostImpac
 	}
 	if protoHit {
 		return true, protoKind, protoReason, protoRuleID, protoSource
+	}
+	if inboundAttackHit {
+		return true, inboundAttackKind, inboundAttackReason, "legacy_inbound_attack_patterns", "internal"
+	}
+	if inboundExposureHit {
+		return true, inboundExposureKind, inboundExposureReason, "legacy_inbound_exposure", "internal"
 	}
 	if hit, kind, reason := cm.classifyCapacityAndFlood(*feature, hostImpact, sc); hit {
 		return true, kind, reason, "legacy_capacity_and_flood", "internal"

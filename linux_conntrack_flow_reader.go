@@ -95,10 +95,10 @@ func (cm *ConntrackManager) readConntrackRawLite() ([]ConntrackFlowLite, []Connt
 		return v4, v6, fmt.Errorf("conntrack raw read errors: v4=%v v6=%v", errV4, errV6)
 	}
 	if v4Failed {
-		logKV(LogLevelNotice, "conntrack_raw", "read_partial_failure", "family", "v4", "err", errV4)
+		logKV(LogLevelNotice, "metric", "conntrack", "conntrack_raw_partial_failure", "family", "v4", "err", errV4)
 	}
 	if v6Failed {
-		logKV(LogLevelNotice, "conntrack_raw", "read_partial_failure", "family", "v6", "err", errV6)
+		logKV(LogLevelNotice, "metric", "conntrack", "conntrack_raw_partial_failure", "family", "v6", "err", errV6)
 	}
 
 	atomic.StoreUint64(&cm.conntrackRawOK, 1)

@@ -110,7 +110,7 @@ func (tm *ThreatManager) logThreatHit(
 	if !tm.shouldLogThreatHit(key, time.Now()) {
 		return
 	}
-	logKV(LogLevelNotice, "threat", "threat_list_hit",
+	logKV(LogLevelNotice, "threat", "threat", "threat_list_hit",
 		"tag", tag,
 		"kind", tag,
 		"list", tag,
@@ -130,7 +130,7 @@ func (tm *ThreatManager) logHostThreatHit(listName, ip, family string) {
 	if !tm.shouldLogThreatHit(key, time.Now()) {
 		return
 	}
-	logKV(LogLevelNotice, "threat", "provider_ip_listed",
+	logKV(LogLevelNotice, "threat", "threat", "provider_ip_listed",
 		"tag", "PROVIDER_IP_THREAT",
 		"kind", listName,
 		"list", listName,
@@ -168,7 +168,7 @@ func (tm *ThreatManager) logThreatEvent(
 		"user_uuid", userUUID,
 	)
 	args = append(args, kvpairs...)
-	logKV(LogLevelNotice, category, event, args...)
+	logKV(LogLevelNotice, category, "threat", event, args...)
 }
 func (tm *ThreatManager) cleanupThreatCounts(activeInstances map[string]struct{}) {
 	for _, p := range tm.Providers {
@@ -210,7 +210,11 @@ func (tm *ThreatManager) cleanupThreatCounts(activeInstances map[string]struct{}
 	tm.spamPrevHitsMu.Unlock()
 }
 func (tm *ThreatManager) cleanupThreatLastHit() {
-	cutoff := time.Now().Add(-5 * time.Minute)
+	minInterval := tm.threatLogMinInterval
+	if minInterval <= 0 {
+		minInterval = 5 * time.Minute
+	}
+	cutoff := time.Now().Add(-minInterval)
 	tm.threatLastHitMu.Lock()
 	for key, ts := range tm.threatLastHit {
 		if ts.Before(cutoff) {
