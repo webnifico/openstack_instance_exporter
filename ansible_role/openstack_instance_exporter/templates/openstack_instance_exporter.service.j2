@@ -37,13 +37,36 @@ Group=root
 
 
 {%- if openstack_instance_exporter_severity_weight_resource is defined -%}
-{%- set _ = flags.append('-severity.weight.resource=' ~ openstack_instance_exporter_severity_weight_resource) -%}
+{%- set severity_weight_resource = openstack_instance_exporter_severity_weight_resource -%}
+{%- elif profile_active and profile.get('severity_weight_resource') is defined -%}
+{%- set severity_weight_resource = profile.get('severity_weight_resource') -%}
+{%- else -%}
+{%- set severity_weight_resource = none -%}
 {%- endif -%}
+{%- if severity_weight_resource is not none -%}
+{%- set _ = flags.append('-severity.weight.resource=' ~ severity_weight_resource) -%}
+{%- endif -%}
+
 {%- if openstack_instance_exporter_severity_weight_threat_list is defined -%}
-{%- set _ = flags.append('-severity.weight.threat_list=' ~ openstack_instance_exporter_severity_weight_threat_list) -%}
+{%- set severity_weight_threat_list = openstack_instance_exporter_severity_weight_threat_list -%}
+{%- elif profile_active and profile.get('severity_weight_threat_list') is defined -%}
+{%- set severity_weight_threat_list = profile.get('severity_weight_threat_list') -%}
+{%- else -%}
+{%- set severity_weight_threat_list = none -%}
 {%- endif -%}
+{%- if severity_weight_threat_list is not none -%}
+{%- set _ = flags.append('-severity.weight.threat_list=' ~ severity_weight_threat_list) -%}
+{%- endif -%}
+
 {%- if openstack_instance_exporter_severity_weight_behavior is defined -%}
-{%- set _ = flags.append('-severity.weight.behavior=' ~ openstack_instance_exporter_severity_weight_behavior) -%}
+{%- set severity_weight_behavior = openstack_instance_exporter_severity_weight_behavior -%}
+{%- elif profile_active and profile.get('severity_weight_behavior') is defined -%}
+{%- set severity_weight_behavior = profile.get('severity_weight_behavior') -%}
+{%- else -%}
+{%- set severity_weight_behavior = none -%}
+{%- endif -%}
+{%- if severity_weight_behavior is not none -%}
+{%- set _ = flags.append('-severity.weight.behavior=' ~ severity_weight_behavior) -%}
 {%- endif -%}
 
 {%- if openstack_instance_exporter_inbound_behavior_enable is defined -%}
@@ -183,6 +206,9 @@ Group=root
 
 {%- if openstack_instance_exporter_conntrack_raw_rcvbuf_bytes is defined -%}
 {%- set _ = flags.append('-conntrack.raw.rcvbuf_bytes=' ~ openstack_instance_exporter_conntrack_raw_rcvbuf_bytes) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_conntrack_raw_rcv_timeout is defined -%}
+{%- set _ = flags.append('-conntrack.raw.rcv_timeout=' ~ openstack_instance_exporter_conntrack_raw_rcv_timeout) -%}
 {%- endif -%}
 {%- if openstack_instance_exporter_conntrack_ipv4_enable is defined -%}
 {%- set _ = flags.append('-conntrack.ipv4.enable=' ~ ('true' if openstack_instance_exporter_conntrack_ipv4_enable else 'false')) -%}

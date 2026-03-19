@@ -17,7 +17,7 @@ This role handles:
 * Installation of tagged releases
 * Configuration via exporter flags
 * systemd lifecycle management
-* Optional log + evidence file handling
+* Optional file logging (JSON)
 * Optional rendering of behavior ports / rules YAML from inline variables
 
 > **Scope note**
@@ -108,6 +108,7 @@ Optional overrides (exporter defaults apply if unset):
 
 ```yaml
 # openstack_instance_exporter_conntrack_raw_rcvbuf_bytes: 33554432
+# openstack_instance_exporter_conntrack_raw_rcv_timeout: "15s"
 # openstack_instance_exporter_conntrack_ipv4_enable: true
 # openstack_instance_exporter_conntrack_ipv6_enable: true
 ```
@@ -186,8 +187,8 @@ openstack_instance_exporter_behavior_ewma_slow_tau: "2h"
 
 ## Behavior ports configuration (inline YAML)
 
-The exporter ships with **built-in port → name mappings** and monitored port sets.
-You may **extend or override** them via an inline YAML variable.
+The exporter ships with **built-in named monitored port maps**.
+You may replace them **per direction** via an inline YAML variable.
 
 ### Variables
 
@@ -195,38 +196,30 @@ You may **extend or override** them via an inline YAML variable.
 openstack_instance_exporter_behavior_ports_config_path: "/opt/openstack_instance_exporter/behavior-ports.yaml"
 
 openstack_instance_exporter_behavior_ports_config_yaml: |
-
-  inbound:
-    - port: 22
-      name: ssh
-    - port: 3389
-      name: rdp
-    - port: 5900
-      name: vnc
-    - port: 6443
-      name: kube-api
-
-  outbound:
-    - port: 25
-      name: smtp
-    - port: 465
-      name: smtps
-    - port: 587
-      name: smtp-submission
-    - port: 3333
-      name: stratum
+  behavior:
+    ports:
+      inbound_monitored:
+        22: ssh
+        3389: rdp
+        5900: vnc
+        6443: kube-api
+      outbound_monitored:
+        25: smtp
+        465: smtps
+        587: smtp-submission
+        3333: stratum
 ```
 
 ### Semantics
 
-* Built-in ports load **first**
-* Inline YAML **extends or overrides**
+* `behavior.ports.inbound_monitored` replaces the built-in inbound monitored map when present
+* `behavior.ports.outbound_monitored` replaces the built-in outbound monitored map when present
+* If only one direction is provided, the other direction stays on built-ins
 * Ports listed here are considered **monitored**
 * Traffic to ports **not listed** is eligible for **dark-space detection**
-* `name` is for readability only
 * Restart required
 
-If `*_config_yaml` is unset or empty, **no file is written** and built-ins are used.
+If `*_config_yaml` is unset or empty and `*_config_path` is defined, the role removes the rendered file so the exporter falls back to built-ins.
 
 ---
 
@@ -262,7 +255,7 @@ openstack_instance_exporter_behavior_rules_config_yaml: |
   rules:
     - id: inbound_admin_exposure
       direction: inbound
-      dst_port_set: admin
+      port_set: admin
       kind: inbound_admin
       severity: high
       flows_min: 50
@@ -270,7 +263,7 @@ openstack_instance_exporter_behavior_rules_config_yaml: |
 
     - id: outbound_smtp_spam
       direction: outbound
-      dst_port_set: mail
+      port_set: mail
       kind: smtp_spam
       severity: high
       flows_min: 200
@@ -280,7 +273,7 @@ openstack_instance_exporter_behavior_rules_config_yaml: |
 
     - id: outbound_mining_fanout
       direction: outbound
-      dst_port_set: mining
+      port_set: mining
       kind: crypto_mining
       severity: medium
       flows_min: 100
@@ -370,7 +363,7 @@ openstack_instance_exporter_log_file_enable: true
 openstack_instance_exporter_log_file_path: "/var/log/openstack_instance_exporter.log"
 ```
 
-Threat log throttling:
+Threat / behavior notice throttling:
 
 ```yaml
 openstack_instance_exporter_threat_log_min_interval: "5m"
@@ -393,6 +386,8 @@ Resolution order:
 1. Explicit Ansible variable
 2. Profile value
 3. Exporter default
+
+This applies to the profile-controlled role knobs such as severity weights, behavior enablement, threat-feed enablement, per-list directions, and behavior sensitivity.
 
 Profiles do **not** control ports or rules files.
 
@@ -425,9 +420,10 @@ Profiles do **not** control ports or rules files.
     openstack_instance_exporter_outbound_behavior_enable: true
 
     openstack_instance_exporter_behavior_ports_config_yaml: |
-      outbound:
-        - port: 443
-          name: https
+      behavior:
+        ports:
+          outbound_monitored:
+            443: https
 
     openstack_instance_exporter_behavior_rules_config_yaml: |
       port_sets:
@@ -435,7 +431,7 @@ Profiles do **not** control ports or rules files.
       rules:
         - id: inbound_admin_exposure
           direction: inbound
-          dst_port_set: admin
+          port_set: admin
           severity: high
 ```
 

@@ -4284,7 +4284,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "10 * sum by (job) (oie_host_conntrack_utilization{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "100 * sum by (job) (oie_host_conntrack_utilization{instance=~\"$gvar_oie_hypervisor.*\"})",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,

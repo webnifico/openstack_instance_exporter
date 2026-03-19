@@ -1,5 +1,5 @@
 # OpenStack Instance Exporter (OIE)
-**Whitepaper README (generated from current code snapshot on 2025-12-20).**
+**Whitepaper README (generated from current code snapshot on 2026-03-18).**
 
 OIE is a hypervisor-side Prometheus exporter for KVM/OpenStack that turns host- and instance-level reality into metrics: **libvirt + kernel conntrack + threat intel + behavioral anomaly scoring**.
 
@@ -239,10 +239,16 @@ Metrics without identity create endless “who owns this?” churn.
 
 ### Standard label sets (practical)
 
-- **Instance metrics:** `domain, instance_uuid, user_uuid, project_uuid, project_name`
-- **Instance conntrack IP metrics:** `domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid`
-- **Instance severity metrics:** `domain, instance_uuid, project_uuid, project_name, user_uuid`
-- **Threat metrics (direction-aware):** `domain, instance_uuid, project_uuid, project_name, user_uuid, direction`
+- **Instance base metrics:** `domain, server_name, instance_uuid, project_uuid, project_name, user_uuid`
+- **Instance metadata (`oie_instance_info`):** base labels + `user_name, flavor, vcpus, mem_mb, root_type, created_at, metadata_version`
+- **Instance state code (`oie_instance_state_code`):** base labels + `state_desc`
+- **Instance conntrack IP metrics:** `domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family`
+- **Instance disk metrics:** base labels + `volume_uuid, disk_type, disk_path`
+- **Instance NIC metrics:** base labels + `ifname`
+- **Per-vCPU counters:** base labels + `vcpu`
+- **Instance severity metrics:** `domain, server_name, instance_uuid, project_uuid, project_name, user_uuid`
+- **Threat contact / active-flow metrics (direction-aware):** `domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction`
+- **Threat-list severity metric:** `domain, server_name, instance_uuid, project_uuid, project_name, user_uuid`
 
 ### Why IDs and names together
 
@@ -284,14 +290,14 @@ When a behavior alert is emitted, the log line always includes stable evidence k
 
 These keys are **never omitted** (unknown values are empty/0) so dashboards and parsers stay stable.
 
-### Port naming (built-in map + optional override file)
+### Port naming (built-in map + optional config file)
 The exporter ships with a **built-in port → name** map for common services (ssh/http/https/rdp/mysql/redis/etc) so alerts and dashboards are readable out of the box.
 
-If you want to **extend/override names** and define additional “known good” ports for **dark-space detection**, provide a YAML file via:
+If you want to provide your own named “known good” ports for **dark-space detection**, you can supply a YAML file via:
 
 - `-behavior.ports_config=/etc/oie/behavior_ports.yaml`
 
-YAML schema (ports are numeric keys; values are human-readable names):
+YAML schema (ports are numeric keys; values are required human-readable names):
 
 ```yaml
 behavior:
@@ -303,14 +309,18 @@ behavior:
     outbound_monitored:
       25: smtp
       465: smtps
-      587: smtp-submission
-      8333: bitcoin
+      587: submission
+      8333: stratum_alt_8333
 ```
 
 **Notes**
 
-- The built-in map still applies; the YAML file **overrides existing values/extends** it.
-- If a port is present with an empty name, it is still treated as “monitored” for dark-space, but has no friendly label.
+- The built-in maps are used by default.
+- If `inbound_monitored` is present in the file, it **replaces** the built-in inbound map.
+- If `outbound_monitored` is present in the file, it **replaces** the built-in outbound map.
+- If only one direction is provided, that direction comes from the file and the other direction stays on the built-in map.
+- Port names must be non-empty strings; empty names are rejected as invalid config.
+- If the file is missing, invalid, empty, or unparsable, the exporter falls back to the built-in maps.
 - This file is read at startup (restart the exporter to apply changes).
 
 ### Rule evaluation order and precedence
@@ -353,6 +363,7 @@ port_sets:
 
 rules:
   - id: outbound_mining_fanout
+    kind: outbound_mining_fanout
     direction: outbound
     port_set: mining
     flows_min: 200
@@ -361,6 +372,7 @@ rules:
       unreplied: 0.80
 
   - id: inbound_admin_exposure
+    kind: inbound_admin_exposure
     direction: inbound
     port_set: admin
     flows_min: 50
@@ -369,9 +381,9 @@ rules:
 
 **Notes**
 
-- Rules are evaluated alongside the built-in heuristics (they are additive).
+- Built-in rules are evaluated first. External rules are only evaluated if no built-in rule matched.
 - A restart is required to apply extended rules if changed.
-- Parse/validation errors are logged; the last valid rule set remains in effect.
+- Parse/validation errors are logged. After correcting the rule file, restart the exporter to apply the updated rules.
 ### Priority (P1–P4) derived from severity × confidence
 
 Behavior alerts separate **severity** (impact) from **confidence** (how sure we are), then derive a human-friendly priority:
@@ -390,7 +402,7 @@ To reduce false positives and log spam:
 * Alerts are cooldowned and/or change-only so repeated identical behavior doesn’t spam logs.
 
 
-OIE emits four headline severities (normalized 0..1; commonly displayed as 0..100):
+OIE emits four headline severities as exported metric scores on a 0..100 scale (some internal calculations use 0..1, but the published Prometheus metrics are 0..100):
 
 - **`oie_instance_resource_severity`** — how hard the VM leans on shared host resources (CPU/memory/disk/net/conntrack).
 - **`oie_instance_behavior_severity`** — how strongly the VM’s network behavior deviates from its own baseline (EWMA + heuristics).
@@ -956,11 +968,13 @@ Outbound:
 
 ### Behavior sensitivity (one knob to move the whole engine)
 
-`-behavior.sensitivity` scales:
+`-behavior.sensitivity` scales the built-in / internal behavior engine:
 
 - Integer thresholds (flows, unique ports, unique remotes).
 - Ratio thresholds (unreplied ratio, new remote ratio, etc.).
 - EWMA anomaly bands.
+
+It does **not** rewrite raw thresholds defined in external YAML rules loaded via `-behavior.rules_config`; those are evaluated as configured.
 
 Higher sensitivity:
 
@@ -1032,18 +1046,19 @@ OIE is designed so tuning maps to operator intent.
 | `behavior.sensitivity` | `1.0` | Behavior sensitivity (>1 more sensitive). |
 | `behavior.ewma_fast_tau` | `3m` | Behavior EWMA **fast** time constant (baseline reacts quickly). |
 | `behavior.ewma_slow_tau` | `2h` | Behavior EWMA **slow** time constant (baseline reflects long-term normal). |
-| `behavior.ports_config` | `""` | Optional YAML: extend/override port names + inbound/outbound “monitored ports” sets. |
+| `behavior.ports_config` | `""` | Optional YAML: replace inbound/outbound monitored-port maps per direction (or use built-ins if unset/invalid). |
 | `behavior.rules_config` | `""` | Optional YAML: external behavior rules (table-driven heuristics + port sets). |
 | `collection.interval` | `15s` | Background collection interval. |
 | `contacts.direction` | `"out"` | Default direction for threat/contacts: `out`, `in`, `any`. |
 | `host.threats.enable` | `false` | Enable host NIC/provider IP threat list checks if using ovn-bgp-agent.  |
-| `host.interfaces` | `"bgp-nic"` | Which NIC IPs are checked used with host.threats.enable. |
+| `host.interfaces` | `""` | CSV NIC whitelist used with `host.threats.enable`. If host threats are enabled and this is left empty, runtime falls back to `bgp-nic`. |
 | `host.ips.allow-private` | `false` | Include private IPs (provider/host threat checks). Useful for development/labs. |
 | `inbound.behavior.enable` | `false` | Enable inbound behavior metrics. |
 | `libvirt.uri` | `"qemu:///system"` | Libvirt URI. |
 | `log.file.enable` | `false` | Enable file logging. |
 | `log.file.path` | `"/var/log/openstack_instance_exporter.log"` | Log file path. |
-| `log.level` | `"error"` | Log level. |
+| `log.level` | `"info"` | Log level. |
+| `threat.log.min_interval` | `5m` | Minimum interval between repeated threat / behavior notice logs. |
 | `outbound.behavior.enable` | `false` | Enable outbound behavior metrics. |
 | `severity.weight.behavior` | `0.45` | Weight: behavior anomalies. |
 | `severity.weight.resource` | `0.45` | Weight: resource pressure. |
@@ -1052,6 +1067,7 @@ OIE is designed so tuning maps to operator intent.
 | `web.telemetry-path` | `"/metrics"` | Path under which to expose metrics. |
 | `worker.count` | `0` | Concurrent workers (0 = NumCPU). |
 | `conntrack.raw.rcvbuf_bytes` | `33554432` | SO_RCVBUF bytes for the raw conntrack reader |
+| `conntrack.raw.rcv_timeout` | `15s` | SO_RCVTIMEO timeout for the raw conntrack reader |
 | `conntrack.ipv4.enable` | `true` | Enable IPv4 conntrack reads |
 | `conntrack.ipv6.enable` | `true` | Enable IPv6 conntrack reads |
 
@@ -1060,26 +1076,26 @@ OIE is designed so tuning maps to operator intent.
 | Flag | Default | Purpose |
 |---|---:|---|
 | `spamhaus.enable` | `false` | Enable the Spamhaus DROP list provider. |
-| `spamhaus.url` | `"<built-in>"` | Spamhaus IPv4 DROP source URL. |
-| `spamhaus.ipv6.url` | `"<built-in>"` | Spamhaus IPv6 DROP source URL. |
-| `spamhaus.refresh` | `10m` | Refresh interval for Spamhaus. |
-| `spamhaus.direction` | `both` | Apply Spamhaus to `inbound|outbound|both`. |
+| `spamhaus.url` | `"https://www.spamhaus.org/drop/drop.txt"` | Spamhaus IPv4 DROP source URL. |
+| `spamhaus.ipv6.url` | `"https://www.spamhaus.org/drop/dropv6.txt"` | Spamhaus IPv6 DROP source URL. |
+| `spamhaus.refresh` | `6h` | Refresh interval for Spamhaus. |
+| `spamhaus.direction` | `""` | Direction override for Spamhaus. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
 | `tor.exit.enable` | `false` | Enable the Tor **exit** list provider. |
-| `tor.exit.url` | `"<built-in>"` | Tor exit source URL (Onionoo). |
-| `tor.exit.refresh` | `10m` | Refresh interval for Tor exit. |
-| `tor.exit.direction` | `both` | Apply Tor exit to `inbound|outbound|both`. |
+| `tor.exit.url` | `"https://onionoo.torproject.org/details?search=flag:exit&fields=or_addresses"` | Tor exit source URL (Onionoo). |
+| `tor.exit.refresh` | `1h` | Refresh interval for Tor exit. |
+| `tor.exit.direction` | `""` | Direction override for Tor exit. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
 | `tor.relay.enable` | `false` | Enable the Tor **relay** list provider. |
-| `tor.relay.url` | `"<built-in>"` | Tor relay source URL (Onionoo). |
-| `tor.relay.refresh` | `10m` | Refresh interval for Tor relay. |
-| `tor.relay.direction` | `both` | Apply Tor relay to `inbound|outbound|both`. |
+| `tor.relay.url` | `"https://onionoo.torproject.org/details?search=flag:running&fields=or_addresses"` | Tor relay source URL (Onionoo). |
+| `tor.relay.refresh` | `1h` | Refresh interval for Tor relay. |
+| `tor.relay.direction` | `""` | Direction override for Tor relay. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
 | `emergingthreats.enable` | `false` | Enable the Emerging Threats list provider. |
-| `emergingthreats.url` | `"<built-in>"` | Emerging Threats source URL. |
-| `emergingthreats.refresh` | `10m` | Refresh interval for Emerging Threats. |
-| `emergingthreats.direction` | `both` | Apply Emerging Threats to `inbound|outbound|both`. |
+| `emergingthreats.url` | `"https://rules.emergingthreats.net/blockrules/compromised-ips.txt"` | Emerging Threats source URL. |
+| `emergingthreats.refresh` | `6h` | Refresh interval for Emerging Threats. |
+| `emergingthreats.direction` | `""` | Direction override for Emerging Threats. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
 | `customlist.enable` | `false` | Enable the local custom list provider. |
 | `customlist.path` | `""` | Path to a newline-delimited list of IPs/CIDRs. |
 | `customlist.refresh` | `10m` | Reload interval for the custom list file. |
-| `customlist.direction` | `both` | Apply custom list to `inbound|outbound|both`. |
+| `customlist.direction` | `""` | Direction override for the custom list. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
 
 ### Practical tuning strategy
 
@@ -1471,8 +1487,8 @@ This appendix is intentionally verbose for dashboard authors.
   - unit: seconds
 
 - **oie_host_threat_customlist_refresh_errors_total**
-  - Type: Counter
-  - Description: Total Customlist refresh errors.
+  - Type: Gauge
+  - Description: Current Customlist refresh error total snapshot.
   - labels: none
   - unit: errors
 
@@ -1495,8 +1511,8 @@ This appendix is intentionally verbose for dashboard authors.
   - unit: seconds
 
 - **oie_host_threat_emergingthreats_refresh_errors_total**
-  - Type: Counter
-  - Description: Total EmergingThreats refresh errors.
+  - Type: Gauge
+  - Description: Current EmergingThreats refresh error total snapshot.
   - labels: none
   - unit: errors
 
@@ -1525,8 +1541,8 @@ This appendix is intentionally verbose for dashboard authors.
   - unit: seconds
 
 - **oie_host_threat_spamhaus_refresh_errors_total**
-  - Type: Counter
-  - Description: Total Spamhaus refresh errors.
+  - Type: Gauge
+  - Description: Current Spamhaus refresh error total snapshot.
   - labels: none
   - unit: errors
 
@@ -1549,8 +1565,8 @@ This appendix is intentionally verbose for dashboard authors.
   - unit: seconds
 
 - **oie_host_threat_tor_exit_refresh_errors_total**
-  - Type: Counter
-  - Description: Total Tor Exit refresh errors.
+  - Type: Gauge
+  - Description: Current Tor Exit refresh error total snapshot.
   - labels: none
   - unit: errors
 
@@ -1573,8 +1589,8 @@ This appendix is intentionally verbose for dashboard authors.
   - unit: seconds
 
 - **oie_host_threat_tor_relay_refresh_errors_total**
-  - Type: Counter
-  - Description: Total Tor Relay refresh errors.
+  - Type: Gauge
+  - Description: Current Tor Relay refresh error total snapshot.
   - labels: none
   - unit: errors
 
@@ -1589,534 +1605,563 @@ This appendix is intentionally verbose for dashboard authors.
 - **oie_instance_info**
   - Type: Gauge
   - Description: Static instance metadata (treat as metadata).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, user_name, flavor, vcpus, mem_mb, root_type, created_at, metadata_version
   - unit: 1
 
 - **oie_instance_state_code**
   - Type: Gauge
   - Description: Current libvirt state code (description via label).
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, state_desc
   - unit: code
 
 - **oie_instance_cpu_vcpu_count**
   - Type: Gauge
   - Description: Allocated vCPU count.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: vCPUs
 
 - **oie_instance_cpu_vcpu_percent**
   - Type: Gauge
   - Description: CPU usage percent per vCPU.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: percent
 
 - **oie_instance_cpu_steal_seconds_total**
   - Type: Counter
   - Description: Total steal time.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, vcpu
   - unit: seconds
 
 - **oie_instance_cpu_wait_seconds_total**
   - Type: Counter
   - Description: Total CPU wait time.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, vcpu
   - unit: seconds
 
 - **oie_instance_mem_allocated_mb**
   - Type: Gauge
   - Description: Allocated memory (MB).
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: MB
 
 - **oie_instance_mem_used_mb**
   - Type: Gauge
   - Description: Guest-view used memory (MB).
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: MB
 
 - **oie_instance_mem_rss_mb**
   - Type: Gauge
   - Description: Host RSS attributed to instance (MB).
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: MB
 
 - **oie_instance_mem_major_faults_total**
   - Type: Counter
   - Description: Total major page faults attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: count
 
 - **oie_instance_mem_minor_faults_total**
   - Type: Counter
   - Description: Total minor page faults attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: count
 
 - **oie_instance_mem_swap_in_bytes_total**
   - Type: Counter
   - Description: Total bytes swapped in for this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: count
 
 - **oie_instance_mem_swap_out_bytes_total**
   - Type: Counter
   - Description: Total bytes swapped out for this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: count
 
 - **oie_instance_hugetlb_pgalloc_total**
   - Type: Counter
   - Description: Total hugetlb page allocations attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: count
 
 - **oie_instance_hugetlb_pgfail_total**
   - Type: Counter
   - Description: Total hugetlb page allocation failures attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: count
 
 - **oie_instance_net_rx_gbytes_total**
   - Type: Counter
   - Description: Total received data attributed to this instance (GB).
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ifname
   - unit: GB
 
 - **oie_instance_net_tx_gbytes_total**
   - Type: Counter
   - Description: Total transmitted data attributed to this instance (GB).
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ifname
   - unit: GB
 
 - **oie_instance_net_rx_packets_total**
   - Type: Counter
   - Description: Total received packets attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ifname
   - unit: packets
 
 - **oie_instance_net_tx_packets_total**
   - Type: Counter
   - Description: Total transmitted packets attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ifname
   - unit: packets
 
 - **oie_instance_net_rx_errors_total**
   - Type: Counter
   - Description: Total receive errors attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ifname
   - unit: errors
 
 - **oie_instance_net_tx_errors_total**
   - Type: Counter
   - Description: Total transmit errors attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ifname
   - unit: errors
 
 - **oie_instance_net_rx_dropped_total**
   - Type: Counter
   - Description: Total received packets dropped attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ifname
   - unit: packets
 
 - **oie_instance_net_tx_dropped_total**
   - Type: Counter
   - Description: Total transmitted packets dropped attributed to this instance.
-  - labels: domain, instance_uuid, project_uuid, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ifname
   - unit: packets
 
 - **oie_instance_disk_info**
   - Type: Gauge
   - Description: Static disk metadata for an instance disk (treat as metadata).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: count
 
 - **oie_instance_disk_capacity_bytes**
   - Type: Gauge
   - Description: Virtual disk capacity (bytes).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: bytes
 
 - **oie_instance_disk_allocation_bytes**
   - Type: Gauge
   - Description: Allocated disk space on the host backing store (bytes).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: bytes
 
 - **oie_instance_disk_read_requests_total**
   - Type: Counter
   - Description: Total disk read requests serviced.
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: requests
 
 - **oie_instance_disk_write_requests_total**
   - Type: Counter
   - Description: Total disk write requests serviced.
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: requests
 
 - **oie_instance_disk_read_seconds_total**
   - Type: Counter
   - Description: Total time spent servicing disk reads (seconds).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: seconds
 
 - **oie_instance_disk_write_seconds_total**
   - Type: Counter
   - Description: Total time spent servicing disk writes (seconds).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: seconds
 
 - **oie_instance_disk_read_gbytes_total**
   - Type: Counter
   - Description: Total data read from disk (GB).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: GB
 
 - **oie_instance_disk_write_gbytes_total**
   - Type: Counter
   - Description: Total data written to disk (GB).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: GB
 
 - **oie_instance_disk_flush_requests_total**
   - Type: Counter
   - Description: Total disk flush requests serviced.
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: requests
 
 - **oie_instance_disk_flush_seconds_total**
   - Type: Counter
   - Description: Total time spent servicing disk flushes (seconds).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: seconds
 
 - **oie_instance_disk_read_iops**
   - Type: Gauge
   - Description: Read IOPS over the last scrape interval (`Δread_requests_total / Δt`).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: iops
 
 - **oie_instance_disk_write_iops**
   - Type: Gauge
   - Description: Write IOPS over the last scrape interval (`Δwrite_requests_total / Δt`).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: iops
 
 - **oie_instance_disk_flush_iops**
   - Type: Gauge
   - Description: Flush IOPS over the last scrape interval (`Δflush_requests_total / Δt`).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: iops
 
 - **oie_instance_disk_read_latency_seconds**
   - Type: Gauge
   - Description: Average per-read service time over the last scrape interval (`Δread_seconds_total / max(Δread_requests_total,1)`).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: seconds
 
 - **oie_instance_disk_write_latency_seconds**
   - Type: Gauge
   - Description: Average per-write service time over the last scrape interval (`Δwrite_seconds_total / max(Δwrite_requests_total,1)`).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: seconds
 
 - **oie_instance_disk_flush_latency_seconds**
   - Type: Gauge
   - Description: Average per-flush service time over the last scrape interval (`Δflush_seconds_total / max(Δflush_requests_total,1)`).
-  - labels: domain, instance_uuid, user_uuid, project_uuid, project_name, volume_uuid, disk_type, disk_path
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, volume_uuid, disk_type, disk_path
   - unit: seconds
 
 - **oie_instance_conntrack_ip_flows**
   - Type: Gauge
   - Description: Conntrack flows currently attributed to this instance fixed IP (inbound + outbound).
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
 - **oie_instance_conntrack_ip_flows_inbound**
   - Type: Gauge
   - Description: Conntrack flows currently attributed to this instance fixed IP (inbound).
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
 - **oie_instance_conntrack_ip_flows_outbound**
   - Type: Gauge
   - Description: Conntrack flows currently attributed to this instance fixed IP (outbound).
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
 - **oie_instance_inbound_flows**
   - Type: Gauge
   - Description: Conntrack flows observed for this behavior identity (inbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
 - **oie_instance_inbound_unique_remotes**
   - Type: Gauge
   - Description: Unique remote IPs observed for this behavior identity (inbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_inbound_new_remotes**
   - Type: Gauge
   - Description: Remote IPs newly observed (vs recent history) for this behavior identity (inbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_inbound_unique_dst_ports**
   - Type: Gauge
   - Description: Unique destination ports observed for this behavior identity (inbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_inbound_new_dst_ports**
   - Type: Gauge
   - Description: Destination ports newly observed (vs recent history) for this behavior identity (inbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_inbound_max_flows_single_remote**
   - Type: Gauge
   - Description: Maximum flows concentrated to/from a single remote IP for this behavior identity (inbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
 - **oie_instance_inbound_max_flows_single_dst_port**
   - Type: Gauge
   - Description: Maximum flows concentrated to a single destination port for this behavior identity (inbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
 - **oie_instance_inbound_bytes_per_flow**
   - Type: Gauge
   - Description: Average bytes per flow for this behavior identity (inbound) in the last analysis window (requires nf_conntrack_acct=1).
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: bytes/flow
 
 - **oie_instance_inbound_packets_per_flow**
   - Type: Gauge
   - Description: Average packets per flow for this behavior identity (inbound) in the last analysis window (requires nf_conntrack_acct=1).
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: packets/flow
 
 - **oie_instance_outbound_flows**
   - Type: Gauge
   - Description: Conntrack flows observed for this behavior identity (outbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
 - **oie_instance_outbound_unique_remotes**
   - Type: Gauge
   - Description: Unique remote IPs observed for this behavior identity (outbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_outbound_new_remotes**
   - Type: Gauge
   - Description: Remote IPs newly observed (vs recent history) for this behavior identity (outbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_outbound_unique_dst_ports**
   - Type: Gauge
   - Description: Unique destination ports observed for this behavior identity (outbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_outbound_new_dst_ports**
   - Type: Gauge
   - Description: Destination ports newly observed (vs recent history) for this behavior identity (outbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_outbound_max_flows_single_remote**
   - Type: Gauge
   - Description: Maximum flows concentrated to/from a single remote IP for this behavior identity (outbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
 - **oie_instance_outbound_max_flows_single_dst_port**
   - Type: Gauge
   - Description: Maximum flows concentrated to a single destination port for this behavior identity (outbound) in the last analysis window.
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
 - **oie_instance_outbound_bytes_per_flow**
   - Type: Gauge
   - Description: Average bytes per flow for this behavior identity (outbound) in the last analysis window (requires nf_conntrack_acct=1).
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: bytes/flow
 
 - **oie_instance_outbound_packets_per_flow**
   - Type: Gauge
   - Description: Average packets per flow for this behavior identity (outbound) in the last analysis window (requires nf_conntrack_acct=1).
-  - labels: domain, instance_uuid, ip, family, project_uuid, project_name, user_uuid
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: packets/flow
 
 - **oie_instance_threat_spamhaus_active_flows**
   - Type: Gauge
   - Description: Active conntrack flows involving a remote IP present in the spamhaus threat list.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: flows
 
 - **oie_instance_threat_spamhaus_contacts_total**
   - Type: Counter
   - Description: Total threat-list contact events for the spamhaus threat list (direction-aware).
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: count
 
 - **oie_instance_threat_tor_exit_active_flows**
   - Type: Gauge
   - Description: Active conntrack flows involving a remote IP present in the tor_exit threat list.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: flows
 
 - **oie_instance_threat_tor_exit_contacts_total**
   - Type: Counter
   - Description: Total threat-list contact events for the tor_exit threat list (direction-aware).
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: count
 
 - **oie_instance_threat_tor_relay_active_flows**
   - Type: Gauge
   - Description: Active conntrack flows involving a remote IP present in the tor_relay threat list.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: flows
 
 - **oie_instance_threat_tor_relay_contacts_total**
   - Type: Counter
   - Description: Total threat-list contact events for the tor_relay threat list (direction-aware).
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: count
 
 - **oie_instance_threat_emergingthreats_active_flows**
   - Type: Gauge
   - Description: Active conntrack flows involving a remote IP present in the emergingthreats threat list.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: flows
 
 - **oie_instance_threat_emergingthreats_contacts_total**
   - Type: Counter
   - Description: Total threat-list contact events for the emergingthreats threat list (direction-aware).
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: count
 
 - **oie_instance_threat_customlist_active_flows**
   - Type: Gauge
   - Description: Active conntrack flows involving a remote IP present in the customlist threat list.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: flows
 
 - **oie_instance_threat_customlist_contacts_total**
   - Type: Counter
   - Description: Total threat-list contact events for the customlist threat list (direction-aware).
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, direction
   - unit: count
 
 - **oie_instance_resource_severity**
   - Type: Gauge
-  - Description: Overall resource severity (0..1) for this instance.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid
-  - unit: ratio
+  - Description: Overall resource severity (0-100) for this instance.
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
+  - unit: score (0-100)
 
 - **oie_instance_resource_cpu_severity**
   - Type: Gauge
-  - Description: Resource severity (0..1) for the cpu axis.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid
-  - unit: ratio
+  - Description: Resource severity (0-100) for the cpu axis.
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
+  - unit: score (0-100)
 
 - **oie_instance_resource_mem_severity**
   - Type: Gauge
-  - Description: Resource severity (0..1) for the mem axis.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid
-  - unit: ratio
+  - Description: Resource severity (0-100) for the mem axis.
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
+  - unit: score (0-100)
 
 - **oie_instance_resource_disk_severity**
   - Type: Gauge
-  - Description: Resource severity (0..1) for the disk axis.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid
-  - unit: ratio
+  - Description: Resource severity (0-100) for the disk axis.
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
+  - unit: score (0-100)
 
 - **oie_instance_resource_net_severity**
   - Type: Gauge
-  - Description: Resource severity (0..1) for the net axis.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid
-  - unit: ratio
+  - Description: Resource severity (0-100) for the net axis.
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
+  - unit: score (0-100)
 
 - **oie_instance_behavior_severity**
   - Type: Gauge
-  - Description: Overall behavior anomaly severity (0..1) for this instance.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid
-  - unit: ratio
+  - Description: Overall behavior anomaly severity (0-100) for this instance.
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
+  - unit: score (0-100)
 
 - **oie_instance_threat_list_severity**
   - Type: Gauge
-  - Description: Overall threat-list severity (0..1) for this instance.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid, direction
-  - unit: ratio
+  - Description: Overall threat-list severity (0-100) for this instance.
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
+  - unit: score (0-100)
 
 - **oie_instance_attention_severity**
   - Type: Gauge
-  - Description: Overall attention severity (0..1) combining resource + behavior + threat-list signals.
-  - labels: domain, instance_uuid, project_uuid, project_name, user_uuid
-  - unit: ratio
+  - Description: Overall attention severity (0-100) combining resource + behavior + threat-list signals. Note: the Prometheus help text in the current build may still say resource pressure + threat signals, but the actual score includes behavior.
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
+  - unit: score (0-100)
 
 ## Appendix B: Log schema and examples
 
 ### Behavior alert fields (additions)
 
-In addition to the common fields, `behavior_alert` events include:
+In addition to the common structured log fields, `behavior_alert` events include representative keys such as:
 
+* `tag` (`BEHAVIOR`)
 * `priority` (`P1`..`P4`)
-* `severity_score`, `confidence_score` (numeric; logged separately so you can tune)
-* `kind` (category label)
+* `severity_score`, `confidence_score`
+* `severity_band`, `priority_basis`
+* `kind`, `reason`, `detail`
+* `direction`
 * `top_remote_ip`, `top_dst_port`, `top_dst_port_name`
 * `top_remote_share`, `top_port_share`, `evidence_mode`
+* `flows_current`, `unique_remotes`, `new_remotes`
+* `unique_ports`, `new_ports`
+* `max_flows_single_remote`, `max_flows_single_port`
+* `unreplied_ratio`
+* `src_ip`, `dst_ip`
 
-### Example: behavior alert (illustrative)
+### Example: behavior alert (representative emitted log)
 
 ```json
 {
   "time": "2025-12-20T12:01:00Z",
-  "level": "NOTICE",
+  "level": "WARN",
   "msg": "behavior_alert",
+  "category": "behavior",
+  "component": "threat",
+  "severity_class": "notice",
+  "tag": "BEHAVIOR",
   "domain": "instance-00000001",
   "instance_uuid": "…",
   "project_uuid": "…",
+  "project_name": "demo-project",
   "user_uuid": "…",
   "direction": "outbound",
   "kind": "vertical_port_scan",
+  "reason": "high_unique_ports_and_unreplied_ratio",
+  "detail": "Outbound scan-like behavior detected",
   "priority": "P2",
+  "priority_basis": "mixed",
   "severity_score": 0.78,
   "confidence_score": 0.72,
+  "severity_band": "high",
   "top_remote_ip": "203.0.113.55",
   "top_dst_port": 22,
   "top_dst_port_name": "ssh",
   "top_remote_share": 0.08,
   "top_port_share": 0.14,
   "evidence_mode": "distributed",
-  "flows": 1200,
-  "unique_dst_ports": 400,
+  "flows_current": 1200,
+  "unique_ports": 400,
+  "new_ports": 395,
   "unique_remotes": 2,
-  "unreplied_ratio": 0.92
+  "new_remotes": 1,
+  "max_flows_single_remote": 96,
+  "max_flows_single_port": 168,
+  "unreplied_ratio": 0.92,
+  "src_ip": "10.0.0.5",
+  "dst_ip": "203.0.113.55"
 }
 ```
 
-### Example: threat hit (illustrative, unified log)
+### Example: threat-list hit (representative emitted log)
 
 ```json
 {
   "time": "2025-12-20T12:02:11Z",
-  "level": "NOTICE",
-  "msg": "threat_hit",
+  "level": "WARN",
+  "msg": "threat_list_hit",
+  "category": "threat",
+  "component": "threat",
+  "severity_class": "notice",
+  "tag": "spamhaus",
+  "kind": "spamhaus",
+  "list": "spamhaus",
   "domain": "instance-00000001",
+  "server_name": "demo-vm-01",
   "instance_uuid": "…",
   "project_uuid": "…",
+  "project_name": "demo-project",
   "user_uuid": "…",
-  "direction": "outbound",
-  "list": "spamhaus",
-  "remote_ip": "198.51.100.77",
-  "active_flows": 12,
-  "contacts_total": 1
+  "src": "10.0.0.5",
+  "dst": "198.51.100.77",
+  "direction": "outbound"
 }
 ```
 
@@ -2130,7 +2175,7 @@ In addition to the common fields, `behavior_alert` events include:
 - **Pressure:** “how hard right now” (0..1).
 - **Impact:** “how much it matters” (0..1).
 - **Confidence:** “how reliable this measurement is” (0..1).
-- **Severity:** normalized signal intended for dashboards/alerts (0..1, often displayed as 0..100).
+- **Severity:** exported metric score intended for dashboards/alerts (0..100). Some internal scoring stages may use 0..1 before final emission.
 - **Attention:** weighted blend severity intended for triage and automation.
 
 ## License

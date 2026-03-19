@@ -3494,7 +3494,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "10 *\nsum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nscalar(\n  sum(\n    oie_host_conntrack_max{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\"\n    }\n  )\n)\n",
+              "expr": "100 *\nsum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nscalar(\n  sum(\n    oie_host_conntrack_max{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\"\n    }\n  )\n)\n",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"

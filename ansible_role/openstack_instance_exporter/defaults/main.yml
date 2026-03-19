@@ -3,7 +3,7 @@
 openstack_instance_exporter_enabled: false
 
 # Version / install
-openstack_instance_exporter_version: "v1.0.0"
+openstack_instance_exporter_version: "v1.1.1"
 openstack_instance_exporter_sha256: "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/sha256sums.txt"
 openstack_instance_exporter_install_dir: "/opt/openstack_instance_exporter"
 
@@ -39,6 +39,7 @@ openstack_instance_exporter_web_listen_address: ""
 # - oie_host_conntrack_raw_parse_errors_total
 # - oie_host_conntrack_raw_ok
 # openstack_instance_exporter_conntrack_raw_rcvbuf_bytes: 33554432
+# openstack_instance_exporter_conntrack_raw_rcv_timeout: 15s
 #
 # Enable/disable families. If you truly don't need v6, disable it to avoid extra work.
 # openstack_instance_exporter_conntrack_ipv4_enable: true
@@ -60,8 +61,28 @@ openstack_instance_exporter_web_listen_address: ""
 # openstack_instance_exporter_behavior_ewma_fast_tau: 3m
 # openstack_instance_exporter_behavior_ewma_slow_tau: 2h
 
-# Optional behavior ports YAML (port naming / readability)
+# Optional behavior ports YAML (named “known good” ports for dark-space detection)
 # openstack_instance_exporter_behavior_ports_config_path: "{{ openstack_instance_exporter_install_dir }}/behavior-ports.yaml"
+#
+# Provide YAML content directly via Ansible var (templated to the path above).
+# If unset/empty, no file is rendered and built-in monitored port maps are used.
+#
+# Current semantics:
+# - If inbound_monitored is provided, it replaces the built-in inbound map.
+# - If outbound_monitored is provided, it replaces the built-in outbound map.
+# - If only one direction is provided, the other direction stays on built-ins.
+# - If the file is missing, invalid, empty, or unparsable, exporter falls back to built-ins.
+#
+# openstack_instance_exporter_behavior_ports_config_yaml: |
+#   behavior:
+#     ports:
+#       inbound_monitored:
+#         22: ssh
+#         3389: rdp
+#       outbound_monitored:
+#         25: smtp
+#         465: smtps
+#         587: submission
 
 # Optional behavior rules YAML (external port_sets + rules; loaded once at startup, no hot-reload)
 # openstack_instance_exporter_behavior_rules_config_path: "{{ openstack_instance_exporter_install_dir }}/behavior-rules.yaml"
@@ -85,21 +106,9 @@ openstack_instance_exporter_web_listen_address: ""
 #   rules:
 #     - id: inbound_admin_exposure
 #       direction: inbound
-#       dst_port_set: admin
+#       port_set: admin
 #       kind: inbound_admin
 #       severity: high
-
-# Provide YAML content directly via Ansible var (templated to the path above).
-# If unset/empty, no file is rendered. There are internal ports already defined.
-# This allows overriding or extending built-in port names.
-#
-# openstack_instance_exporter_behavior_ports_config_yaml: |
-#   inbound:
-#     - port: 22
-#       name: ssh
-#   outbound:
-#     - port: 25
-#       name: smtp
 
 # Inbound behavior summaries (counts only, no per-port/per-remote series)
 # openstack_instance_exporter_inbound_behavior_enable: false
@@ -118,6 +127,7 @@ openstack_instance_exporter_nf_conntrack_acct_enable: false
 openstack_instance_exporter_nf_conntrack_acct_value: 1
 
 # Host threat matching (checks host NIC IPs against enabled lists)
+# If host threats are enabled and host_interfaces is empty, runtime falls back to bgp-nic.
 # openstack_instance_exporter_host_threats_enable: false
 # openstack_instance_exporter_host_ips_allow_private: false
 # openstack_instance_exporter_host_interfaces: []
@@ -165,8 +175,8 @@ openstack_instance_exporter_nf_conntrack_acct_value: 1
 openstack_instance_exporter_log_file_enable: false
 openstack_instance_exporter_log_file_path: "/var/log/openstack_instance_exporter.log"
 
-# Threat-hit logging now goes to the main logger (same destination as above).
-# Throttle repeated identical threat hits (list+instance+src+dst+direction).
+# Threat/behavior notice logging goes to the main logger (same destination as above).
+# Throttle repeated identical threat / behavior notice logs.
 # openstack_instance_exporter_threat_log_min_interval: 5m
 
 # Logrotate Config

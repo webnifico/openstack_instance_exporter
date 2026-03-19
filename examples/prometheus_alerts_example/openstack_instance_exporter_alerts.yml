@@ -534,7 +534,7 @@ prometheus_alert_rules:
           description: "5+ custom-list contacts in 5 minutes."
           summary: "Repeated custom-list contacts ({{ $labels.instance_uuid }})"
 
-      - alert: "OpenStackExporterProcessCPUHigh"
+      - alert: "OpenStackInstanceExporterProcessCPUHigh"
         expr: "rate(process_cpu_seconds_total{job=\\\"openstack-instance-exporter\\\"}[5m]) > 0.5"
         for: "5m"
         labels:
@@ -543,8 +543,8 @@ prometheus_alert_rules:
           description: "The OIE process is consuming more than 50% of a single CPU core for 5 minutes, indicating extreme processing load or a bug."
           summary: "Exporter process CPU consumption high"
 
-      - alert: "OpenStackExporterHostThreatListed"
-        expr: "max by (list, ip, family, job) (oie_host_threat_listed) > 0"
+      - alert: "OpenStackInstanceExporterHostThreatListed"
+        expr: "max by (list, ip, family, job) (oie_host_threat_provider_ip_listed) > 0"
         for: "0s"
         labels:
           severity: "warning"
@@ -552,7 +552,7 @@ prometheus_alert_rules:
           description: "Host IP {{ $labels.ip }} ({{ $labels.family }}) is present in threat list {{ $labels.list }}."
           summary: "Hypervisor host IP listed in threat list {{ $labels.list }}"
 
-      - alert: "OpenStackExporterHostConntrackUtilizationHigh"
+      - alert: "OpenStackInstanceExporterHostConntrackUtilizationHigh"
         expr: "oie_host_conntrack_utilization > 0.8"
         for: "5m"
         labels:
@@ -561,7 +561,7 @@ prometheus_alert_rules:
           description: "Conntrack table utilization above 80%."
           summary: "Conntrack utilization high on host {{ $labels.instance }}"
 
-      - alert: "OpenStackExporterHostConntrackReadErrors"
+      - alert: "OpenStackInstanceExporterHostConntrackReadErrors"
         expr: "increase(oie_host_conntrack_read_errors_total[10m]) > 5"
         for: "0s"
         labels:
@@ -570,7 +570,7 @@ prometheus_alert_rules:
           description: "More than 5 conntrack read errors in 10 minutes. Indicates kernel instability or permission issues."
           summary: "Conntrack read errors on host {{ $labels.instance }}"
 
-      - alert: "OpenStackExporterConntrackRawReaderFailed"
+      - alert: "OpenStackInstanceExporterConntrackRawReaderFailed"
         expr: "max by (instance, job) (oie_host_conntrack_raw_ok{job=\\\"openstack-instance-exporter\\\"}) == 0"
         for: "2m"
         labels:
@@ -579,7 +579,7 @@ prometheus_alert_rules:
           description: "Raw conntrack reader failed on this host (raw_ok=0). Conntrack-derived metrics may be stale or missing."
           summary: "Conntrack raw reader failing on host {{ $labels.instance }}"
 
-      - alert: "OpenStackExporterConntrackReadStale"
+      - alert: "OpenStackInstanceExporterConntrackReadStale"
         expr: "max by (instance, job) (oie_host_conntrack_stale_seconds{job=\\\"openstack-instance-exporter\\\"}) > 120"
         for: "2m"
         labels:
@@ -589,7 +589,7 @@ prometheus_alert_rules:
           summary: "Conntrack read stale on host {{ $labels.instance }}"
 
 
-      - alert: "OpenStackExporterTorExitListRefreshStale"
+      - alert: "OpenStackInstanceExporterTorExitListRefreshStale"
         expr: "(time() - oie_host_threat_tor_exit_refresh_last_success_timestamp_seconds) > 43200"
         for: "10m"
         labels:
@@ -598,7 +598,7 @@ prometheus_alert_rules:
           description: "Tor exit list has not refreshed successfully in over 12 hours."
           summary: "Tor exit-node list refresh stale"
 
-      - alert: "OpenStackExporterSpamhausListRefreshStale"
+      - alert: "OpenStackInstanceExporterSpamhausListRefreshStale"
         expr: "(time() - oie_host_threat_spamhaus_refresh_last_success_timestamp_seconds) > 43200"
         for: "30m"
         labels:
@@ -607,7 +607,7 @@ prometheus_alert_rules:
           description: "Spamhaus list has not refreshed successfully in over 12 hours."
           summary: "Spamhaus list refresh stale"
 
-      - alert: "OpenStackExporterEmergingThreatsListRefreshStale"
+      - alert: "OpenStackInstanceExporterEmergingThreatsListRefreshStale"
         expr: "(time() - oie_host_threat_emergingthreats_refresh_last_success_timestamp_seconds) > 43200"
         for: "30m"
         labels:
@@ -616,7 +616,7 @@ prometheus_alert_rules:
           description: "EmergingThreats list has not refreshed successfully in over 12 hours."
           summary: "EmergingThreats list refresh stale"
 
-      - alert: "OpenStackExporterCustomListRefreshStale"
+      - alert: "OpenStackInstanceExporterCustomListRefreshStale"
         expr: "(time() - oie_host_threat_customlist_refresh_last_success_timestamp_seconds) > 43200"
         for: "10m"
         labels:

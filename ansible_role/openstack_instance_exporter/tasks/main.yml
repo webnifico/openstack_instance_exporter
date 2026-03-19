@@ -54,15 +54,22 @@
       register: oie_template_result
       notify: Restart openstack_instance_exporter service
 
-    - name: install openstack_instance_exporter logrotate rules
+    - name: Install openstack_instance_exporter logrotate rules
       become: true
       ansible.builtin.copy:
         dest: /etc/logrotate.d/openstack_instance_exporter
         owner: root
         group: root
-        mode: "0644"
+        mode: '0644'
         content: "{{ openstack_instance_exporter_logrotate_content }}"
-      when: openstack_instance_exporter_log_file_enable or openstack_instance_exporter_threat_log_file_enable
+      when: openstack_instance_exporter_log_file_enable | default(false) | bool
+
+    - name: Remove openstack_instance_exporter logrotate rules when file logging is disabled
+      become: true
+      ansible.builtin.file:
+        path: /etc/logrotate.d/openstack_instance_exporter
+        state: absent
+      when: not (openstack_instance_exporter_log_file_enable | default(false) | bool)
 
     - name: Write custom IP list from variable
       become: true
@@ -92,34 +99,52 @@
         - openstack_instance_exporter_custom_ip_list is not defined or openstack_instance_exporter_custom_ip_list | length == 0
       notify: Restart openstack_instance_exporter service
 
-    - name: Render behavior ports configuration (optional)
+    - name: Render behavior ports configuration from inline YAML
       become: true
-      ansible.builtin.template:
+      ansible.builtin.copy:
         dest: "{{ openstack_instance_exporter_behavior_ports_config_path }}"
+        content: "{{ openstack_instance_exporter_behavior_ports_config_yaml | trim ~ '\n' }}"
         owner: root
         group: root
-        mode: "0644"
-        content: |
-          {{ openstack_instance_exporter_behavior_ports_config_yaml | trim }}
+        mode: '0644'
       when:
         - openstack_instance_exporter_behavior_ports_config_path is defined
         - openstack_instance_exporter_behavior_ports_config_yaml is defined
-        - openstack_instance_exporter_behavior_ports_config_yaml | length > 0
+        - openstack_instance_exporter_behavior_ports_config_yaml | trim | length > 0
       notify: Restart openstack_instance_exporter service
 
-    - name: Render behavior rules configuration (optional)
+    - name: Remove behavior ports configuration when inline YAML is empty
       become: true
-      ansible.builtin.template:
+      ansible.builtin.file:
+        path: "{{ openstack_instance_exporter_behavior_ports_config_path }}"
+        state: absent
+      when:
+        - openstack_instance_exporter_behavior_ports_config_path is defined
+        - openstack_instance_exporter_behavior_ports_config_yaml is not defined or openstack_instance_exporter_behavior_ports_config_yaml | trim | length == 0
+      notify: Restart openstack_instance_exporter service
+
+    - name: Render behavior rules configuration from inline YAML
+      become: true
+      ansible.builtin.copy:
         dest: "{{ openstack_instance_exporter_behavior_rules_config_path }}"
+        content: "{{ openstack_instance_exporter_behavior_rules_config_yaml | trim ~ '\n' }}"
         owner: root
         group: root
-        mode: "0644"
-        content: |
-          {{ openstack_instance_exporter_behavior_rules_config_yaml | trim }}
+        mode: '0644'
       when:
         - openstack_instance_exporter_behavior_rules_config_path is defined
         - openstack_instance_exporter_behavior_rules_config_yaml is defined
-        - openstack_instance_exporter_behavior_rules_config_yaml | length > 0
+        - openstack_instance_exporter_behavior_rules_config_yaml | trim | length > 0
+      notify: Restart openstack_instance_exporter service
+
+    - name: Remove behavior rules configuration when inline YAML is empty
+      become: true
+      ansible.builtin.file:
+        path: "{{ openstack_instance_exporter_behavior_rules_config_path }}"
+        state: absent
+      when:
+        - openstack_instance_exporter_behavior_rules_config_path is defined
+        - openstack_instance_exporter_behavior_rules_config_yaml is not defined or openstack_instance_exporter_behavior_rules_config_yaml | trim | length == 0
       notify: Restart openstack_instance_exporter service
 
     - name: Reload openstack_instance_exporter service if changed
