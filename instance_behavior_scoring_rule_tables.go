@@ -2,29 +2,8 @@ package main
 
 import (
 	"fmt"
-	"math"
 )
 
-func behaviorHistoryCaps(sens float64) (int, int) {
-	if sens <= 0 {
-		sens = 1.0
-	}
-	remote := int(math.Round(float64(remoteHistoryCap) * sens))
-	port := int(math.Round(float64(portHistoryCap) * sens))
-	if remote < 256 {
-		remote = 256
-	}
-	if port < 256 {
-		port = 256
-	}
-	if remote > maxRemoteMapSize {
-		remote = maxRemoteMapSize
-	}
-	if port > maxPortMapSize {
-		port = maxPortMapSize
-	}
-	return remote, port
-}
 func ruleDirMatch(ruleDir, featureDir string) bool {
 	if ruleDir == "" || ruleDir == "any" {
 		return true

@@ -11,6 +11,40 @@ import (
 const maxSpamhausHitsPerInstance = 5000
 const maxProviderHitsPerInstance = 5000
 
+type conntrackAggregateError struct {
+	Partial bool
+	ErrV4   error
+	ErrV6   error
+}
+
+func (e *conntrackAggregateError) Error() string {
+	if e == nil {
+		return ""
+	}
+	prefix := "conntrack raw read errors"
+	if e.Partial {
+		prefix = "conntrack raw partial read errors"
+	}
+	return fmt.Sprintf("%s: v4=%v v6=%v", prefix, e.ErrV4, e.ErrV6)
+}
+
+func newConntrackAggregateError(enabledV4 bool, enabledV6 bool, errV4 error, errV6 error) *conntrackAggregateError {
+	failV4 := enabledV4 && errV4 != nil
+	failV6 := enabledV6 && errV6 != nil
+	if !failV4 && !failV6 {
+		return nil
+	}
+
+	successV4 := enabledV4 && errV4 == nil
+	successV6 := enabledV6 && errV6 == nil
+
+	return &conntrackAggregateError{
+		Partial: (successV4 || successV6) && (failV4 || failV6),
+		ErrV4:   errV4,
+		ErrV6:   errV6,
+	}
+}
+
 func (cm *ConntrackManager) readConntrack() ([]ConntrackFlowLite, []ConntrackFlowLite, error) {
 	v4, v6, err := cm.readConntrackRawLite()
 	if err != nil {
@@ -52,6 +86,7 @@ func (cm *ConntrackManager) newConntrackAggregator(
 
 	agg := &ConntrackAgg{
 		VMIndex:             vmIndex,
+		InstanceFlowTotals:  make(map[string]int, len(vmIPs)),
 		FlowsIn:             make([]int, sz),
 		FlowsOut:            make([]int, sz),
 		OutboundStats:       make([]*behaviorStats, sz),
@@ -272,6 +307,18 @@ func (cm *ConntrackManager) newConntrackAggregator(
 			return
 		}
 
+		switch {
+		case instSrc != "" && instDst != "" && instSrc == instDst:
+			agg.InstanceFlowTotals[instSrc]++
+		case instSrc != "":
+			agg.InstanceFlowTotals[instSrc]++
+			if instDst != "" && instDst != instSrc {
+				agg.InstanceFlowTotals[instDst]++
+			}
+		case instDst != "":
+			agg.InstanceFlowTotals[instDst]++
+		}
+
 		status := uint32(0)
 		if flow.ReversePackets > 0 {
 			status |= IPS_SEEN_REPLY
@@ -419,19 +466,19 @@ func (cm *ConntrackManager) readAndAggregateConntrack(
 
 	enabledV4 := cm.conntrackIPv4Enable
 	enabledV6 := cm.conntrackIPv6Enable
-	okV4 := !enabledV4 || errV4 == nil
-	okV6 := !enabledV6 || errV6 == nil
-
-	if !okV4 && !okV6 {
+	readErr := newConntrackAggregateError(enabledV4, enabledV6, errV4, errV6)
+	if readErr != nil {
 		atomic.StoreUint64(&cm.conntrackRawOK, 0)
-		return nil, count, fmt.Errorf("conntrack raw read errors: v4=%v v6=%v", errV4, errV6)
-	}
-
-	if !okV4 {
-		logConntrackMetric.Notice("conntrack_raw_partial_failure", "family", "v4", "err", errV4)
-	}
-	if !okV6 {
-		logConntrackMetric.Notice("conntrack_raw_partial_failure", "family", "v6", "err", errV6)
+		if readErr.Partial {
+			if enabledV4 && errV4 != nil {
+				logConntrackMetric.Notice("conntrack_raw_partial_failure", "family", "v4", "err", errV4)
+			}
+			if enabledV6 && errV6 != nil {
+				logConntrackMetric.Notice("conntrack_raw_partial_failure", "family", "v6", "err", errV6)
+			}
+			return agg, count, readErr
+		}
+		return nil, count, readErr
 	}
 
 	atomic.StoreUint64(&cm.conntrackRawOK, 1)

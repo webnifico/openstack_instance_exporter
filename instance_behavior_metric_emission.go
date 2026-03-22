@@ -91,6 +91,13 @@ func ruleLogStateMarkSummary(k behaviorEmitKey, nowUnix int64) bool {
 	return true
 }
 
+func behaviorHostImpactFlowTotal(ctx BehaviorContext, fallback int) int {
+	if ctx.InstanceFlowTotal > 0 {
+		return ctx.InstanceFlowTotal
+	}
+	return fallback
+}
+
 func (cm *ConntrackManager) analyzeBehavior(
 	s *behaviorStats,
 	addrKey IPKey,
@@ -101,9 +108,10 @@ func (cm *ConntrackManager) analyzeBehavior(
 ) float64 {
 
 	hostMax := ctx.HostConntrackMax
+	hostImpactFlowTotal := behaviorHostImpactFlowTotal(ctx, s.flows)
 	hostImpact := 0.0
 	if hostMax > 0 {
-		hostImpact = float64(s.flows) / float64(hostMax)
+		hostImpact = float64(hostImpactFlowTotal) / float64(hostMax)
 	}
 
 	var tFlows int
@@ -126,8 +134,10 @@ func (cm *ConntrackManager) analyzeBehavior(
 		packetsPerFlow = float64(s.packets) / float64(s.flows)
 	}
 
-	uniqueRemotes := len(s.remotes)
+	rawUniqueRemotes := len(s.remotes)
+	uniqueRemotes, uniqueRemotesSaturated := saturatingCount(rawUniqueRemotes, behaviorRemoteCountCeiling)
 	newRemotes := 0
+	newRemotesSaturated := false
 	key := BehaviorKey{InstanceUUID: instanceUUID, IP: addrKey}
 	dir := descs.thresholdConfigKey
 	idx := shardIndexBehavior(behaviorIdentityKey{InstanceUUID: instanceUUID, IP: addrKey, Direction: dir})
@@ -181,8 +191,6 @@ func (cm *ConntrackManager) analyzeBehavior(
 		}
 	}
 
-	remoteHistoryCap, portHistoryCap := behaviorHistoryCaps(cm.behaviorSensitivity)
-
 	uniqueDstPorts := len(s.dstPorts)
 	newDstPorts := 0
 
@@ -190,39 +198,30 @@ func (cm *ConntrackManager) analyzeBehavior(
 	now := time.Now().Unix()
 	prevSeenMap[key] = now
 
-	curRemoteSample := sampleIPKeySetDeterministic(s.remotes, remoteHistoryCap)
 	if prev, ok := prevRemotesMap[key]; ok {
-		if len(curRemoteSample) > 0 {
-			overlap := 0
-			for r := range curRemoteSample {
-				if _, exists := prev.remotes[r]; exists {
-					overlap++
-				}
-			}
-			fracNew := 1.0 - (float64(overlap) / float64(len(curRemoteSample)))
-			newRemotes = int(math.Round(float64(uniqueRemotes) * fracNew))
-		}
+		newRemotes, newRemotesSaturated = countNewIPKeys(s.remotes, prev.remotes, behaviorRemoteCountCeiling)
 	} else {
 		newRemotes = uniqueRemotes
+		newRemotesSaturated = uniqueRemotesSaturated
 	}
-	prevRemotesMap[key] = outboundPrev{remotes: curRemoteSample}
+	prevRemotesMap[key] = outboundPrev{remotes: cloneIPKeySet(s.remotes)}
 
-	curPortSample := samplePortSetDeterministic(s.dstPorts, portHistoryCap)
+	curPortSet := cloneUint16Set(s.dstPorts)
 	if prev, ok := prevPortsMap[key]; ok {
-		if len(curPortSample) > 0 {
+		if len(curPortSet) > 0 {
 			overlap := 0
-			for p := range curPortSample {
+			for p := range curPortSet {
 				if _, exists := prev.ports[p]; exists {
 					overlap++
 				}
 			}
-			fracNew := 1.0 - (float64(overlap) / float64(len(curPortSample)))
+			fracNew := 1.0 - (float64(overlap) / float64(len(curPortSet)))
 			newDstPorts = int(math.Round(float64(uniqueDstPorts) * fracNew))
 		}
 	} else {
 		newDstPorts = uniqueDstPorts
 	}
-	prevPortsMap[key] = outboundPrevDstPorts{ports: curPortSample}
+	prevPortsMap[key] = outboundPrevDstPorts{ports: curPortSet}
 	mu.Unlock()
 
 	maxSingleRemote := 0
@@ -296,7 +295,7 @@ func (cm *ConntrackManager) analyzeBehavior(
 		if descs.newRemotes != nil {
 			*dynamicMetrics = append(*dynamicMetrics, prometheus.MustNewConstMetric(descs.newRemotes, prometheus.GaugeValue, float64(newRemotes), domain, serverName, instanceUUID, projectUUID, projectName, userUUID, addr, family))
 		}
-		if descs.maxSingleRemote != nil {
+		if descs.maxSingleRemote != nil && !s.remoteMapCapped {
 			*dynamicMetrics = append(*dynamicMetrics, prometheus.MustNewConstMetric(descs.maxSingleRemote, prometheus.GaugeValue, float64(maxSingleRemote), domain, serverName, instanceUUID, projectUUID, projectName, userUUID, addr, family))
 		}
 		if descs.uniqueDstPorts != nil {
@@ -354,7 +353,9 @@ func (cm *ConntrackManager) analyzeBehavior(
 		PacketsPerFlow:              packetsPerFlow,
 		HostImpactPercent:           roundToFiveDecimals(hostImpact * 100),
 		RemoteMapCapped:             s.remoteMapCapped,
-		PortMapCapped:               s.portMapCapped,
+		RemoteEvidenceApproximate:   s.remoteMapCapped,
+		UniqueRemotesSaturated:      uniqueRemotesSaturated,
+		NewRemotesSaturated:         newRemotesSaturated,
 		ConntrackAcct:               acctEnabled,
 	}
 
@@ -546,11 +547,11 @@ func (cm *ConntrackManager) analyzeBehavior(
 			"infra_max_flows", feature.InfraMaxFlows,
 			"flows_current", feature.Flows,
 			"unique_remotes", feature.UniqueRemotes,
+			"unique_remotes_saturated", feature.UniqueRemotesSaturated,
 			"new_remotes", feature.NewRemotes,
+			"new_remotes_saturated", feature.NewRemotesSaturated,
 			"unique_ports", feature.UniqueDstPorts,
 			"new_ports", feature.NewDstPorts,
-			"max_flows_single_remote", feature.MaxSingleRemote,
-			"max_flows_single_port", feature.MaxSingleDstPort,
 			"top_dst_port", int(topDstPort),
 			"top_dst_port_name", topDstPortName,
 			"top_remote_ip", topRemoteIP,
@@ -574,11 +575,14 @@ func (cm *ConntrackManager) analyzeBehavior(
 			"bytes_per_flow", roundToFiveDecimals(feature.BytesPerFlow),
 			"packets_per_flow", roundToFiveDecimals(feature.PacketsPerFlow),
 			"remote_map_capped", feature.RemoteMapCapped,
-			"port_map_capped", feature.PortMapCapped,
 			"src_ip", srcIP,
 			"dst_ip", dstIP,
 			"priority", priority,
 		}
+		if !feature.RemoteEvidenceApproximate {
+			alertKVs = append(alertKVs, "max_flows_single_remote", feature.MaxSingleRemote)
+		}
+		alertKVs = append(alertKVs, "max_flows_single_port", feature.MaxSingleDstPort)
 
 		if cm.LogThreat != nil {
 			cm.LogThreat("BEHAVIOR", "behavior_alert", domain, instanceUUID, projectUUID, projectName, userUUID, alertKVs...)

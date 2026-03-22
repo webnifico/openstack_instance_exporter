@@ -182,6 +182,8 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 		behaviorThresholds:          cfg.BehaviorThresholds,
 		conntrackAcctEnabled:        cfg.ConntrackAcctEnabled,
 		behaviorSensitivity:         cfg.BehaviorSensitivity,
+		behaviorEWMATauFast:         cfg.BehaviorEWMATauFast,
+		behaviorEWMATauSlow:         cfg.BehaviorEWMATauSlow,
 		behaviorInboundPortNames:    cfg.BehaviorPortsInboundMonitored,
 		behaviorOutboundPortNames:   cfg.BehaviorPortsOutboundMonitored,
 		externalBehaviorRules:       cfg.BehaviorExternalRules,

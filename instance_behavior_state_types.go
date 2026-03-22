@@ -1,10 +1,8 @@
 package main
 
 const (
-	maxRemoteMapSize = 5000
-	maxPortMapSize   = 2048
-	remoteHistoryCap = 2048
-	portHistoryCap   = 2048
+	maxRemoteMapSize           = 32768
+	behaviorRemoteCountCeiling = maxRemoteMapSize
 
 	behaviorIdentityTTLSeconds int64 = 2 * 60 * 60
 
@@ -14,7 +12,7 @@ const (
 	behaviorAlertHeartbeatSeconds int64 = 7200 //2h
 
 	behaviorEWMATauFastDefaultSeconds float64 = 180
-	behaviorEWMATauSlowDefaultSeconds float64 = 600
+	behaviorEWMATauSlowDefaultSeconds float64 = 7200
 
 	lowThroughputBytesPerFlow     = 1000
 	heavyThroughputBytesPerFlow   = 100000
@@ -54,9 +52,10 @@ type BehaviorKey struct {
 	IP           IPKey
 }
 type BehaviorContext struct {
-	HostIPs          map[string]struct{}
-	HostIPKeys       map[IPKey]struct{}
-	HostConntrackMax uint64
+	HostIPs           map[string]struct{}
+	HostIPKeys        map[IPKey]struct{}
+	HostConntrackMax  uint64
+	InstanceFlowTotal int
 }
 type behaviorAlertKey struct {
 	InstanceUUID string
@@ -126,8 +125,10 @@ type BehaviorFeature struct {
 
 	HostImpactPercent float64
 
-	RemoteMapCapped bool
-	PortMapCapped   bool
+	RemoteMapCapped           bool
+	RemoteEvidenceApproximate bool
+	UniqueRemotesSaturated    bool
+	NewRemotesSaturated       bool
 
 	ConntrackAcct bool
 }
@@ -161,13 +162,11 @@ type behaviorStats struct {
 	packets            uint64
 	sampleRemote       IPKey
 	sampleRemoteSet    bool
-	sampleDstPort      uint16
 	multicastCount     int
 	icmpCount          int
 	udpCount           int
 
 	remoteMapCapped bool
-	portMapCapped   bool
 }
 
 type BehaviorEvidence struct {

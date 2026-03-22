@@ -1333,7 +1333,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Top 100 instances by attention score (resource + behavior + threat list).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Ranking controls: Top N limits how many series are shown; 0 (All) keeps every matching series. Rank Top Panels By uses the selected time range: Last = value at the right edge, Max = highest value seen in the range, Mean = average value over the range.\n\nTop N instances by attention score (resource + behavior + threat list).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1344,7 +1344,7 @@
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisGridShow": true,
-                "axisLabel": "Severity (0–100)",
+                "axisLabel": "Severity (0\u2013100)",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -1425,13 +1425,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(100,oie_instance_attention_severity{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "(oie_instance_attention_severity{instance=~\"$gvar_oie_hypervisor.*\"})\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((oie_instance_attention_severity{instance=~\"$gvar_oie_hypervisor.*\"}))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 100 Cluster Attention Severity | PN/PU/IU:",
+          "title": "Top N Cluster Attention Severity [Rank: ${gvar_oie_rank_by:text}] | PN/PU/IU:",
           "type": "timeseries"
         },
         {
@@ -1439,7 +1439,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Top 100 Cluster Behavior Severity.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Ranking controls: Top N limits how many series are shown; 0 (All) keeps every matching series. Rank Top Panels By uses the selected time range: Last = value at the right edge, Max = highest value seen in the range, Mean = average value over the range.\n\nTop N Cluster Behavior Severity.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1450,7 +1450,7 @@
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisGridShow": true,
-                "axisLabel": "Severity (0–100)",
+                "axisLabel": "Severity (0\u2013100)",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -1531,13 +1531,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(100,oie_instance_behavior_severity{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "(oie_instance_behavior_severity{instance=~\"$gvar_oie_hypervisor.*\"})\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((oie_instance_behavior_severity{instance=~\"$gvar_oie_hypervisor.*\"}))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 100 Cluster Behavior Severity | PN/PU/IU:",
+          "title": "Top N Cluster Behavior Severity [Rank: ${gvar_oie_rank_by:text}] | PN/PU/IU:",
           "type": "timeseries"
         },
         {
@@ -1545,7 +1545,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Top 100 instances by overall resource pressure (CPU/Mem/Disk/Net).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "description": "Ranking controls: Top N limits how many series are shown; 0 (All) keeps every matching series. Rank Top Panels By uses the selected time range: Last = value at the right edge, Max = highest value seen in the range, Mean = average value over the range.\n\nTop N instances by overall resource pressure (CPU/Mem/Disk/Net).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0\u2013100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1556,7 +1556,7 @@
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisGridShow": true,
-                "axisLabel": "Severity (0–100)",
+                "axisLabel": "Severity (0\u2013100)",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -1637,13 +1637,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(100,oie_instance_resource_severity{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "(oie_instance_resource_severity{instance=~\"$gvar_oie_hypervisor.*\"})\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((oie_instance_resource_severity{instance=~\"$gvar_oie_hypervisor.*\"}))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 100 Cluster Resource Severity | PN/PU/IU:",
+          "title": "Top N Cluster Resource Severity [Rank: ${gvar_oie_rank_by:text}] | PN/PU/IU:",
           "type": "timeseries"
         },
         {
@@ -1651,7 +1651,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Top 100 instances by threat list/intel severity.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Ranking controls: Top N limits how many series are shown; 0 (All) keeps every matching series. Rank Top Panels By uses the selected time range: Last = value at the right edge, Max = highest value seen in the range, Mean = average value over the range.\n\nTop N instances by threat list/intel severity.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1662,7 +1662,7 @@
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisGridShow": true,
-                "axisLabel": "Severity (0–100)",
+                "axisLabel": "Severity (0\u2013100)",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -1743,13 +1743,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(100,oie_instance_threat_list_severity{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "(oie_instance_threat_list_severity{instance=~\"$gvar_oie_hypervisor.*\"})\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((oie_instance_threat_list_severity{instance=~\"$gvar_oie_hypervisor.*\"}))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 100 Cluster Threat List Severity | PN/PU/IU:",
+          "title": "Top N Cluster Threat List Severity [Rank: ${gvar_oie_rank_by:text}] | PN/PU/IU:",
           "type": "timeseries"
         },
         {
@@ -1757,7 +1757,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Top 100 instances by CPU pressure severity (stall/wait dominated).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "description": "Ranking controls: Top N limits how many series are shown; 0 (All) keeps every matching series. Rank Top Panels By uses the selected time range: Last = value at the right edge, Max = highest value seen in the range, Mean = average value over the range.\n\nTop N instances by CPU pressure severity (stall/wait dominated).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0\u2013100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1768,7 +1768,7 @@
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisGridShow": true,
-                "axisLabel": "Severity (0–100)",
+                "axisLabel": "Severity (0\u2013100)",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -1849,13 +1849,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(100,oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "(oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\"})\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\"}))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 100 Cluster Resource CPU Severity | PN/PU/IU:",
+          "title": "Top N Cluster Resource CPU Severity [Rank: ${gvar_oie_rank_by:text}] | PN/PU/IU:",
           "type": "timeseries"
         },
         {
@@ -1863,7 +1863,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Top 100 instances by memory pressure severity (paging/faulting dominates).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "description": "Ranking controls: Top N limits how many series are shown; 0 (All) keeps every matching series. Rank Top Panels By uses the selected time range: Last = value at the right edge, Max = highest value seen in the range, Mean = average value over the range.\n\nTop N instances by memory pressure severity (paging/faulting dominates).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0\u2013100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1874,7 +1874,7 @@
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisGridShow": true,
-                "axisLabel": "Severity (0–100)",
+                "axisLabel": "Severity (0\u2013100)",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -1955,13 +1955,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(100,oie_instance_resource_mem_severity{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "(oie_instance_resource_mem_severity{instance=~\"$gvar_oie_hypervisor.*\"})\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((oie_instance_resource_mem_severity{instance=~\"$gvar_oie_hypervisor.*\"}))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 100 Cluster Resource Memory Severity | PN/PU/IU:",
+          "title": "Top N Cluster Resource Memory Severity [Rank: ${gvar_oie_rank_by:text}] | PN/PU/IU:",
           "type": "timeseries"
         },
         {
@@ -1969,7 +1969,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Top 100 instances by disk pressure severity (latency/flush degradation).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "description": "Ranking controls: Top N limits how many series are shown; 0 (All) keeps every matching series. Rank Top Panels By uses the selected time range: Last = value at the right edge, Max = highest value seen in the range, Mean = average value over the range.\n\nTop N instances by disk pressure severity (latency/flush degradation).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0\u2013100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1980,7 +1980,7 @@
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisGridShow": true,
-                "axisLabel": "Severity (0–100)",
+                "axisLabel": "Severity (0\u2013100)",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -2061,13 +2061,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(100,oie_instance_resource_disk_severity{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "(oie_instance_resource_disk_severity{instance=~\"$gvar_oie_hypervisor.*\"})\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((oie_instance_resource_disk_severity{instance=~\"$gvar_oie_hypervisor.*\"}))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 100 Cluster Resource Disk Severity | PN/PU/IU:",
+          "title": "Top N Cluster Resource Disk Severity [Rank: ${gvar_oie_rank_by:text}] | PN/PU/IU:",
           "type": "timeseries"
         },
         {
@@ -2075,7 +2075,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Top 100 Cluster Resource Network Severity.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "description": "Ranking controls: Top N limits how many series are shown; 0 (All) keeps every matching series. Rank Top Panels By uses the selected time range: Last = value at the right edge, Max = highest value seen in the range, Mean = average value over the range.\n\nTop N Cluster Resource Network Severity.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0\u2013100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2086,7 +2086,7 @@
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisGridShow": true,
-                "axisLabel": "Severity (0–100)",
+                "axisLabel": "Severity (0\u2013100)",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -2167,17 +2167,17 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(100,oie_instance_resource_net_severity{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "(oie_instance_resource_net_severity{instance=~\"$gvar_oie_hypervisor.*\"})\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((oie_instance_resource_net_severity{instance=~\"$gvar_oie_hypervisor.*\"}))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top 100 Cluster Resource Network Severity | PN/PU/IU:",
+          "title": "Top N Cluster Resource Network Severity [Rank: ${gvar_oie_rank_by:text}] | PN/PU/IU:",
           "type": "timeseries"
         }
       ],
-      "title": "Cluster Instance Severity (Top 100)",
+      "title": "Cluster Instance Severity (Top N)",
       "type": "row"
     },
     {
@@ -2247,7 +2247,7 @@
             {
               "editorMode": "code",
               "expr": "100 * sum by (job) (\n  oie_host_cpu_active_vcpus{instance=~\"$gvar_oie_hypervisor.*\"}\n)\n/\nsum by (job) (\n  oie_host_cpu_threads\n)\n",
-              "legendFormat": "Commit CPU",
+              "legendFormat": "CPU",
               "range": true,
               "refId": "A"
             },
@@ -4284,7 +4284,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "100 * sum by (job) (oie_host_conntrack_utilization{instance=~\"$gvar_oie_hypervisor.*\"})",
+              "expr": "100 * sum(oie_host_conntrack_entries{instance=~\"$gvar_oie_hypervisor.*\"}) / sum(oie_host_conntrack_max{instance=~\"$gvar_oie_hypervisor.*\"})",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -4460,6 +4460,97 @@
       },
       {
         "current": {
+          "selected": true,
+          "text": "50",
+          "value": "50"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Top N (0 = All)",
+        "multi": false,
+        "name": "gvar_oie_top_n",
+        "options": [
+          {
+            "selected": false,
+            "text": "0 (All)",
+            "value": "1000000"
+          },
+          {
+            "selected": false,
+            "text": "1",
+            "value": "1"
+          },
+          {
+            "selected": false,
+            "text": "3",
+            "value": "3"
+          },
+          {
+            "selected": false,
+            "text": "5",
+            "value": "5"
+          },
+          {
+            "selected": false,
+            "text": "10",
+            "value": "10"
+          },
+          {
+            "selected": false,
+            "text": "20",
+            "value": "20"
+          },
+          {
+            "selected": true,
+            "text": "50",
+            "value": "50"
+          },
+          {
+            "selected": false,
+            "text": "100",
+            "value": "100"
+          }
+        ],
+        "query": "0 (All) : 1000000,1 : 1,3 : 3,5 : 5,10 : 10,20 : 20,50 : 50,100 : 100",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "Last",
+          "value": "last_over_time"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Rank Top Panels By",
+        "multi": false,
+        "name": "gvar_oie_rank_by",
+        "options": [
+          {
+            "selected": true,
+            "text": "Last",
+            "value": "last_over_time"
+          },
+          {
+            "selected": false,
+            "text": "Max",
+            "value": "max_over_time"
+          },
+          {
+            "selected": false,
+            "text": "Mean",
+            "value": "avg_over_time"
+          }
+        ],
+        "query": "Last : last_over_time,Max : max_over_time,Mean : avg_over_time",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
           "text": "Prometheus",
           "value": "adnolwduvdx4wa"
         },
@@ -4480,7 +4571,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "OpenStack Instance Exporter — Cluster & Exporter Overview",
+  "title": "OpenStack Instance Exporter \u2014 Cluster & Exporter Overview",
   "uid": "r83k2mnsf0p4z",
   "version": 19
 }

@@ -32,7 +32,7 @@ func (cm *ConntrackManager) calculateConntrackMetrics(
 ) (float64, float64, int) {
 
 	var outboundSignal, inboundSignal float64
-	var maxIn, maxOut int
+	instanceConntrackTotal := 0
 
 	hostIPKeys := make(map[IPKey]struct{}, len(hostIPs))
 	for ipStr := range hostIPs {
@@ -43,7 +43,17 @@ func (cm *ConntrackManager) calculateConntrackMetrics(
 		hostIPKeys[k] = struct{}{}
 	}
 
-	ctx := BehaviorContext{HostIPs: hostIPs, HostIPKeys: hostIPKeys, HostConntrackMax: hostConntrackMax}
+	instanceFlowTotal := 0
+	if connAgg != nil && connAgg.InstanceFlowTotals != nil {
+		instanceFlowTotal = connAgg.InstanceFlowTotals[instanceUUID]
+	}
+
+	ctx := BehaviorContext{
+		HostIPs:           hostIPs,
+		HostIPKeys:        hostIPKeys,
+		HostConntrackMax:  hostConntrackMax,
+		InstanceFlowTotal: instanceFlowTotal,
+	}
 
 	for _, ip := range fixedIPs {
 		addr := ip.Address
@@ -78,13 +88,6 @@ func (cm *ConntrackManager) calculateConntrackMetrics(
 					}
 				}
 			}
-		}
-
-		if in > maxIn {
-			maxIn = in
-		}
-		if out > maxOut {
-			maxOut = out
 		}
 
 		total := in + out
@@ -150,12 +153,11 @@ func (cm *ConntrackManager) calculateConntrackMetrics(
 		}
 	}
 
-	maxConntrack := maxIn
-	if maxOut > maxConntrack {
-		maxConntrack = maxOut
+	if connAgg != nil && connAgg.InstanceFlowTotals != nil {
+		instanceConntrackTotal = connAgg.InstanceFlowTotals[instanceUUID]
 	}
 
 	_ = ipSet
 
-	return outboundSignal, inboundSignal, maxConntrack
+	return outboundSignal, inboundSignal, instanceConntrackTotal
 }

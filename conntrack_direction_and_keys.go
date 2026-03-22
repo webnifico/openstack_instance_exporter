@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -17,16 +18,17 @@ const (
 	ContactIn
 )
 
-func parseContactDirection(s string) ContactDirection {
-	switch strings.ToLower(strings.TrimSpace(s)) {
+func parseContactDirection(s string) (ContactDirection, error) {
+	normalized := strings.ToLower(strings.TrimSpace(s))
+	switch normalized {
+	case "", "out", "outbound", "src":
+		return ContactOut, nil
 	case "any":
-		return ContactAny
+		return ContactAny, nil
 	case "in", "inbound", "dst":
-		return ContactIn
-	case "out", "outbound", "src":
-		return ContactOut
+		return ContactIn, nil
 	default:
-		return ContactOut
+		return ContactOut, fmt.Errorf("invalid contact direction %q", s)
 	}
 }
 func (d ContactDirection) String() string {
@@ -88,7 +90,8 @@ type VMIPIdentity struct {
 }
 
 type ConntrackAgg struct {
-	VMIndex map[VMIPIdentity]uint32
+	VMIndex            map[VMIPIdentity]uint32
+	InstanceFlowTotals map[string]int
 
 	FlowsIn  []int
 	FlowsOut []int

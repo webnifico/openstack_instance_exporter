@@ -34,3 +34,25 @@ func TestMetricsCollectorDescribeRegisterNoPanic(t *testing.T) {
 		t.Fatalf("Describe produced 0 descs")
 	}
 }
+
+func TestNewMetricsCollectorWiresBehaviorEWMATau(t *testing.T) {
+	cfg := CollectorConfig{
+		LibvirtURI:          "qemu:///system",
+		WorkerCount:         1,
+		CollectionInterval:  time.Second,
+		ConntrackIPv4Enable: false,
+		ConntrackIPv6Enable: false,
+		BehaviorEWMATauFast: 3 * time.Minute,
+		BehaviorEWMATauSlow: 2 * time.Hour,
+	}
+	mc, err := NewMetricsCollector(cfg)
+	if err != nil {
+		t.Fatalf("NewMetricsCollector error: %v", err)
+	}
+	if mc.cm.behaviorEWMATauFast != 3*time.Minute {
+		t.Fatalf("fast tau=%v want %v", mc.cm.behaviorEWMATauFast, 3*time.Minute)
+	}
+	if mc.cm.behaviorEWMATauSlow != 2*time.Hour {
+		t.Fatalf("slow tau=%v want %v", mc.cm.behaviorEWMATauSlow, 2*time.Hour)
+	}
+}

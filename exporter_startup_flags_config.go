@@ -142,6 +142,8 @@ func main() {
 		"outbound_behavior_enabled", outboundBehavior,
 		"inbound_behavior_enabled", inboundBehavior,
 		"behavior_sensitivity", behaviorSensitivity,
+		"behavior_ewma_fast_tau", behaviorEWMATauFast.String(),
+		"behavior_ewma_slow_tau", behaviorEWMATauSlow.String(),
 		"behavior_ports_config", behaviorPortsConfigPath,
 		"behavior_rules_config", behaviorRulesConfigPath,
 		"host_threats_enabled", hostThreats,
@@ -212,19 +214,36 @@ func main() {
 		)
 	}
 
-	defaultDir := parseContactDirection(contactsDirection)
-	resolveDir := func(s string) ContactDirection {
-		if s != "" {
-			return parseContactDirection(s)
+	defaultDir, err := parseContactDirection(contactsDirection)
+	if err != nil {
+		logMain.Error("invalid_contact_direction",
+			"field", "contacts_direction",
+			"value", contactsDirection,
+			"err", err,
+		)
+		os.Exit(2)
+	}
+	resolveDir := func(field, s string) ContactDirection {
+		if s == "" {
+			return defaultDir
 		}
-		return defaultDir
+		d, err := parseContactDirection(s)
+		if err != nil {
+			logMain.Error("invalid_contact_direction",
+				"field", field,
+				"value", s,
+				"err", err,
+			)
+			os.Exit(2)
+		}
+		return d
 	}
 
-	cfg.TorExit.Direction = resolveDir(dirTorExit)
-	cfg.TorRelay.Direction = resolveDir(dirTorRelay)
-	cfg.Emerging.Direction = resolveDir(dirEmerging)
-	cfg.Custom.Direction = resolveDir(dirCustom)
-	cfg.Spamhaus.Direction = resolveDir(dirSpam)
+	cfg.TorExit.Direction = resolveDir("dir_tor_exit", dirTorExit)
+	cfg.TorRelay.Direction = resolveDir("dir_tor_relay", dirTorRelay)
+	cfg.Emerging.Direction = resolveDir("dir_emerging", dirEmerging)
+	cfg.Custom.Direction = resolveDir("dir_custom", dirCustom)
+	cfg.Spamhaus.Direction = resolveDir("dir_spam", dirSpam)
 
 	if hostThreats && hostInterfacesCSV == "" {
 		hostInterfacesCSV = "bgp-nic"

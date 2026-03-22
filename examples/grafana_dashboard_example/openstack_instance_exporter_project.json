@@ -35,7 +35,7 @@
           "datasource": {
             "uid": "${datasource}"
           },
-          "description": "Current instance count per project across the selected hypervisors (oie_instance_info).\n\nSource: OIE inventory/mapping metrics emitted by the exporter (instance/project/user labels derived on the hypervisor).\nLimitations: Reflects what OIE can map at collection time; labels can be temporarily stale during rebuilds/migrations or if OpenStack metadata is unavailable. Counts are not traffic-based.",
+          "description": "Current instance count per project across the selected hypervisors (oie_instance_info).\n\nSource: OIE inventory/mapping metrics emitted by the exporter (instance/project/user labels derived on the hypervisor).\nLimitations: Reflects what OIE can map at collection time; labels can be temporarily stale during rebuilds/migrations or if OpenStack metadata is unavailable. Counts are not traffic-based.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -125,20 +125,20 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (\n  oie_instance_info{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n",
+              "expr": "(sum by (project_uuid, project_name) (\n  oie_instance_info{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (\n  oie_instance_info{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Instance Count by Project | PN/PU:",
+          "title": "Instance Count by Project | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
           "datasource": {
             "uid": "${datasource}"
           },
-          "description": "Total RAM allocated per project in MB (sum of assigned memory across all instances on selected hypervisors).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. RAM allocation is provisioned/configured (scheduler/accounting), not guest 'used'. Clouds may overcommit RAM (e.g., allocation ratios), and this excludes some host overhead.",
+          "description": "Total RAM allocated per project in MB (sum of assigned memory across all instances on selected hypervisors).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. RAM allocation is provisioned/configured (scheduler/accounting), not guest 'used'. Clouds may overcommit RAM (e.g., allocation ratios), and this excludes some host overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -229,20 +229,20 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (\n  label_replace(\n    oie_instance_mem_allocated_mb{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\",             project_name=~\"$gvar_oie_project_name\" },\n    \"mem_mb_num\",\n    \"$1\",\n    \"mem_mb\",\n    \"([0-9]+)\"\n  )\n)\n",
+              "expr": "(sum by (project_uuid, project_name) (\n  label_replace(\n    oie_instance_mem_allocated_mb{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\",             project_name=~\"$gvar_oie_project_name\" },\n    \"mem_mb_num\",\n    \"$1\",\n    \"mem_mb\",\n    \"([0-9]+)\"\n  )\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (\n  label_replace(\n    oie_instance_mem_allocated_mb{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\",             project_name=~\"$gvar_oie_project_name\" },\n    \"mem_mb_num\",\n    \"$1\",\n    \"mem_mb\",\n    \"([0-9]+)\"\n  )\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "RAM Allocation by Project | PN/PU:",
+          "title": "RAM Allocation by Project | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
           "datasource": {
             "uid": "${datasource}"
           },
-          "description": "Total vCPUs allocated per project (sum of vCPU count across all instances on selected hypervisors).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Total vCPUs allocated per project (sum of vCPU count across all instances on selected hypervisors).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -332,13 +332,13 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (\n  label_replace(\n    oie_instance_cpu_vcpu_count{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\",             project_name=~\"$gvar_oie_project_name\" },\n    \"vcpus_num\",\n    \"$1\",\n    \"vcpus\",\n    \"([0-9]+)\"\n  )\n)\n",
+              "expr": "(sum by (project_uuid, project_name) (\n  label_replace(\n    oie_instance_cpu_vcpu_count{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\",             project_name=~\"$gvar_oie_project_name\" },\n    \"vcpus_num\",\n    \"$1\",\n    \"vcpus\",\n    \"([0-9]+)\"\n  )\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (\n  label_replace(\n    oie_instance_cpu_vcpu_count{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\",             project_name=~\"$gvar_oie_project_name\" },\n    \"vcpus_num\",\n    \"$1\",\n    \"vcpus\",\n    \"([0-9]+)\"\n  )\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "vCPUs Allocation by Project | PN/PU:",
+          "title": "vCPUs Allocation by Project | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -346,7 +346,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Total Stall (Steal + Wait) seconds per second across all instances in the project. Indicates quality of service degradation.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Total Stall (Steal + Wait) seconds per second across all instances in the project. Indicates quality of service degradation.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -431,20 +431,20 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (rate(oie_instance_cpu_steal_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))",
+              "expr": "(sum by (project_uuid, project_name) (rate(oie_instance_cpu_steal_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (rate(oie_instance_cpu_steal_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Steal - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             },
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (rate(oie_instance_cpu_wait_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))",
+              "expr": "(sum by (project_uuid, project_name) (rate(oie_instance_cpu_wait_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (rate(oie_instance_cpu_steal_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Wait - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "Project Stall Time (Steal/Wait) | PN/PU:",
+          "title": "Project Stall Time (Steal/Wait) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         }
       ],
@@ -466,7 +466,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Average vs Max attention severity. Max reveals if a single instance is critical despite a low project average.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Average vs Max attention severity. Max reveals if a single instance is critical despite a low project average.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -554,7 +554,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "avg by (project_uuid, project_name) (oie_instance_attention_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(avg by (project_uuid, project_name) (oie_instance_attention_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((avg by (project_uuid, project_name) (oie_instance_attention_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Avg - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
@@ -565,13 +565,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (oie_instance_attention_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(max by (project_uuid, project_name) (oie_instance_attention_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((avg by (project_uuid, project_name) (oie_instance_attention_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Max - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "Project Attention (Avg vs Max) | PN/PU:",
+          "title": "Project Attention (Avg vs Max) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -579,7 +579,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Max severity per resource axis within the project. Identifies if the project has a CPU, Mem, Disk, or Net bottleneck.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "description": "Max severity per resource axis within the project. Identifies if the project has a CPU, Mem, Disk, or Net bottleneck.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0\u2013100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -667,34 +667,34 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(max by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((max by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "CPU - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             },
             {
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (oie_instance_resource_mem_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(max by (project_uuid, project_name) (oie_instance_resource_mem_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((max by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Mem - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
             },
             {
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (oie_instance_resource_disk_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(max by (project_uuid, project_name) (oie_instance_resource_disk_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((max by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Disk - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "C"
             },
             {
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (oie_instance_resource_net_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(max by (project_uuid, project_name) (oie_instance_resource_net_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((max by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Net - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "D"
             }
           ],
-          "title": "Project Resource Breakdown (Max) | PN/PU:",
+          "title": "Project Resource Breakdown (Max) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -702,7 +702,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Max severity per component (Resource, Behavior, Threat). Shows what is driving the attention score.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "description": "Max severity per component (Resource, Behavior, Threat). Shows what is driving the attention score.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0\u2013100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -790,27 +790,27 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (oie_instance_resource_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(max by (project_uuid, project_name) (oie_instance_resource_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((max by (project_uuid, project_name) (oie_instance_resource_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Resource - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             },
             {
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (oie_instance_behavior_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(max by (project_uuid, project_name) (oie_instance_behavior_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((max by (project_uuid, project_name) (oie_instance_resource_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Behavior - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
             },
             {
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (oie_instance_threat_list_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(max by (project_uuid, project_name) (oie_instance_threat_list_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((max by (project_uuid, project_name) (oie_instance_resource_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Threat - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "C"
             }
           ],
-          "title": "Project Severity Composition (Max) | PN/PU:",
+          "title": "Project Severity Composition (Max) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -818,7 +818,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Actionable triage: which instance(s) are driving project attention right now.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Actionable triage: which instance(s) are driving project attention right now.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nInstance ranking controls: Top Instances limits which instances are shown after the current hypervisor/project filters are applied. 0 (All) shows every matching instance. Rank Instances By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -907,13 +907,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(20, oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(topk(20, oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(instance_uuid, project_uuid, project_name)\ntopk(${gvar_oie_top_instances}, ${gvar_oie_rank_instances_by:raw}(((topk(20, oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top Instances by Attention (Top 20) | PN/PU/IU:",
+          "title": "Top Instances by Attention | PN/PU/IU: [Instances: ${gvar_oie_top_instances:text}, Rank: ${gvar_oie_rank_instances_by:text}]",
           "type": "timeseries"
         },
         {
@@ -921,7 +921,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Average resource severity per axis (CPU/Mem/Disk/Net) across instances in the selected project. Use this to see which resource dimension is driving project load.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0–100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.",
+          "description": "Average resource severity per axis (CPU/Mem/Disk/Net) across instances in the selected project. Use this to see which resource dimension is driving project load.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Severities are normalized 0\u2013100 (higher = worse) and are heuristic/threshold-based, intended for ranking rather than exact accounting.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1009,7 +1009,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "avg by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(avg by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((avg by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "CPU - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
@@ -1020,7 +1020,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "avg by (project_uuid, project_name) (oie_instance_resource_mem_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(avg by (project_uuid, project_name) (oie_instance_resource_mem_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((avg by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Mem - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
@@ -1031,7 +1031,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "avg by (project_uuid, project_name) (oie_instance_resource_disk_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(avg by (project_uuid, project_name) (oie_instance_resource_disk_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((avg by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Disk - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "C"
@@ -1042,13 +1042,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "avg by (project_uuid, project_name) (oie_instance_resource_net_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(avg by (project_uuid, project_name) (oie_instance_resource_net_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((avg by (project_uuid, project_name) (oie_instance_resource_cpu_severity{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Net - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "D"
             }
           ],
-          "title": "Project Resource Breakdown (Avg) | PN/PU:",
+          "title": "Project Resource Breakdown (Avg) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -1056,7 +1056,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Projects where at least one instance in the project has attention severity ≥ 60 during the selected time range. (Project value is the max instance attention severity in that project.)\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short windows can be spiky.",
+          "description": "Projects where at least one instance in the project has attention severity \u2265 60 during the selected time range. (Project value is the max instance attention severity in that project.)\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1144,13 +1144,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (\n  oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}\n) >= 60\n",
+              "expr": "(max by (project_uuid, project_name) (\n  oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}\n) >= 60)\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((max by (project_uuid, project_name) (\n  oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}\n) >= 60))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Hot Projects (Attention >= 60) | PN/PU:",
+          "title": "Hot Projects (Attention >= 60) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -1158,7 +1158,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Projects where at least one instance in the project has attention severity ≥ 85 during the selected time range. (Project value is the max instance attention severity in that project.)\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short windows can be spiky.",
+          "description": "Projects where at least one instance in the project has attention severity \u2265 85 during the selected time range. (Project value is the max instance attention severity in that project.)\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1246,13 +1246,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "max by (project_uuid, project_name) (\n  oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}\n) >= 85\n",
+              "expr": "(max by (project_uuid, project_name) (\n  oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}\n) >= 85)\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((max by (project_uuid, project_name) (\n  oie_instance_attention_severity{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}\n) >= 85))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Hot Projects (Attention >= 85) | PN/PU:",
+          "title": "Hot Projects (Attention >= 85) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         }
       ],
@@ -1274,7 +1274,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Project CPU usage as a share of that project's allocated vCPUs.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Project CPU usage as a share of that project's allocated vCPUs.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1363,13 +1363,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "100 *\nsum by (project_name, project_uuid) (\n  (avg_over_time(\n    oie_instance_cpu_vcpu_percent{\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }[1m]\n  ) / 100)\n  * oie_instance_cpu_vcpu_count{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nsum by (project_name, project_uuid) (\n  oie_instance_cpu_vcpu_count{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n",
+              "expr": "(100 *\nsum by (project_name, project_uuid) (\n  (avg_over_time(\n    oie_instance_cpu_vcpu_percent{\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }[1m]\n  ) / 100)\n  * oie_instance_cpu_vcpu_count{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nsum by (project_name, project_uuid) (\n  oie_instance_cpu_vcpu_count{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((100 *\nsum by (project_name, project_uuid) (\n  (avg_over_time(\n    oie_instance_cpu_vcpu_percent{\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }[1m]\n  ) / 100)\n  * oie_instance_cpu_vcpu_count{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nsum by (project_name, project_uuid) (\n  oie_instance_cpu_vcpu_count{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "CPU Efficiency (Used/Allocated %) | PN/PU:",
+          "title": "CPU Efficiency (Used/Allocated %) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -1377,7 +1377,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Total virtual disk capacity vs actual host allocation per project.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk allocation/capacity are provisioned/virtual sizes. On thin-provisioned backends, backend consumed bytes can differ; snapshots/COW and discard/TRIM behavior can affect reclamation.",
+          "description": "Total virtual disk capacity vs actual host allocation per project.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk allocation/capacity are provisioned/virtual sizes. On thin-provisioned backends, backend consumed bytes can differ; snapshots/COW and discard/TRIM behavior can affect reclamation.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1462,20 +1462,20 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (oie_instance_disk_capacity_bytes{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name) (oie_instance_disk_capacity_bytes{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (oie_instance_disk_capacity_bytes{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Capacity - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             },
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (oie_instance_disk_allocation_bytes{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name) (oie_instance_disk_allocation_bytes{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (oie_instance_disk_capacity_bytes{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Allocation - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "Disk Capacity vs Allocation | PN/PU:",
+          "title": "Disk Capacity vs Allocation | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -1483,7 +1483,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Project live guest memory usage as a percentage of that project's allocated memory. Low values indicate over-provisioning.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. RAM allocation is provisioned/configured (scheduler/accounting), not guest 'used'. Clouds may overcommit RAM (e.g., allocation ratios), and this excludes some host overhead. Memory 'used' here is hypervisor-observed usage (not the guest OS free/used breakdown) and can be affected by ballooning and QEMU overhead.",
+          "description": "Project live guest memory usage as a percentage of that project's allocated memory. Low values indicate over-provisioning.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. RAM allocation is provisioned/configured (scheduler/accounting), not guest 'used'. Clouds may overcommit RAM (e.g., allocation ratios), and this excludes some host overhead. Memory 'used' here is hypervisor-observed usage (not the guest OS free/used breakdown) and can be affected by ballooning and QEMU overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1572,13 +1572,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "100 *\nsum by (project_name, project_uuid) (\n  oie_instance_mem_used_mb{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nsum by (project_name, project_uuid) (\n  oie_instance_mem_allocated_mb{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n",
+              "expr": "(100 *\nsum by (project_name, project_uuid) (\n  oie_instance_mem_used_mb{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nsum by (project_name, project_uuid) (\n  oie_instance_mem_allocated_mb{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((100 *\nsum by (project_name, project_uuid) (\n  oie_instance_mem_used_mb{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nsum by (project_name, project_uuid) (\n  oie_instance_mem_allocated_mb{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Memory Efficiency (Used/Allocated %) | PN/PU:",
+          "title": "Memory Efficiency (Used/Allocated %) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -1586,7 +1586,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Total Allocated RAM minus Total Used RAM (Guest View). Represents potential waste.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. RAM allocation is provisioned/configured (scheduler/accounting), not guest 'used'. Clouds may overcommit RAM (e.g., allocation ratios), and this excludes some host overhead. Memory 'used' here is hypervisor-observed usage (not the guest OS free/used breakdown) and can be affected by ballooning and QEMU overhead.",
+          "description": "Total Allocated RAM minus Total Used RAM (Guest View). Represents potential waste.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. RAM allocation is provisioned/configured (scheduler/accounting), not guest 'used'. Clouds may overcommit RAM (e.g., allocation ratios), and this excludes some host overhead. Memory 'used' here is hypervisor-observed usage (not the guest OS free/used breakdown) and can be affected by ballooning and QEMU overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1671,13 +1671,13 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (project_name, project_uuid) (oie_instance_mem_allocated_mb{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})\n-\nsum by (project_name, project_uuid) (oie_instance_mem_used_mb{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_name, project_uuid) (oie_instance_mem_allocated_mb{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})\n-\nsum by (project_name, project_uuid) (oie_instance_mem_used_mb{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_name, project_uuid) (oie_instance_mem_allocated_mb{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})\n-\nsum by (project_name, project_uuid) (oie_instance_mem_used_mb{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Unused RAM (Allocated - Used) | PN/PU:",
+          "title": "Unused RAM (Allocated - Used) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         }
       ],
@@ -1699,7 +1699,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Aggregated disk read throughput per project (GB/s) across all instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "description": "Aggregated disk read throughput per project (GB/s) across all instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1788,13 +1788,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (\n  rate(oie_instance_disk_read_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n)\n",
+              "expr": "(sum by (project_uuid, project_name) (\n  rate(oie_instance_disk_read_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (\n  rate(oie_instance_disk_read_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Disk Read Throughput | PN/PU:",
+          "title": "Project Disk Read Throughput | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -1802,7 +1802,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Aggregated disk write throughput per project (GB/s) across all instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "description": "Aggregated disk write throughput per project (GB/s) across all instances.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1891,13 +1891,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (\n  rate(oie_instance_disk_write_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n)\n",
+              "expr": "(sum by (project_uuid, project_name) (\n  rate(oie_instance_disk_write_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (\n  rate(oie_instance_disk_write_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Disk Write Throughput | PN/PU:",
+          "title": "Project Disk Write Throughput | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -1905,7 +1905,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Total disk read volume per project over the last 1 minute (short-window) (GB), from oie_instance_disk_read_gbytes_total.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "description": "Total disk read volume per project over the last 1 minute (short-window) (GB), from oie_instance_disk_read_gbytes_total.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1992,13 +1992,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (\n  increase(oie_instance_disk_read_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n)\n",
+              "expr": "(sum by (project_uuid, project_name) (\n  increase(oie_instance_disk_read_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (\n  increase(oie_instance_disk_read_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Disk Read Total | PN/PU:",
+          "title": "Project Disk Read Total | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -2006,7 +2006,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Total disk write volume per project over the last 1 minute (short-window) (GB), from oie_instance_disk_write_gbytes_total.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "description": "Total disk write volume per project over the last 1 minute (short-window) (GB), from oie_instance_disk_write_gbytes_total.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2093,13 +2093,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (\n  increase(oie_instance_disk_write_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n)\n",
+              "expr": "(sum by (project_uuid, project_name) (\n  increase(oie_instance_disk_write_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (\n  increase(oie_instance_disk_write_gbytes_total{\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }[1m])\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Disk Write Total | PN/PU:",
+          "title": "Project Disk Write Total | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -2107,7 +2107,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Aggregated disk read IOPS per project (read requests per second across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "description": "Aggregated disk read IOPS per project (read requests per second across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2196,13 +2196,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "(sum by (project_name, project_uuid) (rate(oie_instance_disk_read_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))",
+              "expr": "((sum by (project_name, project_uuid) (rate(oie_instance_disk_read_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}((((sum by (project_name, project_uuid) (rate(oie_instance_disk_read_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Disk Read IOPS | PN/PU:",
+          "title": "Project Disk Read IOPS | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -2210,7 +2210,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Aggregated disk write IOPS per project (write requests per second across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "description": "Aggregated disk write IOPS per project (write requests per second across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2299,13 +2299,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "(sum by (project_name, project_uuid) (rate(oie_instance_disk_write_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))",
+              "expr": "((sum by (project_name, project_uuid) (rate(oie_instance_disk_write_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}((((sum by (project_name, project_uuid) (rate(oie_instance_disk_write_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Disk Write IOPS | PN/PU:",
+          "title": "Project Disk Write IOPS | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -2313,7 +2313,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "IO-weighted average disk latency across the project.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "description": "IO-weighted average disk latency across the project.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2398,20 +2398,20 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (rate(oie_instance_disk_read_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))\n/\nsum by (project_uuid, project_name) (rate(oie_instance_disk_read_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))",
+              "expr": "(sum by (project_uuid, project_name) (rate(oie_instance_disk_read_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))\n/\nsum by (project_uuid, project_name) (rate(oie_instance_disk_read_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (rate(oie_instance_disk_read_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))\n/\nsum by (project_uuid, project_name) (rate(oie_instance_disk_read_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Read - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             },
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (rate(oie_instance_disk_write_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))\n/\nsum by (project_uuid, project_name) (rate(oie_instance_disk_write_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))",
+              "expr": "(sum by (project_uuid, project_name) (rate(oie_instance_disk_write_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))\n/\nsum by (project_uuid, project_name) (rate(oie_instance_disk_write_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (rate(oie_instance_disk_read_seconds_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))\n/\nsum by (project_uuid, project_name) (rate(oie_instance_disk_read_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Write - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "Project Disk Latency (IO Weighted) | PN/PU:",
+          "title": "Project Disk Latency (IO Weighted) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -2419,7 +2419,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Project-wide Flush vs Write IOPS. High Flush rates indicate sync-heavy workloads.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.",
+          "description": "Project-wide Flush vs Write IOPS. High Flush rates indicate sync-heavy workloads.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Disk I/O counters are cumulative and typically visualized as rates; they may not include backend replication/cluster overhead.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2504,20 +2504,20 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (rate(oie_instance_disk_flush_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))",
+              "expr": "(sum by (project_uuid, project_name) (rate(oie_instance_disk_flush_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (rate(oie_instance_disk_flush_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Flush - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             },
             {
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (rate(oie_instance_disk_write_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))",
+              "expr": "(sum by (project_uuid, project_name) (rate(oie_instance_disk_write_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (rate(oie_instance_disk_flush_requests_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Write - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "Project Flush vs Write IOPS | PN/PU:",
+          "title": "Project Flush vs Write IOPS | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         }
       ],
@@ -2539,7 +2539,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Aggregated inbound packet rate per project (RX packets per second across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Aggregated inbound packet rate per project (RX packets per second across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2632,13 +2632,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "( sum by (project_uuid, project_name) (\n  rate(oie_instance_net_rx_packets_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])\n))\n",
+              "expr": "(( sum by (project_uuid, project_name) (\n  rate(oie_instance_net_rx_packets_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])\n)))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((( sum by (project_uuid, project_name) (\n  rate(oie_instance_net_rx_packets_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])\n))))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Network RX Packets per Second | PN/PU:",
+          "title": "Project Network RX Packets per Second | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -2646,7 +2646,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Aggregated outbound packet rate per project (TX packets per second across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Aggregated outbound packet rate per project (TX packets per second across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2739,13 +2739,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "( sum by (project_uuid, project_name) (\n  rate(oie_instance_net_tx_packets_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\",project_name=~\"$gvar_oie_project_name\"}[1m])\n))\n",
+              "expr": "(( sum by (project_uuid, project_name) (\n  rate(oie_instance_net_tx_packets_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\",project_name=~\"$gvar_oie_project_name\"}[1m])\n)))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((( sum by (project_uuid, project_name) (\n  rate(oie_instance_net_tx_packets_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\",project_name=~\"$gvar_oie_project_name\"}[1m])\n))))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Network TX Packets per Second | PN/PU:",
+          "title": "Project Network TX Packets per Second | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -2753,7 +2753,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Aggregated inbound network throughput per project (Gbps from RX traffic across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Aggregated inbound network throughput per project (Gbps from RX traffic across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2846,13 +2846,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "(\n  sum by (project_uuid, project_name) (\n    (rate(oie_instance_net_rx_gbytes_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])\n    * 8\n    )\n  )\n)",
+              "expr": "((\n  sum by (project_uuid, project_name) (\n    (rate(oie_instance_net_rx_gbytes_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])\n    * 8\n    )\n  )\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}((((\n  sum by (project_uuid, project_name) (\n    (rate(oie_instance_net_rx_gbytes_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])\n    * 8\n    )\n  )\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Network RX Throughput | PN/PU:",
+          "title": "Project Network RX Throughput | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -2860,7 +2860,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Aggregated outbound network throughput per project (Gbps from TX traffic across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Aggregated outbound network throughput per project (Gbps from TX traffic across all instances).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2953,13 +2953,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "(\n  sum by (project_uuid, project_name) (\n    (rate(oie_instance_net_tx_gbytes_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])\n    * 8\n    )\n  )\n)",
+              "expr": "((\n  sum by (project_uuid, project_name) (\n    (rate(oie_instance_net_tx_gbytes_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])\n    * 8\n    )\n  )\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}((((\n  sum by (project_uuid, project_name) (\n    (rate(oie_instance_net_tx_gbytes_total{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[1m])\n    * 8\n    )\n  )\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Network TX Throughput | PN/PU:",
+          "title": "Project Network TX Throughput | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         }
       ],
@@ -2981,7 +2981,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Project Conntrack Total Flows.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Project Conntrack Total Flows.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3072,13 +3072,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (oie_instance_conntrack_ip_flows{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name) (oie_instance_conntrack_ip_flows{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (oie_instance_conntrack_ip_flows{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Conntrack Total Flows | PN/PU:",
+          "title": "Project Conntrack Total Flows | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -3086,7 +3086,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Project Conntrack Flows per Project.\n\nSource: OIE inventory/mapping metrics emitted by the exporter (instance/project/user labels derived on the hypervisor).\nLimitations: Reflects what OIE can map at collection time; labels can be temporarily stale during rebuilds/migrations or if OpenStack metadata is unavailable. Counts are not traffic-based.",
+          "description": "Project Conntrack Flows per Project.\n\nSource: OIE inventory/mapping metrics emitted by the exporter (instance/project/user labels derived on the hypervisor).\nLimitations: Reflects what OIE can map at collection time; labels can be temporarily stale during rebuilds/migrations or if OpenStack metadata is unavailable. Counts are not traffic-based.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3177,13 +3177,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nsum by (project_uuid, project_name) (\n  oie_instance_info{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n",
+              "expr": "(sum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nsum by (project_uuid, project_name) (\n  oie_instance_info{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nsum by (project_uuid, project_name) (\n  oie_instance_info{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Conntrack Flows per Project | PN/PU:",
+          "title": "Project Conntrack Flows per Project | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -3191,7 +3191,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Project Conntrack Inbound Connections.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Project Conntrack Inbound Connections.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3283,13 +3283,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (oie_instance_conntrack_ip_flows_inbound{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name) (oie_instance_conntrack_ip_flows_inbound{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (oie_instance_conntrack_ip_flows_inbound{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Conntrack Inbound Connections | PN/PU:",
+          "title": "Project Conntrack Inbound Connections | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -3297,7 +3297,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Project Conntrack Outbound Connections.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Project Conntrack Outbound Connections.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3388,13 +3388,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name) (oie_instance_conntrack_ip_flows_outbound{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name) (oie_instance_conntrack_ip_flows_outbound{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name) (oie_instance_conntrack_ip_flows_outbound{instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Conntrack Outbound Connections | PN/PU:",
+          "title": "Project Conntrack Outbound Connections | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -3402,7 +3402,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Project Conntrack Capacity Share (%).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Project Conntrack Capacity Share (%).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3494,13 +3494,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "100 *\nsum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nscalar(\n  sum(\n    oie_host_conntrack_max{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\"\n    }\n  )\n)\n",
+              "expr": "(100 *\nsum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nscalar(\n  sum(\n    oie_host_conntrack_max{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\"\n    }\n  )\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((100 *\nsum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nscalar(\n  sum(\n    oie_host_conntrack_max{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\"\n    }\n  )\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Conntrack Capacity Share (%) | PN/PU:",
+          "title": "Project Conntrack Capacity Share (%) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -3508,7 +3508,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Project Conntrack Usage Share (%).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Project Conntrack Usage Share (%).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3600,13 +3600,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "100 *\nsum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nscalar(\n  sum(\n    oie_host_conntrack_entries{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\"\n    }\n  )\n)\n",
+              "expr": "(100 *\nsum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nscalar(\n  sum(\n    oie_host_conntrack_entries{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\"\n    }\n  )\n))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((100 *\nsum by (project_uuid, project_name) (\n  oie_instance_conntrack_ip_flows{\n    job=\"openstack-instance-exporter\",\n    instance=~\"$gvar_oie_hypervisor.*\",\n    project_uuid=~\"$gvar_oie_project_uuid\",\n    project_name=~\"$gvar_oie_project_name\"\n  }\n)\n/\nscalar(\n  sum(\n    oie_host_conntrack_entries{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\"\n    }\n  )\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Project Conntrack Usage Share (%) | PN/PU:",
+          "title": "Project Conntrack Usage Share (%) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -3614,7 +3614,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Top Instances by Conntrack Flows (Top 20).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Top Instances by Conntrack Flows (Top 20).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nInstance ranking controls: Top Instances limits which instances are shown after the current hypervisor/project filters are applied. 0 (All) shows every matching instance. Rank Instances By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3706,13 +3706,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(20,\n  sum by (instance_uuid, project_uuid, project_name, family) (\n    oie_instance_conntrack_ip_flows{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }\n  )\n)",
+              "expr": "(topk(20,\n  sum by (instance_uuid, project_uuid, project_name, family) (\n    oie_instance_conntrack_ip_flows{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }\n  )\n))\nand on(instance_uuid, project_uuid, project_name)\ntopk(${gvar_oie_top_instances}, ${gvar_oie_rank_instances_by:raw}(((topk(20,\n  sum by (instance_uuid, project_uuid, project_name, family) (\n    oie_instance_conntrack_ip_flows{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }\n  )\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Top Instances by Conntrack Flows (Top 20) | PN/PU/IU:",
+          "title": "Top Instances by Conntrack Flows | PN/PU/IU: [Instances: ${gvar_oie_top_instances:text}, Rank: ${gvar_oie_rank_instances_by:text}]",
           "type": "timeseries"
         },
         {
@@ -3720,7 +3720,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Inbound fan-in: how many distinct remotes are hitting the instance (worst fixed-IP identity per instance).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Inbound fan-in: how many distinct remotes are hitting the instance (worst fixed-IP identity per instance).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nInstance ranking controls: Top Instances limits which instances are shown after the current hypervisor/project filters are applied. 0 (All) shows every matching instance. Rank Instances By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3812,13 +3812,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(20,\n  max by (instance_uuid, project_uuid, project_name, family) (\n    oie_instance_inbound_unique_remotes{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }\n  )\n)",
+              "expr": "(topk(20,\n  max by (instance_uuid, project_uuid, project_name, family) (\n    oie_instance_inbound_unique_remotes{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }\n  )\n))\nand on(instance_uuid, project_uuid, project_name)\ntopk(${gvar_oie_top_instances}, ${gvar_oie_rank_instances_by:raw}(((topk(20,\n  max by (instance_uuid, project_uuid, project_name, family) (\n    oie_instance_inbound_unique_remotes{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }\n  )\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Inbound Unique Remotes (Top 20 Instances) | PN/PU/IU:",
+          "title": "Inbound Unique Remotes | PN/PU/IU: [Instances: ${gvar_oie_top_instances:text}, Rank: ${gvar_oie_rank_instances_by:text}]",
           "type": "timeseries"
         },
         {
@@ -3826,7 +3826,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Outbound reach: how many distinct remotes an instance is touching (worst fixed-IP identity per instance).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Outbound reach: how many distinct remotes an instance is touching (worst fixed-IP identity per instance).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nInstance ranking controls: Top Instances limits which instances are shown after the current hypervisor/project filters are applied. 0 (All) shows every matching instance. Rank Instances By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3918,13 +3918,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "topk(20,\n  max by (instance_uuid, project_uuid, project_name, family) (\n    oie_instance_outbound_unique_remotes{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }\n  )\n)",
+              "expr": "(topk(20,\n  max by (instance_uuid, project_uuid, project_name, family) (\n    oie_instance_outbound_unique_remotes{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }\n  )\n))\nand on(instance_uuid, project_uuid, project_name)\ntopk(${gvar_oie_top_instances}, ${gvar_oie_rank_instances_by:raw}(((topk(20,\n  max by (instance_uuid, project_uuid, project_name, family) (\n    oie_instance_outbound_unique_remotes{\n      job=\"openstack-instance-exporter\",\n      instance=~\"$gvar_oie_hypervisor.*\",\n      project_uuid=~\"$gvar_oie_project_uuid\",\n      project_name=~\"$gvar_oie_project_name\"\n    }\n  )\n)))[${__range_s}s:] @ end()))",
               "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Outbound Unique Remotes (Top 20 Instances) | PN/PU/IU:",
+          "title": "Outbound Unique Remotes | PN/PU/IU: [Instances: ${gvar_oie_top_instances:text}, Rank: ${gvar_oie_rank_instances_by:text}]",
           "type": "timeseries"
         },
         {
@@ -3932,7 +3932,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "New threat-list contact events (delta) across this project over the selected window.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "New threat-list contact events (delta) across this project over the selected window.\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3942,7 +3942,7 @@
                 "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
-                "axisLabel": "New contacts (Δ)",
+                "axisLabel": "New contacts (\u0394)",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
@@ -4024,7 +4024,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_spamhaus_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))",
+              "expr": "(sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_spamhaus_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_spamhaus_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Spamhaus {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
@@ -4035,7 +4035,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_tor_exit_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))",
+              "expr": "(sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_tor_exit_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_spamhaus_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Tor Exit {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
@@ -4046,7 +4046,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_tor_relay_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))",
+              "expr": "(sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_tor_relay_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_spamhaus_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Tor Relay {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "C"
@@ -4057,7 +4057,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_emergingthreats_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))",
+              "expr": "(sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_emergingthreats_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_spamhaus_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))))[${__range_s}s:] @ end()))",
               "legendFormat": "EmergingThreats {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "D"
@@ -4068,13 +4068,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_customlist_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))",
+              "expr": "(sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_customlist_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval])))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (increase(oie_instance_threat_spamhaus_contacts_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}[$__rate_interval]))))[${__range_s}s:] @ end()))",
               "legendFormat": "Custom {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "E"
             }
           ],
-          "title": "Threat New Contacts Rate by List (Project) | PN/PU:",
+          "title": "Threat New Contacts Rate by List (Project) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         },
         {
@@ -4082,7 +4082,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Total active flows currently matching each threat list (summed across instances in this project).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.",
+          "description": "Total active flows currently matching each threat list (summed across instances in this project).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky.\n\nProject ranking controls: Top Projects limits which projects are shown in this panel. 0 (All) shows every matching project. Rank Projects By uses the visible time range: Last = right-edge value, Max = highest value in range, Mean = average value in range. For multi-series panels, the project selection is based on the panel's primary series and the matching companion series for those same projects are shown.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -4174,7 +4174,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name, direction) (oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Spamhaus {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "A"
@@ -4185,7 +4185,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (oie_instance_threat_tor_exit_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name, direction) (oie_instance_threat_tor_exit_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Tor Exit {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "B"
@@ -4196,7 +4196,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (oie_instance_threat_tor_relay_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name, direction) (oie_instance_threat_tor_relay_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Tor Relay {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "C"
@@ -4207,7 +4207,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (oie_instance_threat_emergingthreats_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name, direction) (oie_instance_threat_emergingthreats_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "EmergingThreats {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "D"
@@ -4218,13 +4218,13 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "sum by (project_uuid, project_name, direction) (oie_instance_threat_customlist_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})",
+              "expr": "(sum by (project_uuid, project_name, direction) (oie_instance_threat_customlist_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"}))\nand on(project_uuid, project_name)\ntopk(${gvar_oie_top_projects}, ${gvar_oie_rank_projects_by:raw}(((sum by (project_uuid, project_name, direction) (oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\"})))[${__range_s}s:] @ end()))",
               "legendFormat": "Custom {{ direction }} - {{ project_name }} / {{ project_uuid }}",
               "range": true,
               "refId": "E"
             }
           ],
-          "title": "Threat Active Flows by List (Project Total) | PN/PU:",
+          "title": "Threat Active Flows by List (Project Total) | PN/PU: [Projects: ${gvar_oie_top_projects:text}, Rank: ${gvar_oie_rank_projects_by:text}]",
           "type": "timeseries"
         }
       ],
@@ -4361,6 +4361,176 @@
         "type": "query"
       },
       {
+        "name": "gvar_oie_top_projects",
+        "label": "Top Projects",
+        "type": "custom",
+        "query": "0 (All) : 1000000,1 : 1,3 : 3,5 : 5,10 : 10,20 : 20,50 : 50,100 : 100",
+        "current": {
+          "selected": true,
+          "text": "0 (All)",
+          "value": "1000000"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "0 (All)",
+            "value": "1000000"
+          },
+          {
+            "selected": false,
+            "text": "1",
+            "value": "1"
+          },
+          {
+            "selected": false,
+            "text": "3",
+            "value": "3"
+          },
+          {
+            "selected": false,
+            "text": "5",
+            "value": "5"
+          },
+          {
+            "selected": false,
+            "text": "10",
+            "value": "10"
+          },
+          {
+            "selected": false,
+            "text": "20",
+            "value": "20"
+          },
+          {
+            "selected": false,
+            "text": "50",
+            "value": "50"
+          },
+          {
+            "selected": false,
+            "text": "100",
+            "value": "100"
+          }
+        ],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "gvar_oie_rank_projects_by",
+        "label": "Rank Projects By",
+        "type": "custom",
+        "query": "Last : last_over_time,Max : max_over_time,Mean : avg_over_time",
+        "current": {
+          "selected": true,
+          "text": "Last",
+          "value": "last_over_time"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Last",
+            "value": "last_over_time"
+          },
+          {
+            "selected": false,
+            "text": "Max",
+            "value": "max_over_time"
+          },
+          {
+            "selected": false,
+            "text": "Mean",
+            "value": "avg_over_time"
+          }
+        ],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "gvar_oie_top_instances",
+        "label": "Top Instances",
+        "type": "custom",
+        "query": "0 (All) : 1000000,1 : 1,3 : 3,5 : 5,10 : 10,20 : 20,50 : 50,100 : 100",
+        "current": {
+          "selected": true,
+          "text": "0 (All)",
+          "value": "1000000"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "0 (All)",
+            "value": "1000000"
+          },
+          {
+            "selected": false,
+            "text": "1",
+            "value": "1"
+          },
+          {
+            "selected": false,
+            "text": "3",
+            "value": "3"
+          },
+          {
+            "selected": false,
+            "text": "5",
+            "value": "5"
+          },
+          {
+            "selected": false,
+            "text": "10",
+            "value": "10"
+          },
+          {
+            "selected": false,
+            "text": "20",
+            "value": "20"
+          },
+          {
+            "selected": false,
+            "text": "50",
+            "value": "50"
+          },
+          {
+            "selected": false,
+            "text": "100",
+            "value": "100"
+          }
+        ],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "gvar_oie_rank_instances_by",
+        "label": "Rank Instances By",
+        "type": "custom",
+        "query": "Last : last_over_time,Max : max_over_time,Mean : avg_over_time",
+        "current": {
+          "selected": true,
+          "text": "Last",
+          "value": "last_over_time"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Last",
+            "value": "last_over_time"
+          },
+          {
+            "selected": false,
+            "text": "Max",
+            "value": "max_over_time"
+          },
+          {
+            "selected": false,
+            "text": "Mean",
+            "value": "avg_over_time"
+          }
+        ],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
         "current": {
           "text": "Prometheus",
           "value": "adnolwduvdx4wa"
@@ -4382,7 +4552,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "OpenStack Instance Exporter — Project Overview",
+  "title": "OpenStack Instance Exporter \u2014 Project Overview",
   "uid": "e92k2mnsf0p4z",
   "version": 16
 }

@@ -1,5 +1,5 @@
 # OpenStack Instance Exporter (OIE)
-**Whitepaper README (generated from current code snapshot on 2026-03-18).**
+**Whitepaper README (generated from current code snapshot on 2026-03-21).**
 
 OIE is a hypervisor-side Prometheus exporter for KVM/OpenStack that turns host- and instance-level reality into metrics: **libvirt + kernel conntrack + threat intel + behavioral anomaly scoring**.
 
@@ -288,7 +288,13 @@ When a behavior alert is emitted, the log line always includes stable evidence k
 * `top_port_share` (0..1): `max_single_port / flows_current`.
 * `evidence_mode` (string): `dominant_remote | dominant_port | distributed | mixed`.
 
-These keys are **never omitted** (unknown values are empty/0) so dashboards and parsers stay stable.
+These **core** keys are **never omitted** (unknown values are empty/0) so dashboards and parsers stay stable.
+
+Additional evidence semantics that matter operationally:
+
+- `max_flows_single_remote` is only emitted when remote dominance evidence is still exact. If remote tracking for that identity/window hits its internal cap, OIE suppresses that field instead of publishing fake precision.
+- `max_flows_single_port` remains exact and is always emitted.
+- Behavior alert logs also carry `remote_map_capped`, `unique_remotes_saturated`, and `new_remotes_saturated` so downstream tooling can tell when remote-breadth values were intentionally saturated or when remote dominance evidence became approximate.
 
 ### Port naming (built-in map + optional config file)
 The exporter ships with a **built-in port → name** map for common services (ssh/http/https/rdp/mysql/redis/etc) so alerts and dashboards are readable out of the box.
@@ -954,6 +960,15 @@ Outbound:
 - `oie_instance_outbound_bytes_per_flow` (acct required)
 - `oie_instance_outbound_packets_per_flow` (acct required)
 
+### Remote breadth semantics (important)
+
+Remote breadth is intentionally **bounded for scoring stability**:
+
+- `*_unique_remotes` and `*_new_remotes` are exported as **saturating counts capped at 32768**. Once they hit 32768, the published value stays at 32768 by design.
+- Behavior alert logs expose `unique_remotes_saturated=true` and `new_remotes_saturated=true` when that happens.
+- Internal per-identity remote tracking stays exact up to **32768 distinct remote IPs** in the current analysis window. Beyond that, the exporter stays functional but remote-dominance / remote-history details become bounded and approximate.
+- In that extreme case, `*_max_flows_single_remote` is **suppressed** rather than emitted as a misleading exact value.
+
 ### What these features mean (operator translation)
 
 - Flows: state pressure and activity level.
@@ -1049,7 +1064,7 @@ OIE is designed so tuning maps to operator intent.
 | `behavior.ports_config` | `""` | Optional YAML: replace inbound/outbound monitored-port maps per direction (or use built-ins if unset/invalid). |
 | `behavior.rules_config` | `""` | Optional YAML: external behavior rules (table-driven heuristics + port sets). |
 | `collection.interval` | `15s` | Background collection interval. |
-| `contacts.direction` | `"out"` | Default direction for threat/contacts: `out`, `in`, `any`. |
+| `contacts.direction` | `"out"` | Default direction for threat/contacts: `out`, `in`, `any`. Invalid values are a startup config error (no silent fallback). |
 | `host.threats.enable` | `false` | Enable host NIC/provider IP threat list checks if using ovn-bgp-agent.  |
 | `host.interfaces` | `""` | CSV NIC whitelist used with `host.threats.enable`. If host threats are enabled and this is left empty, runtime falls back to `bgp-nic`. |
 | `host.ips.allow-private` | `false` | Include private IPs (provider/host threat checks). Useful for development/labs. |
@@ -1079,23 +1094,23 @@ OIE is designed so tuning maps to operator intent.
 | `spamhaus.url` | `"https://www.spamhaus.org/drop/drop.txt"` | Spamhaus IPv4 DROP source URL. |
 | `spamhaus.ipv6.url` | `"https://www.spamhaus.org/drop/dropv6.txt"` | Spamhaus IPv6 DROP source URL. |
 | `spamhaus.refresh` | `6h` | Refresh interval for Spamhaus. |
-| `spamhaus.direction` | `""` | Direction override for Spamhaus. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
+| `spamhaus.direction` | `""` | Direction override for Spamhaus. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). Invalid values are a startup config error. |
 | `tor.exit.enable` | `false` | Enable the Tor **exit** list provider. |
 | `tor.exit.url` | `"https://onionoo.torproject.org/details?search=flag:exit&fields=or_addresses"` | Tor exit source URL (Onionoo). |
 | `tor.exit.refresh` | `1h` | Refresh interval for Tor exit. |
-| `tor.exit.direction` | `""` | Direction override for Tor exit. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
+| `tor.exit.direction` | `""` | Direction override for Tor exit. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). Invalid values are a startup config error. |
 | `tor.relay.enable` | `false` | Enable the Tor **relay** list provider. |
 | `tor.relay.url` | `"https://onionoo.torproject.org/details?search=flag:running&fields=or_addresses"` | Tor relay source URL (Onionoo). |
 | `tor.relay.refresh` | `1h` | Refresh interval for Tor relay. |
-| `tor.relay.direction` | `""` | Direction override for Tor relay. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
+| `tor.relay.direction` | `""` | Direction override for Tor relay. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). Invalid values are a startup config error. |
 | `emergingthreats.enable` | `false` | Enable the Emerging Threats list provider. |
 | `emergingthreats.url` | `"https://rules.emergingthreats.net/blockrules/compromised-ips.txt"` | Emerging Threats source URL. |
 | `emergingthreats.refresh` | `6h` | Refresh interval for Emerging Threats. |
-| `emergingthreats.direction` | `""` | Direction override for Emerging Threats. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
+| `emergingthreats.direction` | `""` | Direction override for Emerging Threats. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). Invalid values are a startup config error. |
 | `customlist.enable` | `false` | Enable the local custom list provider. |
 | `customlist.path` | `""` | Path to a newline-delimited list of IPs/CIDRs. |
 | `customlist.refresh` | `10m` | Reload interval for the custom list file. |
-| `customlist.direction` | `""` | Direction override for the custom list. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). |
+| `customlist.direction` | `""` | Direction override for the custom list. Supported values: `out`, `in`, `any`. Empty inherits `contacts.direction` (`out` by default). Invalid values are a startup config error. |
 
 ### Practical tuning strategy
 
@@ -1868,13 +1883,13 @@ This appendix is intentionally verbose for dashboard authors.
 
 - **oie_instance_inbound_unique_remotes**
   - Type: Gauge
-  - Description: Unique remote IPs observed for this behavior identity (inbound) in the last analysis window.
+  - Description: Unique remote IPs observed for this behavior identity (inbound) in the last analysis window. Exported as a saturating count capped at 32768 by design (32768 means 32768 or more in the current window).
   - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_inbound_new_remotes**
   - Type: Gauge
-  - Description: Remote IPs newly observed (vs recent history) for this behavior identity (inbound) in the last analysis window.
+  - Description: Remote IPs newly observed (vs recent history) for this behavior identity (inbound) in the last analysis window. Exported as a saturating count capped at 32768 by design (32768 means 32768 or more in the current window).
   - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
@@ -1892,7 +1907,7 @@ This appendix is intentionally verbose for dashboard authors.
 
 - **oie_instance_inbound_max_flows_single_remote**
   - Type: Gauge
-  - Description: Maximum flows concentrated to/from a single remote IP for this behavior identity (inbound) in the last analysis window.
+  - Description: Maximum flows concentrated to/from a single remote IP for this behavior identity (inbound) in the last analysis window. Emitted only when remote dominance evidence is still exact; suppressed if remote tracking for that identity/window has hit its internal cap.
   - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 
@@ -1922,13 +1937,13 @@ This appendix is intentionally verbose for dashboard authors.
 
 - **oie_instance_outbound_unique_remotes**
   - Type: Gauge
-  - Description: Unique remote IPs observed for this behavior identity (outbound) in the last analysis window.
+  - Description: Unique remote IPs observed for this behavior identity (outbound) in the last analysis window. Exported as a saturating count capped at 32768 by design (32768 means 32768 or more in the current window).
   - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
 - **oie_instance_outbound_new_remotes**
   - Type: Gauge
-  - Description: Remote IPs newly observed (vs recent history) for this behavior identity (outbound) in the last analysis window.
+  - Description: Remote IPs newly observed (vs recent history) for this behavior identity (outbound) in the last analysis window. Exported as a saturating count capped at 32768 by design (32768 means 32768 or more in the current window).
   - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: count
 
@@ -1946,7 +1961,7 @@ This appendix is intentionally verbose for dashboard authors.
 
 - **oie_instance_outbound_max_flows_single_remote**
   - Type: Gauge
-  - Description: Maximum flows concentrated to/from a single remote IP for this behavior identity (outbound) in the last analysis window.
+  - Description: Maximum flows concentrated to/from a single remote IP for this behavior identity (outbound) in the last analysis window. Emitted only when remote dominance evidence is still exact; suppressed if remote tracking for that identity/window has hit its internal cap.
   - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: flows
 

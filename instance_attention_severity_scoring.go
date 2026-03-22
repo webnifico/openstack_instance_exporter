@@ -64,6 +64,27 @@ type resourceV2Output struct {
 	NET  resourceAxisResult
 }
 
+func attentionSeverityWeighted(scoring SeverityConfig, resourceSeverity float64, resourceActive bool, behaviorScore float64, behaviorActive bool, threatSeverity float64, threatActive bool) float64 {
+	totalW := 0.0
+	sum := 0.0
+	if resourceActive && scoring.ResourceWeight > 0 {
+		totalW += scoring.ResourceWeight
+		sum += resourceSeverity * scoring.ResourceWeight
+	}
+	if behaviorActive && scoring.BehaviorWeight > 0 {
+		totalW += scoring.BehaviorWeight
+		sum += behaviorScore * scoring.BehaviorWeight
+	}
+	if threatActive && scoring.ThreatWeight > 0 {
+		totalW += scoring.ThreatWeight
+		sum += threatSeverity * scoring.ThreatWeight
+	}
+	if totalW <= 0 {
+		return 0
+	}
+	return sum / totalW
+}
+
 func updateAxisV2(a *resourceAxisV2, pEff, dtSeconds, riseTau, fallTau float64) (ewmaOut, alphaOut, tauUsed float64) {
 	if !a.Initialized {
 		a.EWMA = clamp01(pEff)

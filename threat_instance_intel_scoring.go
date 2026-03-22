@@ -4,6 +4,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+func combineThreatSignalsUnion(current float64, signal float64) float64 {
+	signal = clamp01(signal)
+	current = clamp01(current)
+	if signal <= 0 {
+		return current
+	}
+	return clamp01(1.0 - (1.0-current)*(1.0-signal))
+}
+
 func (mc *MetricsCollector) updateIntelHistory(instanceUUID string, instant float64) float64 {
 	const alphaIntel = 0.1
 
@@ -39,8 +48,7 @@ func (mc *MetricsCollector) collectDomainThreatSignals(
 		return 0.0
 	}
 
-	intelSum := 0.0
-	intelCount := 0.0
+	intelCombinedInstant := 0.0
 
 	if mc.tm.spamEnabled {
 		spamSignal := 0.0
@@ -49,8 +57,7 @@ func (mc *MetricsCollector) collectDomainThreatSignals(
 			hits = connAgg.SpamhausHits[instanceUUID]
 		}
 		mc.tm.exportSpamhausHits(hits, ipSet, domain, serverName, instanceUUID, projectUUID, projectName, userUUID, dynamicMetrics, &spamSignal)
-		intelSum += spamSignal
-		intelCount++
+		intelCombinedInstant = combineThreatSignalsUnion(intelCombinedInstant, spamSignal)
 	}
 
 	for _, p := range mc.tm.Providers {
@@ -66,16 +73,10 @@ func (mc *MetricsCollector) collectDomainThreatSignals(
 			}
 		}
 		mc.tm.exportProviderHits(p, hits, ipSet, domain, serverName, instanceUUID, projectUUID, projectName, userUUID, dynamicMetrics, &providerSignal)
-		intelSum += providerSignal
-		intelCount++
+		intelCombinedInstant = combineThreatSignalsUnion(intelCombinedInstant, providerSignal)
 	}
 
-	intel01 := 0.0
-	if intelCount > 0 {
-		intel01 = clamp01(intelSum / intelCount)
-	}
-
-	intelBurst := intel01
+	intelBurst := intelCombinedInstant
 	intelLong := mc.updateIntelHistory(instanceUUID, intelBurst)
 	intelCombined := clamp01(0.5*intelBurst + 0.5*intelLong)
 	return intelCombined

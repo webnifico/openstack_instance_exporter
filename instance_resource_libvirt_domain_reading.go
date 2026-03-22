@@ -502,14 +502,15 @@ func (mc *MetricsCollector) collectDomainMetrics(
 	behavior01 := clamp01(behaviorSignal)
 	behaviorScore := behavior01 * 100.0
 	threatListSeverity := intelCombined * 100.0
-	wRes := mc.scoring.ResourceWeight
-	wBeh := mc.scoring.BehaviorWeight
-	wList := mc.scoring.ThreatWeight
-	attentionSeverity := 0.0
-	totalW := wRes + wBeh + wList
-	if totalW > 0 {
-		attentionSeverity = (resourceSeverity*wRes + behaviorScore*wBeh + threatListSeverity*wList) / totalW
-	}
+	attentionSeverity := attentionSeverityWeighted(
+		mc.scoring,
+		resourceSeverity,
+		instanceRunning,
+		behaviorScore,
+		totalBehaviorWeight > 0,
+		threatListSeverity,
+		mc.tm != nil && mc.tm.anyThreatsEnabled(),
+	)
 	dynamicMetrics = append(dynamicMetrics,
 		prometheus.MustNewConstMetric(mc.instanceResourceSeverityDesc, prometheus.GaugeValue, resourceSeverity, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),
 		prometheus.MustNewConstMetric(mc.instanceResourceCpuSeverityDesc, prometheus.GaugeValue, resOut.CPU.Sev, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),

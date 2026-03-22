@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	libvirt "github.com/digitalocean/go-libvirt"
 	"github.com/prometheus/client_golang/prometheus"
 	"runtime"
@@ -87,8 +88,14 @@ func (mc *MetricsCollector) collectHeavy(ch chan<- prometheus.Metric) {
 		atomic.AddUint64(&mc.hostCollectionErrors, 1)
 		atomic.AddUint64(&mc.cm.conntrackReadErrors, 1)
 		logConntrackMetric.Error("conntrack_read_failed", "cycle_id", cycleID, "ct_entries", ctCount, "err", errConntrack)
-		logConntrackMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "conntrack", "fallback", "skip_conntrack_agg", "impact", "per-vm network attribution missing", "err", errConntrack)
-		connAgg = nil
+
+		var aggErr *conntrackAggregateError
+		if errors.As(errConntrack, &aggErr) && aggErr.Partial && connAgg != nil {
+			logConntrackMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "conntrack", "fallback", "partial_conntrack_agg", "impact", "per-vm network attribution incomplete; host conntrack totals may be partial", "err", errConntrack)
+		} else {
+			logConntrackMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "conntrack", "fallback", "skip_conntrack_agg", "impact", "per-vm network attribution missing", "err", errConntrack)
+			connAgg = nil
+		}
 	}
 
 	ctMax := hostConntrackMax()

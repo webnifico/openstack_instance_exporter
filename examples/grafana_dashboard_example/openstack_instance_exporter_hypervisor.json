@@ -1141,7 +1141,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Percentage of each hypervisor’s total host RAM currently used by its instances (guest memory used vs host capacity).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Memory 'used' here is hypervisor-observed usage (not the guest OS free/used breakdown) and can be affected by ballooning and QEMU overhead.",
+          "description": "Percentage of each hypervisor\u2019s total host RAM currently used by its instances (guest memory used vs host capacity).\n\nSource: Libvirt/QEMU stats collected on the hypervisor by OIE (plus derived scoring).\nLimitations: Host-side view of VM counters; guest OS reporting may differ. Counters can reset on VM reboot/migration; short rate windows can be spiky. Memory 'used' here is hypervisor-observed usage (not the guest OS free/used breakdown) and can be affected by ballooning and QEMU overhead.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3308,7 +3308,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "OpenStack Instance Exporter — Hypervisor Overview",
+  "title": "OpenStack Instance Exporter \u2014 Hypervisor Overview",
   "uid": "d92k2mnsf0p4z",
   "version": 14
 }

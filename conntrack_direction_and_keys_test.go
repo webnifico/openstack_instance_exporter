@@ -22,12 +22,13 @@ func TestParseContactDirection(t *testing.T) {
 		{"  OUTBOUND  ", ContactOut},
 
 		{"", ContactOut},
-		{"junk", ContactOut},
-		{"inboundz", ContactOut},
 	}
 
 	for _, c := range cases {
-		got := parseContactDirection(c.in)
+		got, err := parseContactDirection(c.in)
+		if err != nil {
+			t.Fatalf("parseContactDirection(%q) unexpected err: %v", c.in, err)
+		}
 		if got != c.want {
 			t.Fatalf("parseContactDirection(%q)=%v want %v", c.in, got, c.want)
 		}
@@ -67,6 +68,15 @@ func TestFlowDirection(t *testing.T) {
 		got := flowDirection(ipSet, c.ct)
 		if got != c.want {
 			t.Fatalf("%s: flowDirection()=%q want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestParseContactDirectionReturnsErrorOnInvalid(t *testing.T) {
+	cases := []string{"junk", "inboundz"}
+	for _, in := range cases {
+		if _, err := parseContactDirection(in); err == nil {
+			t.Fatalf("parseContactDirection(%q) err=nil want error", in)
 		}
 	}
 }

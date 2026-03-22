@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"sort"
 )
 
 func newBehaviorStats(trackAcct bool) *behaviorStats {
@@ -29,36 +28,10 @@ func (b *behaviorStats) updateDetailed(remote IPKey, port uint16, proto uint8, s
 		b.unreplied++
 	}
 
-	if len(b.remotes) < maxRemoteMapSize {
-		if _, exists := b.remotes[remote]; !exists {
-			b.remotes[remote] = struct{}{}
-			b.remoteIsPrivate[remote] = isPrivateOrLocalKey(remote)
-		}
-		b.remoteZones[remote] = zone
-		b.perRemote[remote]++
-		if unreplied {
-			b.perRemoteUnreplied[remote]++
-		}
-	} else {
-		b.remoteMapCapped = true
-		if _, exists := b.remotes[remote]; exists {
-			b.perRemote[remote]++
-			if unreplied {
-				b.perRemoteUnreplied[remote]++
-			}
-		}
-	}
+	b.updateRemoteDetailed(remote, zone, unreplied)
 
 	if port != 0 {
-		if len(b.dstPorts) < maxPortMapSize {
-			b.dstPorts[port] = struct{}{}
-			b.perDstPort[port]++
-		} else {
-			b.portMapCapped = true
-			if _, exists := b.dstPorts[port]; exists {
-				b.perDstPort[port]++
-			}
-		}
+		b.updatePortDetailed(port)
 	}
 
 	if isMulticastKey(remote) {
@@ -74,51 +47,108 @@ func (b *behaviorStats) updateDetailed(remote IPKey, port uint16, proto uint8, s
 	if !b.sampleRemoteSet {
 		b.sampleRemote = remote
 		b.sampleRemoteSet = true
-		if port != 0 {
-			b.sampleDstPort = port
+	}
+}
+
+func (b *behaviorStats) updateRemoteDetailed(remote IPKey, zone uint16, unreplied bool) {
+	if _, exists := b.remotes[remote]; exists {
+		b.remoteZones[remote] = zone
+		b.perRemote[remote]++
+		if unreplied {
+			b.perRemoteUnreplied[remote]++
+		}
+		return
+	}
+
+	if len(b.remotes) < maxRemoteMapSize {
+		b.remotes[remote] = struct{}{}
+		b.remoteZones[remote] = zone
+		b.remoteIsPrivate[remote] = isPrivateOrLocalKey(remote)
+		b.perRemote[remote] = 1
+		if unreplied {
+			b.perRemoteUnreplied[remote] = 1
+		}
+		return
+	}
+
+	b.remoteMapCapped = true
+	victim, victimCount, ok := minRemoteCountEntry(b.perRemote)
+	if !ok {
+		return
+	}
+	delete(b.remotes, victim)
+	delete(b.remoteZones, victim)
+	delete(b.remoteIsPrivate, victim)
+	delete(b.perRemote, victim)
+	delete(b.perRemoteUnreplied, victim)
+
+	b.remotes[remote] = struct{}{}
+	b.remoteZones[remote] = zone
+	b.remoteIsPrivate[remote] = isPrivateOrLocalKey(remote)
+	b.perRemote[remote] = victimCount + 1
+	if unreplied {
+		b.perRemoteUnreplied[remote] = 1
+	}
+}
+
+func (b *behaviorStats) updatePortDetailed(port uint16) {
+	if _, exists := b.dstPorts[port]; !exists {
+		b.dstPorts[port] = struct{}{}
+	}
+	b.perDstPort[port]++
+}
+
+func minRemoteCountEntry(in map[IPKey]int) (IPKey, int, bool) {
+	var victim IPKey
+	victimCount := 0
+	set := false
+	for k, count := range in {
+		if !set || count < victimCount || (count == victimCount && bytes.Compare(k[:], victim[:]) < 0) {
+			victim = k
+			victimCount = count
+			set = true
 		}
 	}
+	return victim, victimCount, set
 }
-func sampleIPKeySetDeterministic(in map[IPKey]struct{}, limit int) map[IPKey]struct{} {
-	if limit <= 0 || len(in) == 0 {
-		return map[IPKey]struct{}{}
-	}
-	keys := make([]IPKey, 0, len(in))
+
+func cloneIPKeySet(in map[IPKey]struct{}) map[IPKey]struct{} {
+	out := make(map[IPKey]struct{}, len(in))
 	for k := range in {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		return bytes.Compare(keys[i][:], keys[j][:]) < 0
-	})
-	n := len(keys)
-	if n > limit {
-		n = limit
-	}
-	out := make(map[IPKey]struct{}, n)
-	for i := 0; i < n; i++ {
-		out[keys[i]] = struct{}{}
+		out[k] = struct{}{}
 	}
 	return out
 }
-func samplePortSetDeterministic(in map[uint16]struct{}, limit int) map[uint16]struct{} {
-	if limit <= 0 || len(in) == 0 {
-		return map[uint16]struct{}{}
-	}
-	ports := make([]int, 0, len(in))
-	for p := range in {
-		ports = append(ports, int(p))
-	}
-	sort.Ints(ports)
-	n := len(ports)
-	if n > limit {
-		n = limit
-	}
-	out := make(map[uint16]struct{}, n)
-	for i := 0; i < n; i++ {
-		out[uint16(ports[i])] = struct{}{}
+
+func cloneUint16Set(in map[uint16]struct{}) map[uint16]struct{} {
+	out := make(map[uint16]struct{}, len(in))
+	for k := range in {
+		out[k] = struct{}{}
 	}
 	return out
 }
+
+func saturatingCount(v, ceiling int) (int, bool) {
+	if ceiling > 0 && v >= ceiling {
+		return ceiling, true
+	}
+	return v, false
+}
+
+func countNewIPKeys(current, prev map[IPKey]struct{}, ceiling int) (int, bool) {
+	count := 0
+	for k := range current {
+		if _, ok := prev[k]; ok {
+			continue
+		}
+		count++
+		if ceiling > 0 && count >= ceiling {
+			return ceiling, true
+		}
+	}
+	return count, false
+}
+
 func minInt(a, b int) int {
 	if a < b {
 		return a
@@ -160,7 +190,9 @@ func behaviorEvidenceMode(topRemoteShare, topPortShare float64) string {
 }
 func behaviorEvidenceFromFeature(feature BehaviorFeature) (topRemoteShare, topPortShare float64, mode string) {
 	flows := maxInt(1, feature.Flows)
-	topRemoteShare = float64(feature.MaxSingleRemote) / float64(flows)
+	if !feature.RemoteEvidenceApproximate {
+		topRemoteShare = float64(feature.MaxSingleRemote) / float64(flows)
+	}
 	topPortShare = float64(feature.MaxSingleDstPort) / float64(flows)
 	mode = behaviorEvidenceMode(topRemoteShare, topPortShare)
 	return
@@ -176,15 +208,16 @@ func buildBehaviorEvidence(feature BehaviorFeature) BehaviorEvidence {
 }
 
 func (cm *ConntrackManager) buildBehaviorAlertEvidence(feature BehaviorFeature, topRemoteKey IPKey, topRemoteSet bool) behaviorAlertEvidence {
-	ev := behaviorAlertEvidence{
-		TopDstPort:     feature.TopDstPort,
-		TopDstPortName: cm.behaviorPortName(feature.Direction, feature.TopDstPort),
-	}
-	if topRemoteSet {
+	ev := behaviorAlertEvidence{}
+	ev.TopDstPort = feature.TopDstPort
+	ev.TopDstPortName = cm.behaviorPortName(feature.Direction, feature.TopDstPort)
+	if topRemoteSet && !feature.RemoteEvidenceApproximate {
 		ev.TopRemoteIP = IPKeyToString(topRemoteKey)
 	}
 	if feature.Flows > 0 {
-		ev.TopRemoteShare = float64(feature.MaxSingleRemote) / float64(feature.Flows)
+		if !feature.RemoteEvidenceApproximate {
+			ev.TopRemoteShare = float64(feature.MaxSingleRemote) / float64(feature.Flows)
+		}
 		ev.TopPortShare = float64(feature.MaxSingleDstPort) / float64(feature.Flows)
 	}
 	ev.TopRemoteShare = roundToFiveDecimals(ev.TopRemoteShare)

@@ -87,21 +87,22 @@ func (cm *ConntrackManager) readConntrackRawLite() ([]ConntrackFlowLite, []Connt
 
 	wg.Wait()
 
-	v4Failed := cm.conntrackIPv4Enable && errV4 != nil
-	v6Failed := cm.conntrackIPv6Enable && errV6 != nil
-	anySuccess := (cm.conntrackIPv4Enable && errV4 == nil) || (cm.conntrackIPv6Enable && errV6 == nil)
-
-	if !anySuccess {
-		return v4, v6, fmt.Errorf("conntrack raw read errors: v4=%v v6=%v", errV4, errV6)
-	}
-	if v4Failed {
-		logKV(LogLevelNotice, "metric", "conntrack", "conntrack_raw_partial_failure", "family", "v4", "err", errV4)
-	}
-	if v6Failed {
-		logKV(LogLevelNotice, "metric", "conntrack", "conntrack_raw_partial_failure", "family", "v6", "err", errV6)
+	readErr := newConntrackAggregateError(cm.conntrackIPv4Enable, cm.conntrackIPv6Enable, errV4, errV6)
+	if readErr != nil {
+		atomic.StoreUint64(&cm.conntrackRawOK, 0)
+		if readErr.Partial {
+			if cm.conntrackIPv4Enable && errV4 != nil {
+				logKV(LogLevelNotice, "metric", "conntrack", "conntrack_raw_partial_failure", "family", "v4", "err", errV4)
+			}
+			if cm.conntrackIPv6Enable && errV6 != nil {
+				logKV(LogLevelNotice, "metric", "conntrack", "conntrack_raw_partial_failure", "family", "v6", "err", errV6)
+			}
+		}
+		return v4, v6, readErr
 	}
 
 	atomic.StoreUint64(&cm.conntrackRawOK, 1)
+	atomic.StoreInt64(&cm.conntrackLastSuccessUnix, time.Now().Unix())
 	return v4, v6, nil
 
 }
