@@ -28,10 +28,10 @@ Group=root
 {%- if openstack_instance_exporter_behavior_ewma_slow_tau is defined -%}
 {%- set _ = flags.append('-behavior.ewma_slow_tau=' ~ openstack_instance_exporter_behavior_ewma_slow_tau) -%}
 {%- endif -%}
-{%- if openstack_instance_exporter_behavior_ports_config_path is defined and openstack_instance_exporter_behavior_ports_config_path|length > 0 -%}
+{%- if openstack_instance_exporter_behavior_ports_config_path is defined and openstack_instance_exporter_behavior_ports_config_path|length > 0 and openstack_instance_exporter_behavior_ports_config_yaml is defined and openstack_instance_exporter_behavior_ports_config_yaml|trim|length > 0 -%}
 {%- set _ = flags.append('-behavior.ports_config=' ~ openstack_instance_exporter_behavior_ports_config_path) -%}
 {%- endif -%}
-{%- if openstack_instance_exporter_behavior_rules_config_path is defined and openstack_instance_exporter_behavior_rules_config_path|length > 0 -%}
+{%- if openstack_instance_exporter_behavior_rules_config_path is defined and openstack_instance_exporter_behavior_rules_config_path|length > 0 and openstack_instance_exporter_behavior_rules_config_yaml is defined and openstack_instance_exporter_behavior_rules_config_yaml|trim|length > 0 -%}
 {%- set _ = flags.append('-behavior.rules_config=' ~ openstack_instance_exporter_behavior_rules_config_path) -%}
 {%- endif -%}
 

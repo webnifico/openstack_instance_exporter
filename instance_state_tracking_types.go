@@ -8,52 +8,99 @@ import (
 )
 
 type ParsedStats struct {
-	State      int
-	CpuTime    uint64
-	CpuUser    uint64
-	CpuSystem  uint64
-	Vcpus      map[int]*VcpuStat
-	MemMax     uint64
-	MemCur     uint64
-	MemUsable  uint64 // Available RAM (Total - Used)
-	MemRss     uint64 // Actual Host RAM
-	MajorFault uint64
-	MinorFault uint64
-	SwapIn     uint64
-	SwapOut    uint64
-	Disks      map[int]*DiskStat
-	Nets       map[int]*NetStat
+	State                 int
+	StatePresent          bool
+	CpuTime               uint64
+	CpuUser               uint64
+	CpuSystem             uint64
+	CpuTimePresent        bool
+	CpuUserPresent        bool
+	CpuSystemPresent      bool
+	VcpuCurrent           uint64
+	VcpuCurrentPresent    bool
+	Vcpus                 map[int]*VcpuStat
+	MemMax                uint64
+	MemCur                uint64
+	MemUsable             uint64 // Available RAM (Total - Used)
+	MemRss                uint64 // Actual Host RAM
+	MajorFault            uint64
+	MinorFault            uint64
+	SwapIn                uint64
+	SwapOut               uint64
+	HugetlbPgAlloc        uint64
+	HugetlbPgFail         uint64
+	MemMaxPresent         bool
+	MemCurPresent         bool
+	MemUsablePresent      bool
+	MemRssPresent         bool
+	MajorFaultPresent     bool
+	MinorFaultPresent     bool
+	SwapInPresent         bool
+	SwapOutPresent        bool
+	HugetlbPgAllocPresent bool
+	HugetlbPgFailPresent  bool
+	BlockCount            uint64
+	BlockCountPresent     bool
+	Disks                 map[int]*DiskStat
+	NetCount              uint64
+	NetCountPresent       bool
+	Nets                  map[int]*NetStat
 }
 type VcpuStat struct {
-	State uint64
-	Time  uint64
-	Wait  uint64
-	Delay uint64
+	State        uint64
+	Time         uint64
+	Wait         uint64
+	Delay        uint64
+	StatePresent bool
+	TimePresent  bool
+	WaitPresent  bool
+	DelayPresent bool
 }
 type DiskStat struct {
-	Name       string
-	RdReqs     uint64
-	RdBytes    uint64
-	RdTime     uint64
-	WrReqs     uint64
-	WrBytes    uint64
-	WrTime     uint64
-	FlReqs     uint64
-	FlTime     uint64
-	Physical   uint64
-	Capacity   uint64
-	Allocation uint64
+	Name              string
+	RdReqs            uint64
+	RdBytes           uint64
+	RdTime            uint64
+	WrReqs            uint64
+	WrBytes           uint64
+	WrTime            uint64
+	FlReqs            uint64
+	FlTime            uint64
+	Physical          uint64
+	Capacity          uint64
+	Allocation        uint64
+	NamePresent       bool
+	RdReqsPresent     bool
+	RdBytesPresent    bool
+	RdTimePresent     bool
+	WrReqsPresent     bool
+	WrBytesPresent    bool
+	WrTimePresent     bool
+	FlReqsPresent     bool
+	FlTimePresent     bool
+	PhysicalPresent   bool
+	CapacityPresent   bool
+	AllocationPresent bool
 }
 type NetStat struct {
-	Name    string
-	RxBytes uint64
-	RxPkts  uint64
-	RxErrs  uint64
-	RxDrop  uint64
-	TxBytes uint64
-	TxPkts  uint64
-	TxErrs  uint64
-	TxDrop  uint64
+	Name           string
+	RxBytes        uint64
+	RxPkts         uint64
+	RxErrs         uint64
+	RxDrop         uint64
+	TxBytes        uint64
+	TxPkts         uint64
+	TxErrs         uint64
+	TxDrop         uint64
+	NamePresent    bool
+	RxBytesPresent bool
+	RxPktsPresent  bool
+	RxErrsPresent  bool
+	RxDropPresent  bool
+	TxBytesPresent bool
+	TxPktsPresent  bool
+	TxErrsPresent  bool
+	TxDropPresent  bool
 }
 type DomainStatic struct {
 	Name            string
@@ -154,35 +201,45 @@ type DomainDisk struct {
 // Sample Structures
 // -----------------------------------------------------------------------------
 type cpuSample struct {
-	total uint64
-	steal uint64
-	wait  uint64
-	ts    time.Time
+	total        uint64
+	steal        uint64
+	wait         uint64
+	vcpuCount    int
+	stealPresent bool
+	waitPresent  bool
+	ts           time.Time
 }
 type diskSample struct {
-	rdReq   int64
-	wrReq   int64
-	rdBytes int64
-	wrBytes int64
-	rdTime  int64
-	wrTime  int64
-	flReq   int64
-	flTime  int64
-	ts      time.Time
+	rdReq        uint64
+	wrReq        uint64
+	rdBytes      uint64
+	wrBytes      uint64
+	rdTime       uint64
+	wrTime       uint64
+	flReq        uint64
+	flTime       uint64
+	rwPresent    bool
+	flushPresent bool
+	ts           time.Time
 }
 type memSample struct {
-	swapIn     uint64
-	swapOut    uint64
-	majorFault uint64
-	minorFault uint64
-	ts         time.Time
+	swapIn            uint64
+	swapOut           uint64
+	majorFault        uint64
+	minorFault        uint64
+	swapInPresent     bool
+	swapOutPresent    bool
+	majorFaultPresent bool
+	minorFaultPresent bool
+	ts                time.Time
 }
 type netSample struct {
-	rxPkts uint64
-	txPkts uint64
-	rxDrop uint64
-	txDrop uint64
-	ts     time.Time
+	rxPkts       uint64
+	txPkts       uint64
+	rxDrop       uint64
+	txDrop       uint64
+	interfaceSet string
+	ts           time.Time
 }
 
 // -----------------------------------------------------------------------------
@@ -214,6 +271,7 @@ type InstanceManager struct {
 	vmIPSet            map[IPKey]struct{}
 	SetAtomic          atomic.Value
 	vmIPToInstance     map[IPKey]string
+	vmIPOwners         map[IPKey]map[string]struct{}
 	vmIPKeysByInstance map[string][]IPKey
 
 	// Sharded locks for high concurrency

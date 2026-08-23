@@ -47,10 +47,13 @@ func isPrivateOrLocal(ip net.IP) bool {
 	return false
 }
 func MakePairKey(aIP IPKey, aPort uint16, bIP IPKey, bPort uint16, proto uint8) PairKey {
+	return MakeConntrackPairKey(aIP, aPort, bIP, bPort, proto, 0, 0, 0)
+}
+func MakeConntrackPairKey(aIP IPKey, aPort uint16, bIP IPKey, bPort uint16, proto uint8, icmpID uint16, icmpType, icmpCode uint8) PairKey {
 	if compareEndpoint(aIP, aPort, bIP, bPort) <= 0 {
-		return PairKey{A: aIP, AP: aPort, B: bIP, BP: bPort, Proto: proto}
+		return PairKey{A: aIP, AP: aPort, B: bIP, BP: bPort, Proto: proto, ICMPID: icmpID, ICMPType: icmpType, ICMPCode: icmpCode}
 	}
-	return PairKey{A: bIP, AP: bPort, B: aIP, BP: aPort, Proto: proto}
+	return PairKey{A: bIP, AP: bPort, B: aIP, BP: aPort, Proto: proto, ICMPID: icmpID, ICMPType: icmpType, ICMPCode: icmpCode}
 }
 func compareIPKey(a, b IPKey) int {
 	for i := 0; i < 16; i++ {
@@ -77,7 +80,7 @@ func compareEndpoint(ipA IPKey, portA uint16, ipB IPKey, portB uint16) int {
 	return 0
 }
 func PairKeyString(pk PairKey) string {
-	return hex.EncodeToString(pk.A[:]) + ":" + strconv.Itoa(int(pk.AP)) + "|" + hex.EncodeToString(pk.B[:]) + ":" + strconv.Itoa(int(pk.BP)) + "|" + strconv.Itoa(int(pk.Proto))
+	return hex.EncodeToString(pk.A[:]) + ":" + strconv.Itoa(int(pk.AP)) + "|" + hex.EncodeToString(pk.B[:]) + ":" + strconv.Itoa(int(pk.BP)) + "|" + strconv.Itoa(int(pk.Proto)) + "|" + strconv.Itoa(int(pk.ICMPID)) + ":" + strconv.Itoa(int(pk.ICMPType)) + ":" + strconv.Itoa(int(pk.ICMPCode))
 }
 func isPrivateOrLocalStr(s string) bool {
 	ip := net.ParseIP(s)
@@ -127,6 +130,39 @@ func isInfrastructureKey(k IPKey, hostIPKeys map[IPKey]struct{}) bool {
 		return true
 	}
 	return false
+}
+
+type behaviorDestinationClass uint8
+
+const (
+	behaviorDestinationLocalLink behaviorDestinationClass = iota
+	behaviorDestinationMetadata
+	behaviorDestinationHostControl
+	behaviorDestinationTenantPrivate
+	behaviorDestinationPublic
+)
+
+// classifyBehaviorDestination assigns each remote address to exactly one
+// behavior-scoring class. Metadata is deliberately checked before the broader
+// link-local class, while explicitly discovered host addresses take precedence
+// over tenant-private ranges.
+func classifyBehaviorDestination(k IPKey, hostIPKeys map[IPKey]struct{}) behaviorDestinationClass {
+	if k == metadataServiceIPKey() {
+		return behaviorDestinationMetadata
+	}
+	if hostIPKeys != nil {
+		if _, ok := hostIPKeys[k]; ok {
+			return behaviorDestinationHostControl
+		}
+	}
+	addr := IPKeyToAddr(k)
+	if addr.IsPrivate() {
+		return behaviorDestinationTenantPrivate
+	}
+	if !addr.IsValid() || !addr.IsGlobalUnicast() {
+		return behaviorDestinationLocalLink
+	}
+	return behaviorDestinationPublic
 }
 
 var metadataServiceKey = V4ToKey([4]byte{169, 254, 169, 254})
@@ -237,10 +273,7 @@ func isPrivateOrLocalKey(k IPKey) bool {
 }
 func isLocalOnlyKey(k IPKey) bool {
 	addr := IPKeyToAddr(k)
-	if addr.IsLoopback() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified() {
-		return true
-	}
-	return false
+	return !addr.IsValid() || !addr.IsGlobalUnicast()
 }
 func isMulticastKey(k IPKey) bool {
 	return IPKeyToAddr(k).IsMulticast()
@@ -262,9 +295,12 @@ func copyPortNameMap(in map[uint16]string) map[uint16]string {
 // IPv4 addresses are stored as IPv4-mapped IPv6 (::ffff:1.2.3.4).
 type IPKey [16]byte
 type PairKey struct {
-	A     IPKey
-	AP    uint16
-	B     IPKey
-	BP    uint16
-	Proto uint8
+	A        IPKey
+	AP       uint16
+	B        IPKey
+	BP       uint16
+	Proto    uint8
+	ICMPID   uint16
+	ICMPType uint8
+	ICMPCode uint8
 }

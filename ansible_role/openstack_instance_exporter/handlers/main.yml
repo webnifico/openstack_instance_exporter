@@ -1,6 +1,6 @@
 ---
 - name: Restart openstack_instance_exporter service
   become: true
-  systemd:
+  ansible.builtin.systemd:
     name: openstack_instance_exporter
     state: restarted

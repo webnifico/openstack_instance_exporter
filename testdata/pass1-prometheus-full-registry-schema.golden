@@ -1,0 +1,166 @@
+go_build_info|type=GAUGE|help=Build information about the main Go module.|labels=checksum,path,version
+go_gc_duration_seconds|type=SUMMARY|help=A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.|labels=
+go_gc_gogc_percent|type=GAUGE|help=Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent|labels=
+go_gc_gomemlimit_bytes|type=GAUGE|help=Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes|labels=
+go_goroutines|type=GAUGE|help=Number of goroutines that currently exist.|labels=
+go_info|type=GAUGE|help=Information about the Go environment.|labels=version
+go_memstats_alloc_bytes_total|type=COUNTER|help=Total number of bytes allocated in heap until now, even if released already. Equals to /gc/heap/allocs:bytes.|labels=
+go_memstats_alloc_bytes|type=GAUGE|help=Number of bytes allocated in heap and currently in use. Equals to /memory/classes/heap/objects:bytes.|labels=
+go_memstats_buck_hash_sys_bytes|type=GAUGE|help=Number of bytes used by the profiling bucket hash table. Equals to /memory/classes/profiling/buckets:bytes.|labels=
+go_memstats_frees_total|type=COUNTER|help=Total number of heap objects frees. Equals to /gc/heap/frees:objects + /gc/heap/tiny/allocs:objects.|labels=
+go_memstats_gc_sys_bytes|type=GAUGE|help=Number of bytes used for garbage collection system metadata. Equals to /memory/classes/metadata/other:bytes.|labels=
+go_memstats_heap_alloc_bytes|type=GAUGE|help=Number of heap bytes allocated and currently in use, same as go_memstats_alloc_bytes. Equals to /memory/classes/heap/objects:bytes.|labels=
+go_memstats_heap_idle_bytes|type=GAUGE|help=Number of heap bytes waiting to be used. Equals to /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.|labels=
+go_memstats_heap_inuse_bytes|type=GAUGE|help=Number of heap bytes that are in use. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes|labels=
+go_memstats_heap_objects|type=GAUGE|help=Number of currently allocated objects. Equals to /gc/heap/objects:objects.|labels=
+go_memstats_heap_released_bytes|type=GAUGE|help=Number of heap bytes released to OS. Equals to /memory/classes/heap/released:bytes.|labels=
+go_memstats_heap_sys_bytes|type=GAUGE|help=Number of heap bytes obtained from system. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes + /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.|labels=
+go_memstats_last_gc_time_seconds|type=GAUGE|help=Number of seconds since 1970 of last garbage collection.|labels=
+go_memstats_mallocs_total|type=COUNTER|help=Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge. Equals to /gc/heap/allocs:objects + /gc/heap/tiny/allocs:objects.|labels=
+go_memstats_mcache_inuse_bytes|type=GAUGE|help=Number of bytes in use by mcache structures. Equals to /memory/classes/metadata/mcache/inuse:bytes.|labels=
+go_memstats_mcache_sys_bytes|type=GAUGE|help=Number of bytes used for mcache structures obtained from system. Equals to /memory/classes/metadata/mcache/inuse:bytes + /memory/classes/metadata/mcache/free:bytes.|labels=
+go_memstats_mspan_inuse_bytes|type=GAUGE|help=Number of bytes in use by mspan structures. Equals to /memory/classes/metadata/mspan/inuse:bytes.|labels=
+go_memstats_mspan_sys_bytes|type=GAUGE|help=Number of bytes used for mspan structures obtained from system. Equals to /memory/classes/metadata/mspan/inuse:bytes + /memory/classes/metadata/mspan/free:bytes.|labels=
+go_memstats_next_gc_bytes|type=GAUGE|help=Number of heap bytes when next garbage collection will take place. Equals to /gc/heap/goal:bytes.|labels=
+go_memstats_other_sys_bytes|type=GAUGE|help=Number of bytes used for other system allocations. Equals to /memory/classes/other:bytes.|labels=
+go_memstats_stack_inuse_bytes|type=GAUGE|help=Number of bytes obtained from system for stack allocator in non-CGO environments. Equals to /memory/classes/heap/stacks:bytes.|labels=
+go_memstats_stack_sys_bytes|type=GAUGE|help=Number of bytes obtained from system for stack allocator. Equals to /memory/classes/heap/stacks:bytes + /memory/classes/os-stacks:bytes.|labels=
+go_memstats_sys_bytes|type=GAUGE|help=Number of bytes obtained from system. Equals to /memory/classes/total:byte.|labels=
+go_sched_gomaxprocs_threads|type=GAUGE|help=The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads|labels=
+go_threads|type=GAUGE|help=Number of OS threads created.|labels=
+oie_host_active_disks|type=GAUGE|help=Count of disks across active domains on this hypervisor|labels=
+oie_host_active_fixed_ips|type=GAUGE|help=Count of fixed IPs across active domains on this hypervisor|labels=
+oie_host_active_projects|type=GAUGE|help=Unique project names seen in active domains on this hypervisor|labels=
+oie_host_cache_cleanup_duration_seconds|type=GAUGE|help=Duration of last cache cleanup cycle on this host (seconds)|labels=
+oie_host_collection_cycle_duration_seconds|type=GAUGE|help=Duration of last background collection cycle on this host (seconds)|labels=
+oie_host_collection_cycle_lag_seconds|type=GAUGE|help=Seconds since prior background collection cycle ended on this host|labels=
+oie_host_collection_errors_total|type=COUNTER|help=Total background collection errors on this host|labels=
+oie_host_conntrack_entries|type=GAUGE|help=Conntrack entries observed in last snapshot on this host|labels=
+oie_host_conntrack_last_success_timestamp_seconds|type=GAUGE|help=Unix timestamp of last successful conntrack read (seconds)|labels=
+oie_host_conntrack_max|type=GAUGE|help=Configured maximum conntrack entries on this host|labels=
+oie_host_conntrack_raw_enobufs_total|type=COUNTER|help=Total ENOBUFS errors encountered by the raw conntrack reader|labels=
+oie_host_conntrack_raw_ok|type=GAUGE|help=1 if the raw conntrack reader succeeded on the last run, else 0|labels=
+oie_host_conntrack_raw_parse_errors_total|type=COUNTER|help=Total parse errors encountered by the raw conntrack reader|labels=
+oie_host_conntrack_read_duration_seconds|type=GAUGE|help=Seconds spent reading conntrack tables on this host|labels=
+oie_host_conntrack_read_errors_total|type=COUNTER|help=Conntrack read errors on this host|labels=
+oie_host_conntrack_stale_seconds|type=GAUGE|help=Seconds since last successful conntrack read|labels=
+oie_host_conntrack_utilization|type=GAUGE|help=Conntrack table utilization (entries / max)|labels=
+oie_host_cpu_active_vcpus|type=GAUGE|help=Sum of vCPUs allocated to active domains on this hypervisor|labels=
+oie_host_cpu_threads|type=GAUGE|help=Logical CPU thread count on this hypervisor|labels=
+oie_host_cpu_usage_percent|type=GAUGE|help=Live host CPU usage percentage (0-100) from /proc/stat delta|labels=
+oie_host_go_heap_alloc_bytes|type=GAUGE|help=Go heap allocation of the exporter process in bytes on this host|labels=
+oie_host_libvirt_active_vms|type=GAUGE|help=Active libvirt domains on this hypervisor|labels=
+oie_host_libvirt_list_duration_seconds|type=GAUGE|help=Seconds spent listing active libvirt domains on this host|labels=
+oie_host_mem_available_mb|type=GAUGE|help=Available host memory (MemAvailable) in MB|labels=
+oie_host_mem_free_mb|type=GAUGE|help=Free host memory (MemFree) in MB|labels=
+oie_host_mem_mb_total|type=GAUGE|help=Total physical memory on this hypervisor (MB)|labels=
+oie_host_threat_customlist_entries|type=GAUGE|help=Number of CustomList IPs currently loaded|labels=
+oie_host_threat_customlist_refresh_duration_seconds|type=GAUGE|help=Duration of last CustomList refresh in seconds|labels=
+oie_host_threat_customlist_refresh_errors_total|type=COUNTER|help=Total CustomList refresh errors|labels=
+oie_host_threat_customlist_refresh_last_success_timestamp_seconds|type=GAUGE|help=Last successful CustomList refresh (unix timestamp)|labels=
+oie_host_threat_emergingthreats_entries|type=GAUGE|help=Number of EmergingThreats IPs currently loaded|labels=
+oie_host_threat_emergingthreats_refresh_duration_seconds|type=GAUGE|help=Duration of last EmergingThreats refresh in seconds|labels=
+oie_host_threat_emergingthreats_refresh_errors_total|type=COUNTER|help=Total EmergingThreats refresh errors|labels=
+oie_host_threat_emergingthreats_refresh_last_success_timestamp_seconds|type=GAUGE|help=Last successful EmergingThreats refresh (unix timestamp)|labels=
+oie_host_threat_provider_ip_listed|type=GAUGE|help=Provider-owned host IP present in a threat list (1 = member)|labels=family,ip,list
+oie_host_threat_spamhaus_entries|type=GAUGE|help=Number of Spamhaus CIDRs currently loaded|labels=
+oie_host_threat_spamhaus_refresh_duration_seconds|type=GAUGE|help=Duration of last Spamhaus list refresh in seconds|labels=
+oie_host_threat_spamhaus_refresh_errors_total|type=COUNTER|help=Total Spamhaus list refresh errors|labels=
+oie_host_threat_spamhaus_refresh_last_success_timestamp_seconds|type=GAUGE|help=Last successful Spamhaus list refresh (unix timestamp)|labels=
+oie_host_threat_tor_exit_entries|type=GAUGE|help=Number of TorExit IPs currently loaded|labels=
+oie_host_threat_tor_exit_refresh_duration_seconds|type=GAUGE|help=Duration of last TorExit refresh in seconds|labels=
+oie_host_threat_tor_exit_refresh_errors_total|type=COUNTER|help=Total TorExit refresh errors|labels=
+oie_host_threat_tor_exit_refresh_last_success_timestamp_seconds|type=GAUGE|help=Last successful TorExit refresh (unix timestamp)|labels=
+oie_host_threat_tor_relay_entries|type=GAUGE|help=Number of TorRelay IPs currently loaded|labels=
+oie_host_threat_tor_relay_refresh_duration_seconds|type=GAUGE|help=Duration of last TorRelay refresh in seconds|labels=
+oie_host_threat_tor_relay_refresh_errors_total|type=COUNTER|help=Total TorRelay refresh errors|labels=
+oie_host_threat_tor_relay_refresh_last_success_timestamp_seconds|type=GAUGE|help=Last successful TorRelay refresh (unix timestamp)|labels=
+oie_instance_attention_severity|type=GAUGE|help=Combined attention severity (0-100) based on resource pressure, behavior anomalies, and threat-list signals|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_behavior_severity|type=GAUGE|help=Pure behavior severity (0-100) derived from conntrack behavior signals (no intel)|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_conntrack_ip_flows_inbound|type=GAUGE|help=Inbound conntrack flow entries matched to this fixed IP (VM as destination)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_conntrack_ip_flows_outbound|type=GAUGE|help=Outbound conntrack flow entries matched to this fixed IP (VM as source)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_conntrack_ip_flows|type=GAUGE|help=Conntrack flow entries matched to this fixed IP (inbound + outbound)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_cpu_steal_seconds_total|type=COUNTER|help=Total time vCPU spent waiting on Host Scheduler|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,vcpu
+oie_instance_cpu_vcpu_count|type=GAUGE|help=Allocated vCPU count for this instance|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_cpu_vcpu_percent|type=GAUGE|help=CPU usage percentage per vCPU|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_cpu_wait_seconds_total|type=COUNTER|help=Total time vCPU spent waiting on I/O|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,vcpu
+oie_instance_disk_allocation_bytes|type=GAUGE|help=Physical space used on storage|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_capacity_bytes|type=GAUGE|help=Logical size of the disk|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_flush_iops|type=GAUGE|help=Disk flush IOPS (per-second rate computed from libvirt counters)|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_flush_latency_seconds|type=GAUGE|help=Average disk flush latency in seconds over the interval|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_flush_requests_total|type=COUNTER|help=Total flush requests|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_flush_seconds_total|type=COUNTER|help=Total seconds spent flushing to disk|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_info|type=GAUGE|help=Static disk metadata|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_read_gbytes_total|type=COUNTER|help=Disk read gigabytes|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_read_iops|type=GAUGE|help=Disk read IOPS (per-second rate computed from libvirt counters)|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_read_latency_seconds|type=GAUGE|help=Average disk read latency in seconds over the interval|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_read_requests_total|type=COUNTER|help=Disk read requests|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_read_seconds_total|type=COUNTER|help=Total seconds spent reading from disk|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_write_gbytes_total|type=COUNTER|help=Disk write gigabytes|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_write_iops|type=GAUGE|help=Disk write IOPS (per-second rate computed from libvirt counters)|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_write_latency_seconds|type=GAUGE|help=Average disk write latency in seconds over the interval|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_write_requests_total|type=COUNTER|help=Disk write requests|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_disk_write_seconds_total|type=COUNTER|help=Total seconds spent writing to disk|labels=disk_path,disk_type,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid,volume_uuid
+oie_instance_hugetlb_pgalloc_total|type=COUNTER|help=HugePage allocations successful|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_hugetlb_pgfail_total|type=COUNTER|help=HugePage allocations failed|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_inbound_bytes_per_flow|type=GAUGE|help=Inbound average bytes per conntrack flow for this fixed IP (requires nf_conntrack_acct=1)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_inbound_flows|type=GAUGE|help=Inbound conntrack flows targeting this fixed IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_inbound_max_flows_single_dst_port|type=GAUGE|help=Maximum inbound flows to a single destination port in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_inbound_max_flows_single_remote|type=GAUGE|help=Maximum inbound flows from a single remote IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_inbound_new_dst_ports|type=GAUGE|help=Inbound new destination ports discovered since previous interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_inbound_new_remotes|type=GAUGE|help=Inbound new remote IPs discovered since previous interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_inbound_packets_per_flow|type=GAUGE|help=Inbound average packets per conntrack flow for this fixed IP (requires nf_conntrack_acct=1)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_inbound_unique_dst_ports|type=GAUGE|help=Inbound unique destination ports on this fixed IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_inbound_unique_remotes|type=GAUGE|help=Inbound unique remote IPs for this fixed IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_info|type=GAUGE|help=Static instance metadata|labels=created_at,domain,flavor,instance_uuid,mem_mb,metadata_version,project_name,project_uuid,root_type,server_name,user_name,user_uuid,vcpus
+oie_instance_mem_allocated_mb|type=GAUGE|help=Allocated memory for this instance (MB)|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mem_major_faults_total|type=COUNTER|help=Major memory page faults|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mem_minor_faults_total|type=COUNTER|help=Minor memory page faults|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mem_rss_mb|type=GAUGE|help=Resident Set Size (Actual Host RAM used) (MB)|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mem_swap_in_bytes_total|type=COUNTER|help=Memory swapped in|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mem_swap_out_bytes_total|type=COUNTER|help=Memory swapped out|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mem_used_mb|type=GAUGE|help=Guest-view used memory for this instance (MB)|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mining_suspected|type=GAUGE|help=Persisted outbound mining-pool behavior classification (1 = currently suspected)|labels=confidence,domain,family,instance_uuid,ip,port,port_name,priority,project_name,project_uuid,server_name,user_uuid
+oie_instance_net_rx_dropped_total|type=COUNTER|help=Network receive dropped packets|labels=domain,ifname,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_net_rx_errors_total|type=COUNTER|help=Network receive errors|labels=domain,ifname,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_net_rx_gbytes_total|type=COUNTER|help=Network receive gigabytes|labels=domain,ifname,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_net_rx_packets_total|type=COUNTER|help=Network receive packets|labels=domain,ifname,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_net_tx_dropped_total|type=COUNTER|help=Network transmit dropped packets|labels=domain,ifname,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_net_tx_errors_total|type=COUNTER|help=Network transmit errors|labels=domain,ifname,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_net_tx_gbytes_total|type=COUNTER|help=Network transmit gigabytes|labels=domain,ifname,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_net_tx_packets_total|type=COUNTER|help=Network transmit packets|labels=domain,ifname,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_bytes_per_flow|type=GAUGE|help=Outbound average bytes per conntrack flow for this fixed IP (requires nf_conntrack_acct=1)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_flows|type=GAUGE|help=Outbound conntrack flows initiated by this fixed IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_max_flows_single_dst_port|type=GAUGE|help=Maximum outbound flows to a single destination port in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_max_flows_single_remote|type=GAUGE|help=Maximum outbound flows to a single remote IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_new_dst_ports|type=GAUGE|help=Outbound new destination ports discovered since previous interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_new_remotes|type=GAUGE|help=Outbound new remote IPs discovered since previous interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_packets_per_flow|type=GAUGE|help=Outbound average packets per conntrack flow for this fixed IP (requires nf_conntrack_acct=1)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_unique_dst_ports|type=GAUGE|help=Outbound unique destination ports in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_unique_remotes|type=GAUGE|help=Outbound unique remote IPs for this fixed IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_resource_cpu_severity|type=GAUGE|help=Resource CPU axis severity (0-100) based on pressure EWMA|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_resource_disk_severity|type=GAUGE|help=Resource disk axis severity (0-100) based on latency/flush pressure EWMA|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_resource_mem_severity|type=GAUGE|help=Resource memory axis severity (0-100) based on pressure EWMA|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_resource_net_severity|type=GAUGE|help=Resource network axis severity (0-100) based on drop/capacity pressure EWMA|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_resource_severity|type=GAUGE|help=Resource pressure severity (0-100) combining CPU, memory, disk and network/conntrack|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_state_code|type=GAUGE|help=Libvirt state code|labels=domain,instance_uuid,project_name,project_uuid,server_name,state_desc,user_uuid
+oie_instance_threat_customlist_active_flows|type=GAUGE|help=Active CustomList flows for this instance|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_customlist_contacts_total|type=COUNTER|help=Total CustomList contacts for this instance (presence over intervals)|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_emergingthreats_active_flows|type=GAUGE|help=Active EmergingThreats flows for this instance|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_emergingthreats_contacts_total|type=COUNTER|help=Total EmergingThreats contacts for this instance (presence over intervals)|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_list_severity|type=GAUGE|help=Threat list severity (0-100) derived strictly from Threat Intel (Spamhaus, Tor, etc) matches|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_spamhaus_active_flows|type=GAUGE|help=Active Spamhaus DROP flows for this instance|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_spamhaus_contacts_total|type=COUNTER|help=Total Spamhaus DROP contacts for this instance (presence over intervals)|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_tor_exit_active_flows|type=GAUGE|help=Active TorExit flows for this instance|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_tor_exit_contacts_total|type=COUNTER|help=Total TorExit contacts for this instance (presence over intervals)|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_tor_relay_active_flows|type=GAUGE|help=Active TorRelay flows for this instance|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_threat_tor_relay_contacts_total|type=COUNTER|help=Total TorRelay contacts for this instance (presence over intervals)|labels=direction,domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+process_cpu_seconds_total|type=COUNTER|help=Total user and system CPU time spent in seconds.|labels=
+process_max_fds|type=GAUGE|help=Maximum number of open file descriptors.|labels=
+process_network_receive_bytes_total|type=COUNTER|help=Number of bytes received by the process over the network.|labels=
+process_network_transmit_bytes_total|type=COUNTER|help=Number of bytes sent by the process over the network.|labels=
+process_open_fds|type=GAUGE|help=Number of open file descriptors.|labels=
+process_resident_memory_bytes|type=GAUGE|help=Resident memory size in bytes.|labels=
+process_start_time_seconds|type=GAUGE|help=Start time of the process since unix epoch in seconds.|labels=
+process_virtual_memory_bytes|type=GAUGE|help=Virtual memory size in bytes.|labels=
+process_virtual_memory_max_bytes|type=GAUGE|help=Maximum amount of virtual memory available in bytes.|labels=

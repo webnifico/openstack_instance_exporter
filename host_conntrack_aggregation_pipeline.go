@@ -1,6 +1,7 @@
 package main
 
 import (
+	"container/heap"
 	"fmt"
 	"net"
 	"sync/atomic"
@@ -10,6 +11,100 @@ import (
 
 const maxSpamhausHitsPerInstance = 5000
 const maxProviderHitsPerInstance = 5000
+
+type threatPairKeyMaxHeap []PairKey
+
+func (h threatPairKeyMaxHeap) Len() int { return len(h) }
+func (h threatPairKeyMaxHeap) Less(i, j int) bool {
+	return compareThreatPairKey(h[i], h[j]) > 0
+}
+func (h threatPairKeyMaxHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h *threatPairKeyMaxHeap) Push(value interface{}) {
+	*h = append(*h, value.(PairKey))
+}
+func (h *threatPairKeyMaxHeap) Pop() interface{} {
+	old := *h
+	last := len(old) - 1
+	value := old[last]
+	*h = old[:last]
+	return value
+}
+
+func compareThreatPairKey(a, b PairKey) int {
+	if compared := compareIPKey(a.A, b.A); compared != 0 {
+		return compared
+	}
+	if a.AP != b.AP {
+		if a.AP < b.AP {
+			return -1
+		}
+		return 1
+	}
+	if compared := compareIPKey(a.B, b.B); compared != 0 {
+		return compared
+	}
+	if a.BP != b.BP {
+		if a.BP < b.BP {
+			return -1
+		}
+		return 1
+	}
+	if a.Proto != b.Proto {
+		if a.Proto < b.Proto {
+			return -1
+		}
+		return 1
+	}
+	if a.ICMPID != b.ICMPID {
+		if a.ICMPID < b.ICMPID {
+			return -1
+		}
+		return 1
+	}
+	if a.ICMPType != b.ICMPType {
+		if a.ICMPType < b.ICMPType {
+			return -1
+		}
+		return 1
+	}
+	if a.ICMPCode < b.ICMPCode {
+		return -1
+	}
+	if a.ICMPCode > b.ICMPCode {
+		return 1
+	}
+	return 0
+}
+
+func retainCappedThreatHit(hits map[PairKey]ConntrackEntry, retained *threatPairKeyMaxHeap, key PairKey, entry ConntrackEntry, limit int) (dropped bool) {
+	if _, exists := hits[key]; exists {
+		return false
+	}
+	if limit <= 0 {
+		return true
+	}
+	if len(hits) < limit {
+		hits[key] = entry
+		heap.Push(retained, key)
+		return false
+	}
+	if retained.Len() == 0 || compareThreatPairKey(key, (*retained)[0]) >= 0 {
+		return true
+	}
+
+	evicted := heap.Pop(retained).(PairKey)
+	delete(hits, evicted)
+	hits[key] = entry
+	heap.Push(retained, key)
+	return true
+}
+
+func saturatingAddUint64(a, b uint64) uint64 {
+	if ^uint64(0)-a < b {
+		return ^uint64(0)
+	}
+	return a + b
+}
 
 type conntrackAggregateError struct {
 	Partial bool
@@ -114,8 +209,9 @@ func (cm *ConntrackManager) newConntrackAggregator(
 	providers := make([]providerSnap, 0, 8)
 
 	if threatsEnabled {
+		now := time.Now()
 		tm.spamMu.RLock()
-		spamEnabled = tm.spamEnabled
+		spamEnabled = tm.spamEnabled && threatFeedFresh(tm.spamLastSuccessUnix, tm.spamRefresh, now)
 		spamDir = tm.spamDir
 		spamBucketsV4 = tm.spamBucketsV4
 		spamBucketsV6 = tm.spamBucketsV6
@@ -124,7 +220,7 @@ func (cm *ConntrackManager) newConntrackAggregator(
 		tm.spamMu.RUnlock()
 
 		for _, p := range tm.Providers {
-			if p == nil || !p.Enabled {
+			if p == nil || !p.Enabled || !p.feedFresh(now) {
 				continue
 			}
 			snap, _ := p.SetAtomic.Load().(map[IPKey]struct{})
@@ -139,8 +235,8 @@ func (cm *ConntrackManager) newConntrackAggregator(
 		}
 	}
 
-	pairKey := func(srcIP IPKey, srcPort uint16, dstIP IPKey, dstPort uint16, proto uint8) PairKey {
-		return MakePairKey(srcIP, srcPort, dstIP, dstPort, proto)
+	pairKey := func(srcIP IPKey, srcPort uint16, dstIP IPKey, dstPort uint16, flow ConntrackFlowLite) PairKey {
+		return MakeConntrackPairKey(srcIP, srcPort, dstIP, dstPort, flow.Proto, flow.ICMPID, flow.ICMPType, flow.ICMPCode)
 	}
 
 	isSpamhaus := func(k IPKey) bool {
@@ -187,20 +283,24 @@ func (cm *ConntrackManager) newConntrackAggregator(
 		return false
 	}
 
+	spamHitHeaps := make(map[string]*threatPairKeyMaxHeap)
+	providerHitHeaps := make(map[string]map[string]*threatPairKeyMaxHeap)
+
 	addHit := func(dst map[string]map[PairKey]ConntrackEntry, inst string, k PairKey, ct ConntrackEntry) {
 		h, ok := dst[inst]
 		if !ok {
 			h = make(map[PairKey]ConntrackEntry, 16)
 			dst[inst] = h
 		}
-		if _, ok := h[k]; ok {
-			return
+		retained := spamHitHeaps[inst]
+		if retained == nil {
+			fresh := make(threatPairKeyMaxHeap, 0, maxSpamhausHitsPerInstance)
+			retained = &fresh
+			spamHitHeaps[inst] = retained
 		}
-		if len(h) >= maxSpamhausHitsPerInstance {
+		if retainCappedThreatHit(h, retained, k, ct, maxSpamhausHitsPerInstance) {
 			agg.SpamhausHitsDropped[inst]++
-			return
 		}
-		h[k] = ct
 	}
 
 	addProviderHit := func(provider string, inst string, k PairKey, ct ConntrackEntry) {
@@ -214,19 +314,25 @@ func (cm *ConntrackManager) newConntrackAggregator(
 			h = make(map[PairKey]ConntrackEntry, 16)
 			pm[inst] = h
 		}
-		if _, ok := h[k]; ok {
-			return
+		heaps := providerHitHeaps[provider]
+		if heaps == nil {
+			heaps = make(map[string]*threatPairKeyMaxHeap)
+			providerHitHeaps[provider] = heaps
 		}
-		if len(h) >= maxProviderHitsPerInstance {
+		retained := heaps[inst]
+		if retained == nil {
+			fresh := make(threatPairKeyMaxHeap, 0, maxProviderHitsPerInstance)
+			retained = &fresh
+			heaps[inst] = retained
+		}
+		if retainCappedThreatHit(h, retained, k, ct, maxProviderHitsPerInstance) {
 			dm, ok := agg.ProviderHitsDropped[provider]
 			if !ok {
 				dm = make(map[string]uint64)
 				agg.ProviderHitsDropped[provider] = dm
 			}
 			dm[inst]++
-			return
 		}
-		h[k] = ct
 	}
 
 	ipStrCache := make(map[IPKey]string, 1024)
@@ -248,6 +354,7 @@ func (cm *ConntrackManager) newConntrackAggregator(
 			SrcPort: flow.SrcPort, DstPort: flow.DstPort,
 			Proto: flow.Proto, Status: status, Zone: flow.Zone,
 			Bytes: bytes, Packets: packets,
+			ICMPID: flow.ICMPID, ICMPType: flow.ICMPType, ICMPCode: flow.ICMPCode,
 		}
 	}
 
@@ -319,19 +426,15 @@ func (cm *ConntrackManager) newConntrackAggregator(
 			agg.InstanceFlowTotals[instDst]++
 		}
 
-		status := uint32(0)
-		if flow.ReversePackets > 0 {
-			status |= IPS_SEEN_REPLY
-		}
-		if flow.ForwardPackets > 0 && flow.ReversePackets > 0 {
-			status |= IPS_ASSURED
-		}
+		status := flow.Status
 
 		bytes := uint64(0)
 		packets := uint64(0)
-		if cm.conntrackAcctEnabled {
-			bytes = flow.ForwardBytes + flow.ReverseBytes
-			packets = flow.ForwardPackets + flow.ReversePackets
+		if flow.BytesPresent {
+			bytes = saturatingAddUint64(flow.ForwardBytes, flow.ReverseBytes)
+		}
+		if flow.PacketsPresent {
+			packets = saturatingAddUint64(flow.ForwardPackets, flow.ReversePackets)
 		}
 
 		if vmSrc {
@@ -342,10 +445,11 @@ func (cm *ConntrackManager) newConntrackAggregator(
 			if cm.outboundBehaviorEnabled && i >= 0 && i < len(agg.OutboundStats) {
 				s := agg.OutboundStats[i]
 				if s == nil {
-					s = newBehaviorStats(cm.conntrackAcctEnabled)
+					s = newBehaviorStats(false)
 					agg.OutboundStats[i] = s
 				}
-				s.updateDetailed(dstKey, flow.DstPort, flow.Proto, status, flow.Zone, bytes, packets)
+				s.updateDetailedWithCoverage(dstKey, flow.DstPort, flow.Proto, status, flow.Zone, bytes, packets, flow.BytesPresent, flow.PacketsPresent)
+				s.updateOutboundMining(dstKey, flow.DstPort, flow.Proto, status, !vmDst)
 			}
 		}
 
@@ -357,10 +461,10 @@ func (cm *ConntrackManager) newConntrackAggregator(
 			if cm.inboundBehaviorEnabled && i >= 0 && i < len(agg.InboundStats) {
 				s := agg.InboundStats[i]
 				if s == nil {
-					s = newBehaviorStats(cm.conntrackAcctEnabled)
+					s = newBehaviorStats(false)
 					agg.InboundStats[i] = s
 				}
-				s.updateDetailed(srcKey, flow.DstPort, flow.Proto, status, flow.Zone, bytes, packets)
+				s.updateDetailedWithCoverage(srcKey, flow.DstPort, flow.Proto, status, flow.Zone, bytes, packets, flow.BytesPresent, flow.PacketsPresent)
 			}
 		}
 
@@ -368,7 +472,7 @@ func (cm *ConntrackManager) newConntrackAggregator(
 			return
 		}
 
-		k := pairKey(srcKey, flow.SrcPort, dstKey, flow.DstPort, flow.Proto)
+		k := pairKey(srcKey, flow.SrcPort, dstKey, flow.DstPort, flow)
 
 		if spamEnabled {
 			spamSrc := isSpamhaus(srcKey)
@@ -435,6 +539,11 @@ func (cm *ConntrackManager) readAndAggregateConntrack(
 	vmIPs []VMIPIdentity,
 	tm *ThreatManager,
 ) (*ConntrackAgg, int, error) {
+	if !cm.conntrackIPv4Enable && !cm.conntrackIPv6Enable {
+		atomic.StoreUint64(&cm.conntrackRawOK, 0)
+		return nil, 0, errConntrackFamiliesDisabled
+	}
+
 	agg, consumeOne := cm.newConntrackAggregator(vmIPs, tm)
 
 	count := 0
@@ -476,12 +585,31 @@ func (cm *ConntrackManager) readAndAggregateConntrack(
 			if enabledV6 && errV6 != nil {
 				logConntrackMetric.Notice("conntrack_raw_partial_failure", "family", "v6", "err", errV6)
 			}
-			return agg, count, readErr
+			return nil, count, readErr
 		}
 		return nil, count, readErr
 	}
 
 	atomic.StoreUint64(&cm.conntrackRawOK, 1)
 	atomic.StoreInt64(&cm.conntrackLastSuccessUnix, time.Now().Unix())
+	cm.storeLastGoodConntrack(agg, count)
 	return agg, count, nil
+}
+
+func (cm *ConntrackManager) storeLastGoodConntrack(agg *ConntrackAgg, count int) {
+	if agg == nil {
+		return
+	}
+	cm.lastGoodMu.Lock()
+	cm.lastGoodAgg = agg
+	cm.lastGoodCount = count
+	cm.lastGoodMu.Unlock()
+}
+
+func (cm *ConntrackManager) snapshotLastGoodConntrack() (*ConntrackAgg, int, bool) {
+	cm.lastGoodMu.RLock()
+	agg := cm.lastGoodAgg
+	count := cm.lastGoodCount
+	cm.lastGoodMu.RUnlock()
+	return agg, count, agg != nil
 }

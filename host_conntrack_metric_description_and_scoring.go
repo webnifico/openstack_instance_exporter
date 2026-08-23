@@ -15,6 +15,7 @@ func (cm *ConntrackManager) describeConntrackMetrics(ch chan<- *prometheus.Desc)
 		cm.instanceInboundMaxFlowsSingleRemoteDesc, cm.instanceInboundUniqueDstPortsDesc, cm.instanceInboundNewDstPortsDesc,
 		cm.instanceInboundMaxFlowsSingleDstPortDesc,
 		cm.instanceInboundBytesPerFlowDesc, cm.instanceInboundPacketsPerFlowDesc,
+		cm.instanceMiningSuspectedDesc,
 	}
 	for _, d := range descs {
 		ch <- d
@@ -27,6 +28,7 @@ func (cm *ConntrackManager) calculateConntrackMetrics(
 	ipSet map[string]struct{},
 	hostIPs map[string]struct{},
 	hostConntrackMax uint64,
+	conntrackFresh bool,
 	domain, serverName, instanceUUID, projectUUID, projectName, userUUID string,
 	dynamicMetrics *[]prometheus.Metric,
 ) (float64, float64, int) {
@@ -53,6 +55,7 @@ func (cm *ConntrackManager) calculateConntrackMetrics(
 		HostIPKeys:        hostIPKeys,
 		HostConntrackMax:  hostConntrackMax,
 		InstanceFlowTotal: instanceFlowTotal,
+		FreezeState:       !conntrackFresh,
 	}
 
 	for _, ip := range fixedIPs {
@@ -88,6 +91,12 @@ func (cm *ConntrackManager) calculateConntrackMetrics(
 					}
 				}
 			}
+		}
+		if cm.outboundBehaviorEnabled && outStats == nil {
+			outStats = newBehaviorStats(false)
+		}
+		if cm.inboundBehaviorEnabled && inStats == nil {
+			inStats = newBehaviorStats(false)
 		}
 
 		total := in + out

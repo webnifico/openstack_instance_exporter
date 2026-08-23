@@ -43,6 +43,7 @@ This role handles:
 
 ### Target hosts
 
+* x86_64/amd64 architecture
 * Linux with `systemd`
 * libvirt (`qemu:///system`)
 * kernel `nf_conntrack`
@@ -51,6 +52,13 @@ This role handles:
 ### Controller
 
 * Ansible **2.12+** recommended
+* `ansible.posix` collection (for `ansible.posix.sysctl`)
+
+Install the required collection from the repository root:
+
+```bash
+ansible-galaxy collection install -r ansible_role/openstack_instance_exporter/requirements.yml
+```
 
 ---
 
@@ -60,7 +68,7 @@ This role handles:
 
 ```yaml
 openstack_instance_exporter_enabled: true
-openstack_instance_exporter_version: "v1.0.0"
+openstack_instance_exporter_version: "v1.3.0"
 openstack_instance_exporter_install_dir: "/opt/openstack_instance_exporter"
 openstack_instance_exporter_sha256: "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/sha256sums.txt"
 ```
@@ -217,9 +225,18 @@ openstack_instance_exporter_behavior_ports_config_yaml: |
 * If only one direction is provided, the other direction stays on built-ins
 * Ports listed here are considered **monitored**
 * Traffic to ports **not listed** is eligible for **dark-space detection**
+* This map does not replace or extend the separate built-in mining-pool classifier
 * Restart required
 
-If `*_config_yaml` is unset or empty and `*_config_path` is defined, the role removes the rendered file so the exporter falls back to built-ins.
+If `*_config_yaml` is unset or empty and `*_config_path` is defined, the role removes the rendered file and omits the matching exporter flag, so the built-ins remain active.
+
+### Built-in mining detection
+
+When outbound behavior collection is enabled, the exporter evaluates more than 100 built-in mining-pool ports. Coverage includes common Monero/RandomX ports, MoneroOcean difficulty/TLS endpoints, and active pool endpoints for multiple GPU/ASIC/CPU-mined networks.
+
+Only outbound TCP connections to public, non-VM destinations are eligible. High-confidence pool ports require kernel reply evidence and persistence. Shared ports such as `3333`, `4444`, `5555`, `7777`, `8888`, and `9000` require stronger matching-flow, reply, concentration, remote-count, and persistence evidence. Bitcoin P2P `8333`, Monero P2P/RPC `18080`/`18081`, and generic `80`/`443`/`8080`/`9200` are excluded from port-only classification.
+
+Mining persistence is independent of the first-match generic behavior classifier. Once its evidence gate passes, the exporter publishes `oie_instance_mining_suspected`. The example Prometheus rules alert directly for `high` confidence, while `high_persistent`, `shared`, and `shared_persistent` evidence require sustained CPU corroboration. A separate informational alert reports an uncorroborated `high_persistent` candidate after 15 minutes. Incomplete conntrack collections preserve the last-good persisted mining-suspicion metric without advancing the mining state.
 
 ---
 
@@ -250,14 +267,12 @@ openstack_instance_exporter_behavior_rules_config_yaml: |
     mining:
       - 3333
       - 4444
-      - 8333
 
   rules:
     - id: inbound_admin_exposure
       direction: inbound
       port_set: admin
       kind: inbound_admin
-      severity: high
       flows_min: 50
       unique_remotes_min: 10
 
@@ -265,7 +280,6 @@ openstack_instance_exporter_behavior_rules_config_yaml: |
       direction: outbound
       port_set: mail
       kind: smtp_spam
-      severity: high
       flows_min: 200
       unique_remotes_min: 50
       ratios:
@@ -275,9 +289,9 @@ openstack_instance_exporter_behavior_rules_config_yaml: |
       direction: outbound
       port_set: mining
       kind: crypto_mining
-      severity: medium
       flows_min: 100
       unique_remotes_min: 20
+
 ```
 
 ### Rule evaluation order (important)
@@ -292,10 +306,12 @@ Within each group, rules are evaluated **top-to-bottom**.
 Once a rule matches:
 
 * No further rules are evaluated
-* Severity and kind are taken from the matching rule
+* Kind is taken from the matching rule; severity is calculated from the matched behavior evidence
 * There is **no priority or best-match logic**
 
 External rules are best used to **add detections**, not replace built-ins.
+
+For compatibility with v1.2.0 configurations, the legacy `severity` values `low`, `medium`, `high`, and `critical` are accepted but do not control scoring; severity remains evidence-derived.
 
 ---
 
@@ -432,7 +448,7 @@ Profiles do **not** control ports or rules files.
         - id: inbound_admin_exposure
           direction: inbound
           port_set: admin
-          severity: high
+          kind: inbound_admin
 ```
 
 ---

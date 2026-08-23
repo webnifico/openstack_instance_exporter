@@ -27,6 +27,9 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 	if cfg.LibvirtURI == "" {
 		return nil, fmt.Errorf("LibvirtURI is required")
 	}
+	if _, err := libvirtSocketPathFromURI(cfg.LibvirtURI); err != nil {
+		return nil, err
+	}
 
 	mc := &MetricsCollector{
 		shutdownChan:       make(chan struct{}),
@@ -35,13 +38,26 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 		intelHistory:       make(map[string]*IntelHistory),
 	}
 
-	mc.im = &InstanceManager{
+	mc.im = newInstanceManager(cfg)
+	mc.tm = newThreatManager(cfg, mc.shutdownChan)
+	mc.cm = newConntrackManager(cfg)
+	mc.cm.LogThreat = mc.tm.logThreatEvent
+
+	initializeCollectorMetricDescriptors(mc)
+	startThreatRefreshers(mc.tm)
+
+	return mc, nil
+}
+
+func newInstanceManager(cfg CollectorConfig) *InstanceManager {
+	im := &InstanceManager{
 		libvirtURI:         cfg.LibvirtURI,
 		workerCount:        cfg.WorkerCount,
 		domainMeta:         make(map[string]*DomainStatic),
 		activeInstances:    make(map[string]struct{}),
 		vmIPSet:            make(map[IPKey]struct{}),
 		vmIPToInstance:     make(map[IPKey]string),
+		vmIPOwners:         make(map[IPKey]map[string]struct{}),
 		vmIPKeysByInstance: make(map[string][]IPKey),
 	}
 
@@ -55,18 +71,25 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 	if xmlMaxConcurrent > 8 {
 		xmlMaxConcurrent = 8
 	}
-	mc.im.xmlInflight = make(map[string]*domainXMLInflight, 256)
-	mc.im.xmlRPCSem = make(chan struct{}, xmlMaxConcurrent)
+	im.xmlInflight = make(map[string]*domainXMLInflight, 256)
+	im.xmlRPCSem = make(chan struct{}, xmlMaxConcurrent)
+	initializeInstanceSampleState(im)
 
+	return im
+}
+
+func initializeInstanceSampleState(im *InstanceManager) {
 	for i := 0; i < shardCount; i++ {
-		mc.im.cpuSamples[i] = make(map[string]cpuSample)
-		mc.im.diskSamples[i] = make(map[string]diskSample)
-		mc.im.memSamples[i] = make(map[string]memSample)
-		mc.im.netSamples[i] = make(map[string]netSample)
+		im.cpuSamples[i] = make(map[string]cpuSample)
+		im.diskSamples[i] = make(map[string]diskSample)
+		im.memSamples[i] = make(map[string]memSample)
+		im.netSamples[i] = make(map[string]netSample)
 	}
+}
 
-	mc.tm = &ThreatManager{
-		shutdownChan: mc.shutdownChan,
+func newThreatManager(cfg CollectorConfig, shutdownChan chan struct{}) *ThreatManager {
+	tm := &ThreatManager{
+		shutdownChan: shutdownChan,
 		httpClient:   &http.Client{Timeout: 15 * time.Second},
 
 		hostThreatsEnabled:  cfg.HostThreats.Enable,
@@ -93,7 +116,16 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 		threatLastHit:        make(map[string]time.Time),
 	}
 
-	mc.tm.Providers = []*IPThreatProvider{
+	tm.Providers = newThreatProviders(tm, cfg)
+	for _, p := range tm.Providers {
+		p.SetAtomic.Store(p.Set)
+	}
+
+	return tm
+}
+
+func newThreatProviders(tm *ThreatManager, cfg CollectorConfig) []*IPThreatProvider {
+	return []*IPThreatProvider{
 		{
 			Name:                          "TorExit",
 			Enabled:                       cfg.TorExit.Enable,
@@ -111,7 +143,7 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 			HostRefreshDurationMetricName: "oie_host_threat_tor_exit_refresh_duration_seconds",
 			HostRefreshErrorsMetricName:   "oie_host_threat_tor_exit_refresh_errors_total",
 			HostEntriesMetricName:         "oie_host_threat_tor_exit_entries",
-			Fetcher:                       func() (map[IPKey]struct{}, error) { return mc.tm.fetchOnionoo(cfg.TorExit.URL) },
+			Fetcher:                       func() (map[IPKey]struct{}, error) { return tm.fetchOnionoo(cfg.TorExit.URL) },
 		},
 		{
 			Name:                          "TorRelay",
@@ -130,7 +162,7 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 			HostRefreshDurationMetricName: "oie_host_threat_tor_relay_refresh_duration_seconds",
 			HostRefreshErrorsMetricName:   "oie_host_threat_tor_relay_refresh_errors_total",
 			HostEntriesMetricName:         "oie_host_threat_tor_relay_entries",
-			Fetcher:                       func() (map[IPKey]struct{}, error) { return mc.tm.fetchOnionoo(cfg.TorRelay.URL) },
+			Fetcher:                       func() (map[IPKey]struct{}, error) { return tm.fetchOnionoo(cfg.TorRelay.URL) },
 		},
 		{
 			Name:                          "EmergingThreats",
@@ -149,7 +181,7 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 			HostRefreshDurationMetricName: "oie_host_threat_emergingthreats_refresh_duration_seconds",
 			HostRefreshErrorsMetricName:   "oie_host_threat_emergingthreats_refresh_errors_total",
 			HostEntriesMetricName:         "oie_host_threat_emergingthreats_entries",
-			Fetcher:                       func() (map[IPKey]struct{}, error) { return mc.tm.fetchURLLines(cfg.Emerging.URL) },
+			Fetcher:                       func() (map[IPKey]struct{}, error) { return tm.fetchURLLines(cfg.Emerging.URL) },
 		},
 		{
 			Name:                          "CustomList",
@@ -168,15 +200,13 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 			HostRefreshDurationMetricName: "oie_host_threat_customlist_refresh_duration_seconds",
 			HostRefreshErrorsMetricName:   "oie_host_threat_customlist_refresh_errors_total",
 			HostEntriesMetricName:         "oie_host_threat_customlist_entries",
-			Fetcher:                       func() (map[IPKey]struct{}, error) { return mc.tm.fetchFileLines(cfg.Custom.Path) },
+			Fetcher:                       func() (map[IPKey]struct{}, error) { return tm.fetchFileLines(cfg.Custom.Path) },
 		},
 	}
+}
 
-	for _, p := range mc.tm.Providers {
-		p.SetAtomic.Store(p.Set)
-	}
-
-	mc.cm = &ConntrackManager{
+func newConntrackManager(cfg CollectorConfig) *ConntrackManager {
+	cm := &ConntrackManager{
 		outboundBehaviorEnabled:     cfg.OutboundBehaviorEnable,
 		inboundBehaviorEnabled:      cfg.InboundBehaviorEnable,
 		behaviorThresholds:          cfg.BehaviorThresholds,
@@ -193,46 +223,53 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 		conntrackIPv6Enable:         cfg.ConntrackIPv6Enable,
 		ovnMapper:                   NewOVNMapper(),
 	}
-	if mc.cm.behaviorInboundPortNames == nil {
-		mc.cm.behaviorInboundPortNames = builtinBehaviorInboundMonitoredPorts()
+	if cm.behaviorInboundPortNames == nil {
+		cm.behaviorInboundPortNames = builtinBehaviorInboundMonitoredPorts()
 	}
-	if mc.cm.behaviorOutboundPortNames == nil {
-		mc.cm.behaviorOutboundPortNames = builtinBehaviorOutboundMonitoredPorts()
+	if cm.behaviorOutboundPortNames == nil {
+		cm.behaviorOutboundPortNames = builtinBehaviorOutboundMonitoredPorts()
 	}
+	initializeConntrackState(cm)
 
+	return cm
+}
+
+func initializeConntrackState(cm *ConntrackManager) {
 	for i := 0; i < shardCount; i++ {
-		mc.cm.outboundPrev[i] = make(map[BehaviorKey]outboundPrev)
-		mc.cm.outboundPrevDstPorts[i] = make(map[BehaviorKey]outboundPrevDstPorts)
-		mc.cm.outboundPrevLastSeen[i] = make(map[BehaviorKey]int64)
-		mc.cm.inboundPrev[i] = make(map[BehaviorKey]outboundPrev)
-		mc.cm.inboundPrevDstPorts[i] = make(map[BehaviorKey]outboundPrevDstPorts)
-		mc.cm.inboundPrevLastSeen[i] = make(map[BehaviorKey]int64)
-		mc.cm.behaviorEWMA[i] = make(map[behaviorIdentityKey]*behaviorEWMAState)
+		cm.outboundPrev[i] = make(map[BehaviorKey]outboundPrev)
+		cm.outboundPrevDstPorts[i] = make(map[BehaviorKey]outboundPrevDstPorts)
+		cm.outboundPrevLastSeen[i] = make(map[BehaviorKey]int64)
+		cm.inboundPrev[i] = make(map[BehaviorKey]outboundPrev)
+		cm.inboundPrevDstPorts[i] = make(map[BehaviorKey]outboundPrevDstPorts)
+		cm.inboundPrevLastSeen[i] = make(map[BehaviorKey]int64)
+		cm.behaviorEWMA[i] = make(map[behaviorIdentityKey]*behaviorEWMAState)
+		cm.behaviorLastSeverity[i] = make(map[behaviorIdentityKey]float64)
 	}
 
-	mc.cm.behaviorPersist = make(map[behaviorAlertKey]*behaviorPersistState)
-	mc.cm.behaviorEmit = make(map[behaviorEmitKey]*behaviorEmitState)
+	cm.behaviorPersist = make(map[behaviorAlertKey]*behaviorPersistState)
+	cm.behaviorEmit = make(map[behaviorEmitKey]*behaviorEmitState)
+	cm.miningAlerts = make(map[behaviorIdentityKey]*miningAlertState)
+}
 
-	mc.cm.LogThreat = mc.tm.logThreatEvent
-
+func initializeCollectorMetricDescriptors(mc *MetricsCollector) {
 	initHostMetrics(mc)
 	initInstanceMetrics(mc.im)
 	initInstanceSeverityMetrics(mc)
 	initThreatMetrics(mc.tm)
 	initConntrackMetrics(mc.cm)
+}
 
-	for _, p := range mc.tm.Providers {
+func startThreatRefreshers(tm *ThreatManager) {
+	for _, p := range tm.Providers {
 		if p.Enabled {
 			provider := p
-			go mc.tm.runProviderRefresher(provider)
+			go tm.runProviderRefresher(provider)
 		}
 	}
 
-	if mc.tm.spamEnabled {
-		go mc.tm.startSpamhausRefresher()
+	if tm.spamEnabled {
+		go tm.startSpamhausRefresher()
 	}
-
-	return mc, nil
 }
 
 func (mc *MetricsCollector) getLibvirtConn() (*libvirt.Libvirt, error) {

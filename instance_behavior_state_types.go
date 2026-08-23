@@ -56,6 +56,7 @@ type BehaviorContext struct {
 	HostIPKeys        map[IPKey]struct{}
 	HostConntrackMax  uint64
 	InstanceFlowTotal int
+	FreezeState       bool
 }
 type behaviorAlertKey struct {
 	InstanceUUID string
@@ -74,32 +75,57 @@ type behaviorPersistState struct {
 	LastSeenUnix  int64
 }
 type behaviorEmitState struct {
-	LastKind         string
-	LastPriority     string
-	LastSeverityBand string
-	LastTopRemote    string
-	LastTopDstPort   uint16
-	LastEmitUnix     int64
+	LastKind             string
+	LastPriority         string
+	LastSeverityBand     string
+	LastTopRemote        string
+	LastTopDstPort       uint16
+	LastEpisodeStartUnix int64
+	LastEmitUnix         int64
 }
 type BehaviorFeature struct {
 	Direction string
 
-	ThresholdFlows int
-	LocalScanHits  int
-	InfraHits      int
-	InfraMaxFlows  int
-	PublicRemotes  int
+	ThresholdFlows              int
+	LocalScanHits               int
+	InfraHits                   int
+	InfraMaxFlows               int
+	TenantPrivateHits           int
+	TenantPrivateMaxFlows       int
+	TenantPrivateUnrepliedRatio float64
+	PublicRemotes               int
 
 	MetadataHits           int
 	MetadataMaxFlows       int
 	MetadataUnrepliedRatio float64
 
-	BGPFlows     int
-	GeneveFlows  int
-	SMTPFlows    int
-	StratumFlows int
+	BGPFlows             int
+	BGPTopRemote         IPKey
+	BGPTopRemoteFlows    int
+	GeneveFlows          int
+	GeneveTopRemote      IPKey
+	GeneveTopRemoteFlows int
+	SMTPFlows            int
+	SMTPUniqueRemotes    int
+	SMTPUnrepliedRatio   float64
+	SMTPTopRemote        IPKey
+	SMTPTopRemoteFlows   int
+	SMTPTopDstPort       uint16
+	SMTPTopDstPortFlows  int
+	StratumFlows         int
+	StratumRepliedFlows  int
+	MiningHigh           miningTierSummary
+	MiningShared         miningTierSummary
+	Mining               miningDetectionEvidence
 
-	AdminPortFlows int
+	AdminPortFlows       int
+	AdminUniqueRemotes   int
+	AdminNewRemotes      int
+	AdminUnrepliedRatio  float64
+	AdminTopRemote       IPKey
+	AdminTopRemoteFlows  int
+	AdminTopDstPort      uint16
+	AdminTopDstPortFlows int
 
 	Flows                       int
 	UniqueRemotes               int
@@ -110,18 +136,33 @@ type BehaviorFeature struct {
 	MaxSingleDstPort            int
 	TopDstPort                  uint16
 	UnmonitoredPortFlows        int
+	UnmonitoredUnrepliedRatio   float64
 	UnmonitoredUniqueDstPorts   int
 	MaxSingleUnmonitoredDstPort int
 	TopUnmonitoredDstPort       uint16
+	TopUnmonitoredRemote        IPKey
+	TopUnmonitoredRemoteFlows   int
 	SynergyDarkScan             bool
 	SynergyDarkPhysics          bool
 	UnrepliedRatio              float64
 	MulticastCount              int
 	ICMPCount                   int
 	UDPCount                    int
+	UDPUniqueRemotes            int
+	UDPUnrepliedRatio           float64
+	UDPTopRemote                IPKey
+	UDPTopRemoteFlows           int
+	UDPTopDstPort               uint16
+	UDPTopDstPortFlows          int
+	DNSUDPFlows                 int
+	DNSBytesPerFlow             float64
+	DNSBytesPerFlowAvailable    bool
+	DNSUnrepliedRatio           float64
 
-	BytesPerFlow   float64
-	PacketsPerFlow float64
+	BytesPerFlow            float64
+	PacketsPerFlow          float64
+	BytesPerFlowAvailable   bool
+	PacketsPerFlowAvailable bool
 
 	HostImpactPercent float64
 
@@ -149,24 +190,55 @@ type behaviorIdentityKey struct {
 type behaviorStats struct {
 	trackAcct bool
 
-	remotes            map[IPKey]struct{}
-	remoteZones        map[IPKey]uint16
-	remoteIsPrivate    map[IPKey]bool
-	perRemote          map[IPKey]int
-	perRemoteUnreplied map[IPKey]int
-	dstPorts           map[uint16]struct{}
-	perDstPort         map[uint16]int
-	flows              int
-	unreplied          int
-	bytes              uint64
-	packets            uint64
-	sampleRemote       IPKey
-	sampleRemoteSet    bool
-	multicastCount     int
-	icmpCount          int
-	udpCount           int
+	remotes                 map[IPKey]struct{}
+	remoteZones             map[IPKey]uint16
+	remoteIsPrivate         map[IPKey]bool
+	perRemote               map[IPKey]int
+	perRemoteUnreplied      map[IPKey]int
+	dstPorts                map[uint16]struct{}
+	perDstPort              map[uint16]int
+	perDstPortReplied       map[uint16]int
+	perRemoteDstPort        map[behaviorRemotePortKey]int
+	smtpRemotes             map[IPKey]struct{}
+	smtpPerRemote           map[IPKey]int
+	smtpPerDstPort          map[uint16]int
+	adminPerRemote          map[IPKey]int
+	adminPerRemoteUnreplied map[IPKey]int
+	udpRemotes              map[IPKey]struct{}
+	udpPerRemote            map[IPKey]int
+	udpPerDstPort           map[uint16]int
+	flows                   int
+	unreplied               int
+	smtpFlows               int
+	smtpUnreplied           int
+	bgpFlows                int
+	bgpPerRemote            map[IPKey]int
+	geneveFlows             int
+	genevePerRemote         map[IPKey]int
+	udpUnreplied            int
+	dnsUDPFlows             int
+	dnsUDPUnreplied         int
+	dnsBytes                uint64
+	dnsByteCoveredFlows     int
+	bytes                   uint64
+	packets                 uint64
+	byteCoveredFlows        int
+	packetCoveredFlows      int
+	sampleRemote            IPKey
+	sampleRemoteSet         bool
+	multicastCount          int
+	icmpCount               int
+	udpCount                int
 
-	remoteMapCapped bool
+	remoteMapCapped       bool
+	remotePortMapCapped   bool
+	miningRemotes         map[IPKey]*miningRemoteFlowStats
+	miningRemoteMapCapped bool
+}
+
+type behaviorRemotePortKey struct {
+	Remote IPKey
+	Port   uint16
 }
 
 type BehaviorEvidence struct {
@@ -239,6 +311,9 @@ type externalBehaviorRuleYML struct {
 
 	Kind   string `yaml:"kind"`
 	Reason string `yaml:"reason"`
+	// Severity was documented in v1.2.0 examples but never affected scoring.
+	// Keep accepting its known values so those YAML files remain compatible.
+	Severity string `yaml:"severity"`
 }
 type BehaviorRulesConfigStatus struct {
 	Status   string

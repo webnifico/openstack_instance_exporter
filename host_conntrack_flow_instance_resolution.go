@@ -38,7 +38,7 @@ func resolveFlowVMIndices(flow ConntrackFlowLite, vmIndex map[VMIPIdentity]uint3
 		}
 	}
 
-	if inst == "" {
+	if !vmSrc {
 		if inst2 := ipToSingle[srcKey]; inst2 != "" {
 			if idx, ok := vmIndex[VMIPIdentity{InstanceUUID: inst2, IP: srcKey}]; ok {
 				idxSrc = idx
@@ -46,6 +46,8 @@ func resolveFlowVMIndices(flow ConntrackFlowLite, vmIndex map[VMIPIdentity]uint3
 				instSrc = inst2
 			}
 		}
+	}
+	if !vmDst {
 		if inst2 := ipToSingle[dstKey]; inst2 != "" {
 			if idx, ok := vmIndex[VMIPIdentity{InstanceUUID: inst2, IP: dstKey}]; ok {
 				idxDst = idx

@@ -85,7 +85,7 @@ func (tm *ThreatManager) shouldLogThreatHit(key string, now time.Time) bool {
 	defer tm.threatLastHitMu.Unlock()
 
 	last, ok := tm.threatLastHit[key]
-	if !ok || now.Sub(last) >= tm.threatLogMinInterval {
+	if !ok || now.Before(last) || now.Sub(last) >= tm.threatLogMinInterval {
 		tm.threatLastHit[key] = now
 		return true
 	}
@@ -148,7 +148,15 @@ func (tm *ThreatManager) logThreatEvent(
 	userUUID string,
 	kvpairs ...interface{},
 ) {
-	key := fmt.Sprintf("%s|%s|%s|%s", tag, event, instanceUUID, domain)
+	kind := ""
+	for i := 0; i+1 < len(kvpairs); i += 2 {
+		name, ok := kvpairs[i].(string)
+		if ok && name == "kind" {
+			kind = fmt.Sprint(kvpairs[i+1])
+			break
+		}
+	}
+	key := fmt.Sprintf("%s|%s|%s|%s|%s", tag, event, instanceUUID, domain, kind)
 	if !tm.shouldLogThreatHit(key, time.Now()) {
 		return
 	}
@@ -158,6 +166,7 @@ func (tm *ThreatManager) logThreatEvent(
 	} else if strings.EqualFold(tag, "POLICY") {
 		category = "policy"
 	}
+	component := category
 	args := make([]interface{}, 0, len(kvpairs)+12)
 	args = append(args,
 		"tag", tag,
@@ -168,7 +177,7 @@ func (tm *ThreatManager) logThreatEvent(
 		"user_uuid", userUUID,
 	)
 	args = append(args, kvpairs...)
-	logKV(LogLevelNotice, category, "threat", event, args...)
+	logKV(LogLevelNotice, category, component, event, args...)
 }
 func (tm *ThreatManager) cleanupThreatCounts(activeInstances map[string]struct{}) {
 	for _, p := range tm.Providers {
@@ -235,6 +244,28 @@ func (tm *ThreatManager) anyThreatsEnabled() bool {
 	return false
 }
 
+func (tm *ThreatManager) freshThreatSources(now time.Time) (bool, []*IPThreatProvider) {
+	if tm == nil {
+		return false, nil
+	}
+	tm.spamMu.RLock()
+	spamFresh := tm.spamEnabled && tm.spamEntries > 0 && threatFeedFresh(tm.spamLastSuccessUnix, tm.spamRefresh, now)
+	tm.spamMu.RUnlock()
+	providers := make([]*IPThreatProvider, 0, len(tm.Providers))
+	for _, p := range tm.Providers {
+		if p == nil || !p.Enabled {
+			continue
+		}
+		p.Mu.RLock()
+		entries := p.EntryCount
+		p.Mu.RUnlock()
+		if entries > 0 && p.feedFresh(now) {
+			providers = append(providers, p)
+		}
+	}
+	return spamFresh, providers
+}
+
 // -----------------------------------------------------------------------------
 // Generic Threat Logic
 // -----------------------------------------------------------------------------
@@ -242,6 +273,7 @@ func (tm *ThreatManager) exportThreatHitsCommon(
 	logTag string,
 	directionCfg ContactDirection,
 	hits map[PairKey]ConntrackEntry,
+	droppedHits uint64,
 	ipSet map[string]struct{},
 	domain, serverName, instanceUUID, projectUUID, projectName, userUUID string,
 	dynamicMetrics *[]prometheus.Metric,
@@ -252,6 +284,7 @@ func (tm *ThreatManager) exportThreatHitsCommon(
 	countMu *sync.Mutex,
 	prevHits map[string]map[string]struct{},
 	prevHitsMu *sync.Mutex,
+	updateState bool,
 ) {
 	if hits == nil {
 		hits = map[PairKey]ConntrackEntry{}
@@ -266,21 +299,23 @@ func (tm *ThreatManager) exportThreatHitsCommon(
 		ipKeySet[k] = struct{}{}
 	}
 
-	for _, ct := range hits {
-		dirStr := flowDirection(ipKeySet, ct)
-		tm.logThreatHit(logTag, domain, serverName, instanceUUID, projectUUID, projectName, userUUID, ct, dirStr, directionCfg)
+	if updateState {
+		for _, ct := range hits {
+			dirStr := flowDirection(ipKeySet, ct)
+			tm.logThreatHit(logTag, domain, serverName, instanceUUID, projectUUID, projectName, userUUID, ct, dirStr, directionCfg)
+		}
 	}
 
-	hitCount := len(hits)
+	activeHitCount := float64(len(hits)) + float64(droppedHits)
 
 	*dynamicMetrics = append(*dynamicMetrics, prometheus.MustNewConstMetric(
 		activeDesc,
 		prometheus.GaugeValue,
-		float64(hitCount),
+		activeHitCount,
 		domain, serverName, instanceUUID, projectUUID, projectName, userUUID, directionCfg.String(),
 	))
 
-	currentKeys := make(map[string]struct{}, hitCount)
+	currentKeys := make(map[string]struct{}, len(hits))
 	for k := range hits {
 		currentKeys[PairKeyString(k)] = struct{}{}
 	}
@@ -296,10 +331,15 @@ func (tm *ThreatManager) exportThreatHitsCommon(
 		}
 	}
 
-	prevHitsMu.Lock()
-	prevHits[instanceUUID] = currentKeys
-	prevHitsMu.Unlock()
+	if updateState {
+		prevHitsMu.Lock()
+		prevHits[instanceUUID] = currentKeys
+		prevHitsMu.Unlock()
+	}
 
+	if !updateState {
+		newContacts = 0
+	}
 	val := tm.addThreatCount(countMap, countMu, instanceUUID, float64(newContacts))
 	*dynamicMetrics = append(*dynamicMetrics, prometheus.MustNewConstMetric(
 		totalDesc,
@@ -308,21 +348,24 @@ func (tm *ThreatManager) exportThreatHitsCommon(
 		domain, serverName, instanceUUID, projectUUID, projectName, userUUID, directionCfg.String(),
 	))
 
-	if hitCount > 0 {
-		*signal = clamp01(float64(hitCount) / 10.0)
+	if activeHitCount > 0 {
+		*signal = clamp01(activeHitCount / 10.0)
 	}
 }
 func (tm *ThreatManager) exportSpamhausHits(
 	hits map[PairKey]ConntrackEntry,
+	droppedHits uint64,
 	ipSet map[string]struct{},
 	domain, serverName, instanceUUID, projectUUID, projectName, userUUID string,
 	dynamicMetrics *[]prometheus.Metric,
 	spamSignal *float64,
+	updateState bool,
 ) {
 	tm.exportThreatHitsCommon(
 		"spamhaus",
 		tm.spamDir,
 		hits,
+		droppedHits,
 		ipSet,
 		domain, serverName, instanceUUID, projectUUID, projectName, userUUID,
 		dynamicMetrics,
@@ -333,15 +376,18 @@ func (tm *ThreatManager) exportSpamhausHits(
 		&tm.spamCountMu,
 		tm.spamPrevHits,
 		&tm.spamPrevHitsMu,
+		updateState,
 	)
 }
 func (tm *ThreatManager) exportProviderHits(
 	p *IPThreatProvider,
 	hits map[PairKey]ConntrackEntry,
+	droppedHits uint64,
 	ipSet map[string]struct{},
 	domain, serverName, instanceUUID, projectUUID, projectName, userUUID string,
 	dynamicMetrics *[]prometheus.Metric,
 	signal *float64,
+	updateState bool,
 ) {
 	if p == nil {
 		return
@@ -350,6 +396,7 @@ func (tm *ThreatManager) exportProviderHits(
 		p.LogTag,
 		p.Direction,
 		hits,
+		droppedHits,
 		ipSet,
 		domain, serverName, instanceUUID, projectUUID, projectName, userUUID,
 		dynamicMetrics,
@@ -360,6 +407,7 @@ func (tm *ThreatManager) exportProviderHits(
 		&p.CountMu,
 		p.PrevHits,
 		&p.PrevHitsMu,
+		updateState,
 	)
 }
 
@@ -397,7 +445,7 @@ func appendThreatHostMetrics(
 
 	*metrics = append(*metrics, prometheus.MustNewConstMetric(lastSuccessDesc, prometheus.GaugeValue, ls))
 	*metrics = append(*metrics, prometheus.MustNewConstMetric(lastDurationDesc, prometheus.GaugeValue, dur))
-	*metrics = append(*metrics, prometheus.MustNewConstMetric(errDesc, prometheus.GaugeValue, float64(ec)))
+	*metrics = append(*metrics, prometheus.MustNewConstMetric(errDesc, prometheus.CounterValue, float64(ec)))
 	*metrics = append(*metrics, prometheus.MustNewConstMetric(entriesDesc, prometheus.GaugeValue, float64(ent)))
 }
 
@@ -405,25 +453,43 @@ func appendThreatHostMetrics(
 // Fetcher Helpers (Extraction of original logic)
 // -----------------------------------------------------------------------------
 func (tm *ThreatManager) getHostIPs() []IP {
-	if !tm.hostThreatsEnabled {
+	return tm.discoverHostIPs(tm.hostThreatsEnabled, tm.hostIPsAllowPrivate)
+}
+
+func (tm *ThreatManager) getBehaviorHostIPs() []IP {
+	return tm.discoverHostIPsWithFilter(true, true, nil)
+}
+
+func (tm *ThreatManager) discoverHostIPs(enabled, allowPrivate bool) []IP {
+	return tm.discoverHostIPsWithFilter(enabled, allowPrivate, tm.hostInterfaces)
+}
+
+func (tm *ThreatManager) discoverHostIPsWithFilter(enabled, allowPrivate bool, interfaceFilter map[string]struct{}) []IP {
+	if !enabled {
 		return nil
 	}
-	out := make([]IP, 0, 16)
-	seen := make(map[string]struct{})
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return out
+		return []IP{}
 	}
+	return discoverHostIPsFromInterfaces(ifaces, func(iface net.Interface) ([]net.Addr, error) {
+		return iface.Addrs()
+	}, allowPrivate, interfaceFilter)
+}
+
+func discoverHostIPsFromInterfaces(ifaces []net.Interface, interfaceAddrs func(net.Interface) ([]net.Addr, error), allowPrivate bool, interfaceFilter map[string]struct{}) []IP {
+	out := make([]IP, 0, 16)
+	seen := make(map[string]struct{})
 	for _, iface := range ifaces {
-		if len(tm.hostInterfaces) > 0 {
-			if _, ok := tm.hostInterfaces[iface.Name]; !ok {
+		if len(interfaceFilter) > 0 {
+			if _, ok := interfaceFilter[iface.Name]; !ok {
 				continue
 			}
 		}
 		if (iface.Flags & net.FlagUp) == 0 {
 			continue
 		}
-		addrs, err := iface.Addrs()
+		addrs, err := interfaceAddrs(iface)
 		if err != nil {
 			continue
 		}
@@ -441,7 +507,7 @@ func (tm *ThreatManager) getHostIPs() []IP {
 			if ip4 := ip.To4(); ip4 != nil {
 				ip = ip4
 			}
-			if !tm.hostIPsAllowPrivate && isPrivateOrLocal(ip) {
+			if !allowPrivate && isPrivateOrLocal(ip) {
 				continue
 			}
 			s := ip.String()

@@ -68,7 +68,7 @@ func initInstanceMetrics(im *InstanceManager) {
 func initInstanceSeverityMetrics(mc *MetricsCollector) {
 	mc.instanceResourceSeverityDesc = newInstanceSeverityMetricDesc("oie_instance_resource_severity", "Resource pressure severity (0-100) combining CPU, memory, disk and network/conntrack")
 	mc.instanceThreatListSeverityDesc = newInstanceSeverityMetricDesc("oie_instance_threat_list_severity", "Threat list severity (0-100) derived strictly from Threat Intel (Spamhaus, Tor, etc) matches")
-	mc.instanceAttentionSeverityDesc = newInstanceSeverityMetricDesc("oie_instance_attention_severity", "Combined attention severity (0-100) based on resource pressure and threat signals")
+	mc.instanceAttentionSeverityDesc = newInstanceSeverityMetricDesc("oie_instance_attention_severity", "Combined attention severity (0-100) based on resource pressure, behavior anomalies, and threat-list signals")
 	mc.instanceBehaviorSeverityDesc = newInstanceSeverityMetricDesc("oie_instance_behavior_severity", "Pure behavior severity (0-100) derived from conntrack behavior signals (no intel)")
 
 	mc.instanceResourceCpuSeverityDesc = newInstanceSeverityMetricDesc("oie_instance_resource_cpu_severity", "Resource CPU axis severity (0-100) based on pressure EWMA")

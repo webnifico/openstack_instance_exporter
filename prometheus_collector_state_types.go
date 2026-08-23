@@ -84,12 +84,14 @@ type ConntrackManager struct {
 	inboundPrevDstPorts [shardCount]map[BehaviorKey]outboundPrevDstPorts
 	inboundPrevLastSeen [shardCount]map[BehaviorKey]int64
 
-	behaviorEWMAMu [shardCount]sync.Mutex
-	behaviorEWMA   [shardCount]map[behaviorIdentityKey]*behaviorEWMAState
+	behaviorEWMAMu       [shardCount]sync.Mutex
+	behaviorEWMA         [shardCount]map[behaviorIdentityKey]*behaviorEWMAState
+	behaviorLastSeverity [shardCount]map[behaviorIdentityKey]float64
 
 	behaviorAlertMu sync.Mutex
 	behaviorPersist map[behaviorAlertKey]*behaviorPersistState
 	behaviorEmit    map[behaviorEmitKey]*behaviorEmitState
+	miningAlerts    map[behaviorIdentityKey]*miningAlertState
 
 	conntrackReadErrors uint64
 
@@ -97,6 +99,9 @@ type ConntrackManager struct {
 	conntrackRawENOBUFSTotal     uint64
 	conntrackRawParseErrorsTotal uint64
 	conntrackLastSuccessUnix     int64
+	lastGoodMu                   sync.RWMutex
+	lastGoodAgg                  *ConntrackAgg
+	lastGoodCount                int
 
 	LogThreat func(tag, event, domain, instanceUUID, projectUUID, projectName, userUUID string, kvpairs ...interface{})
 
@@ -123,6 +128,7 @@ type ConntrackManager struct {
 	instanceInboundMaxFlowsSingleDstPortDesc *prometheus.Desc
 	instanceInboundBytesPerFlowDesc          *prometheus.Desc
 	instanceInboundPacketsPerFlowDesc        *prometheus.Desc
+	instanceMiningSuspectedDesc              *prometheus.Desc
 }
 type MetricsCollector struct {
 	shutdownChan       chan struct{}
@@ -131,8 +137,11 @@ type MetricsCollector struct {
 	backgroundOnce     sync.Once
 	cacheMu            sync.RWMutex
 	cachedMetrics      []prometheus.Metric
+	cacheInitialized   bool
+	collectionRunner   func() []prometheus.Metric
 
-	collectionMu sync.Mutex
+	collectionMu        sync.Mutex
+	initialCollectionMu sync.Mutex
 
 	// Intel EWMA state
 	intelHistory map[string]*IntelHistory

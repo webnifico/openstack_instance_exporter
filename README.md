@@ -1,5 +1,5 @@
 # OpenStack Instance Exporter (OIE)
-**Whitepaper README (generated from current code snapshot on 2026-03-21).**
+**Whitepaper README (generated from current code snapshot on 2026-08-23).**
 
 OIE is a hypervisor-side Prometheus exporter for KVM/OpenStack that turns host- and instance-level reality into metrics: **libvirt + kernel conntrack + threat intel + behavioral anomaly scoring**.
 
@@ -243,6 +243,7 @@ Metrics without identity create endless “who owns this?” churn.
 - **Instance metadata (`oie_instance_info`):** base labels + `user_name, flavor, vcpus, mem_mb, root_type, created_at, metadata_version`
 - **Instance state code (`oie_instance_state_code`):** base labels + `state_desc`
 - **Instance conntrack IP metrics:** `domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family`
+- **Persisted mining-suspicion metric:** base labels + `ip, family, port, port_name, confidence, priority`
 - **Instance disk metrics:** base labels + `volume_uuid, disk_type, disk_path`
 - **Instance NIC metrics:** base labels + `ifname`
 - **Per-vCPU counters:** base labels + `vcpu`
@@ -316,7 +317,7 @@ behavior:
       25: smtp
       465: smtps
       587: submission
-      8333: stratum_alt_8333
+      8333: bitcoin_p2p
 ```
 
 **Notes**
@@ -326,8 +327,41 @@ behavior:
 - If `outbound_monitored` is present in the file, it **replaces** the built-in outbound map.
 - If only one direction is provided, that direction comes from the file and the other direction stays on the built-in map.
 - Port names must be non-empty strings; empty names are rejected as invalid config.
-- If the file is missing, invalid, empty, or unparsable, the exporter falls back to the built-in maps.
+- If the flag is unset, the built-in maps are used. A configured file that is missing, invalid, empty, or unparsable is a startup error.
 - This file is read at startup (restart the exporter to apply changes).
+- This file controls monitored-port naming and dark-space detection. It does not replace or extend the built-in mining classifier.
+
+### Built-in mining-pool coverage
+
+Outbound mining detection has a separate built-in catalogue of more than 100 TCP ports covering Monero/RandomX, MoneroOcean difficulty and TLS endpoints, and active Stratum endpoints for ETC, ETHW, Kaspa, Ergo, Nexa, Zcash, Bitcoin Gold, Ravencoin, Nervos, Beam, Aeternity, Bitcoin Cash, Quai, and other mineable networks.
+
+The catalogue has dedicated and shared port classes, and the detector publishes four evidence tiers:
+
+- **`high`:** at least two replied flows on an uncommon pool-specific endpoint. This is the only tier that emits the exporter structured mining alert without external corroboration.
+- **`high_persistent`:** one replied flow on a dedicated endpoint for three consecutive collection cycles. It remains a candidate until CPU corroborates it; after 15 minutes without CPU corroboration, the example rules raise an informational candidate alert.
+- **`shared`:** at least three matching flows, at least two replied flows, concentration on one ambiguous port, a limited destination set, and three consecutive matching cycles.
+- **`shared_persistent`:** one or two replied connections concentrated on an ambiguous port for six consecutive collection cycles. This covers the normal single long-lived Stratum connection without treating the port match alone as proof of mining.
+
+All mining candidates must be outbound TCP connections to public, non-VM destinations with real kernel `SEEN_REPLY` or `ASSURED` evidence. Mining-specific port and remote counts are used, so normal web traffic or unrelated outbound fan-out cannot hide a pool connection.
+
+The following are deliberately excluded from port-only mining classification:
+
+- `8333`: Bitcoin peer-to-peer traffic.
+- `18080`: Monero peer-to-peer traffic.
+- `18081`: Monero daemon RPC.
+- `80`, `443`, `8080`, and `9200`: generic service ports that mining providers also use but which cannot safely identify mining without destination or protocol intelligence.
+
+The detector selects one real remote-IP/port pair; independently selected port and remote aggregates cannot be combined into a nonexistent endpoint. Persistence must remain on that same endpoint and must be consecutive. A complete clean cycle or an endpoint change resets the pending classification.
+
+Mining persistence is tracked independently from the first-match behavior classifier. An earlier scan or other generic behavior classification therefore cannot prevent a valid mining candidate from maturing. After its internal gate passes, the exporter publishes `oie_instance_mining_suspected{...,ip,family,port,port_name,confidence,priority} 1`. Only `high` evidence emits the exporter structured mining alert directly; candidate and ambiguous-port tiers remain available for Prometheus corroboration. During an incomplete conntrack collection, the last-good metric is preserved without advancing persistence or emitting another event; a subsequent complete non-matching collection clears the metric and resets persistence.
+
+The example Prometheus rules apply tiered corroboration:
+
+- `high` alerts directly after the internal persistence gate.
+- `high_persistent` requires at least three CPU samples with five-minute average vCPU usage of 40% or higher.
+- `shared` requires at least three CPU samples with five-minute average vCPU usage of 35% or higher.
+- `shared_persistent` requires at least three CPU samples with five-minute average vCPU usage of 60% or higher.
+- `OpenStackInstanceMiningCandidatePersistent` emits an informational alert when an uncorroborated `high_persistent` candidate remains present for 15 minutes. This retains visibility for low-CPU/GPU mining without turning a short port-only match into a warning.
 
 ### Rule evaluation order and precedence
 
@@ -335,6 +369,8 @@ Behavior rules are evaluated using **first-match-wins semantics**.
 
 Rules are checked **sequentially** and the **first rule whose conditions match is applied**.
 Once a rule matches, **no further rules are evaluated** for that event.
+
+The dedicated mining lifecycle runs independently of this generic rule ordering. It does not change the selected generic behavior kind, but it can publish the persisted mining metric when another rule matched first; only `high` evidence emits the exporter structured mining alert after its internal persistence gate.
 
 Evaluation order is fixed:
 
@@ -349,7 +385,7 @@ Within each group, rules are evaluated **top-to-bottom** in their defined order.
 - If a built-in rule matches, external rules are **never evaluated** for that event.
 - YAML rule order **matters** within the external rules file.
 - There is **no best-match, priority, or specificity ranking**.
-- Severity does **not** influence rule selection; it is only an output attribute.
+- Severity does **not** influence rule selection; it is calculated from the matched behavior evidence after classification.
 
 External rules are therefore best used to **add new detections** or cover gaps not already handled by the built-in heuristics, rather than to replace existing behavior.
 
@@ -364,7 +400,7 @@ Schema (minimal):
 
 ```yaml
 port_sets:
-  mining: [3333, 4444, 8333]
+  mining: [3333, 4444]
   admin: [22, 3389, 2375, 6443]
 
 rules:
@@ -390,6 +426,7 @@ rules:
 - Built-in rules are evaluated first. External rules are only evaluated if no built-in rule matched.
 - A restart is required to apply extended rules if changed.
 - Parse/validation errors are logged. After correcting the rule file, restart the exporter to apply the updated rules.
+- The legacy `severity` values `low`, `medium`, `high`, and `critical` remain accepted for v1.2.0 YAML compatibility, but—as in v1.2.0—they do not control scoring; severity is calculated from evidence.
 ### Priority (P1–P4) derived from severity × confidence
 
 Behavior alerts separate **severity** (impact) from **confidence** (how sure we are), then derive a human-friendly priority:
@@ -921,7 +958,7 @@ Examples of kinds (direction-aware):
 - **Dark-space**: traffic to ports outside the monitored port list (“should never happen” signal).
 - **Public admin exposure** (inbound): inbound to high-risk admin ports with meaningful remote breadth.
 - **SMTP spam behavior** (outbound): sustained outbound to mail ports with high remote fan-out.
-- **Mining/Stratum behavior** (outbound): persistent outbound to common mining ports.
+- **Mining/Stratum behavior** (outbound): persistent replied TCP flows to the tiered built-in mining-pool port catalogue.
 - **DNS tunneling-ish** (outbound): UDP/53 with abnormal bytes-per-flow and low reply ratio (acct required).
 - **Control-plane abuse signals**: patterns consistent with BGP/Geneve probing and metadata service abuse (when enabled by the build/config).
 
@@ -959,6 +996,10 @@ Outbound:
 - `oie_instance_outbound_max_flows_single_dst_port`
 - `oie_instance_outbound_bytes_per_flow` (acct required)
 - `oie_instance_outbound_packets_per_flow` (acct required)
+
+Persisted mining-suspicion state:
+
+- `oie_instance_mining_suspected` (value `1` after the internal persistence gate; labels include `port`, `port_name`, `confidence`, and `priority`)
 
 ### Remote breadth semantics (important)
 
@@ -1061,7 +1102,7 @@ OIE is designed so tuning maps to operator intent.
 | `behavior.sensitivity` | `1.0` | Behavior sensitivity (>1 more sensitive). |
 | `behavior.ewma_fast_tau` | `3m` | Behavior EWMA **fast** time constant (baseline reacts quickly). |
 | `behavior.ewma_slow_tau` | `2h` | Behavior EWMA **slow** time constant (baseline reflects long-term normal). |
-| `behavior.ports_config` | `""` | Optional YAML: replace inbound/outbound monitored-port maps per direction (or use built-ins if unset/invalid). |
+| `behavior.ports_config` | `""` | Optional YAML: replace inbound/outbound monitored-port maps per direction. Built-ins are used only when unset; invalid configured files stop startup. |
 | `behavior.rules_config` | `""` | Optional YAML: external behavior rules (table-driven heuristics + port sets). |
 | `collection.interval` | `15s` | Background collection interval. |
 | `contacts.direction` | `"out"` | Default direction for threat/contacts: `out`, `in`, `any`. Invalid values are a startup config error (no silent fallback). |
@@ -1250,12 +1291,17 @@ OIE is a lightweight IDS-style signal system because it avoids packet parsing.
 
 - Intended deployment: **one exporter per compute node**.
 - The repo includes an Ansible role for installation/configuration and systemd management — see the Ansible README in the repo for role variables and examples.
-- Prometheus example alert rules and Grafana dashboards live in the repo also (kept out of this whitepaper README).
+- The [Prometheus alert example](examples/prometheus_alerts_example/README.md) uses the repository/OpenStack-Ansible templated variable format. Render it before installing it; do not load the example file directly as a native Prometheus rule file. Grafana dashboard examples are also included in the repository.
+
+### Release validation
+
+`make check` runs unit and compatibility tests, enforces the Go statement-coverage floor, race detection, shuffled/repeated tests, conntrack fuzzing, `go vet`, Ansible syntax and service-template profile validation, Prometheus expression validation when `promtool` is installed, and a reproducible linux/amd64 release build. The release target writes one `.tar.xz` archive and `sha256sums.txt` under `dist/`; `VERSION` defaults to `v1.3.0`. Archive timestamps use `SOURCE_DATE_EPOCH` when set, otherwise the current Git commit time, with current UTC time as the fallback outside a Git checkout.
 
 ## Compatibility
 
 Designed with:
 
+- **Architecture:** x86_64/amd64
 - **OS:** Ubuntu 22.04 / 24.04
 - **Hypervisor:** Libvirt 8.x–10.x, QEMU/KVM
 - **Cloud:** OpenStack (OVN/OVS networking; **also works on Linux Bridge and OVS** — see conntrack zone notes)
@@ -1327,7 +1373,7 @@ Security model:
 
 ## Appendix A: Metric reference
 
-This appendix is intentionally verbose for dashboard authors.
+This appendix is intentionally verbose for dashboard authors and documents all 127 `oie_*` metric families in v1.3.0.
 
 ### Host metrics
 
@@ -1983,6 +2029,12 @@ This appendix is intentionally verbose for dashboard authors.
   - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family
   - unit: packets/flow
 
+- **oie_instance_mining_suspected**
+  - Type: Gauge
+  - Description: Persisted outbound mining-pool behavior classification (1 = currently suspected).
+  - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid, ip, family, port, port_name, confidence, priority
+  - unit: boolean (0/1)
+
 - **oie_instance_threat_spamhaus_active_flows**
   - Type: Gauge
   - Description: Active conntrack flows involving a remote IP present in the spamhaus threat list.
@@ -2087,7 +2139,7 @@ This appendix is intentionally verbose for dashboard authors.
 
 - **oie_instance_attention_severity**
   - Type: Gauge
-  - Description: Overall attention severity (0-100) combining resource + behavior + threat-list signals. Note: the Prometheus help text in the current build may still say resource pressure + threat signals, but the actual score includes behavior.
+  - Description: Combined attention severity (0-100) based on resource pressure, behavior anomalies, and threat-list signals.
   - labels: domain, server_name, instance_uuid, project_uuid, project_name, user_uuid
   - unit: score (0-100)
 
@@ -2095,7 +2147,7 @@ This appendix is intentionally verbose for dashboard authors.
 
 ### Behavior alert fields (additions)
 
-In addition to the common structured log fields, `behavior_alert` events include representative keys such as:
+`behavior_alert` events use `category=behavior` and `component=behavior` and carry `domain`, `server_name`, and the OpenStack identity fields. In addition to those common structured log fields, they include representative keys such as:
 
 * `tag` (`BEHAVIOR`)
 * `priority` (`P1`..`P4`)
@@ -2119,10 +2171,11 @@ In addition to the common structured log fields, `behavior_alert` events include
   "level": "WARN",
   "msg": "behavior_alert",
   "category": "behavior",
-  "component": "threat",
+  "component": "behavior",
   "severity_class": "notice",
   "tag": "BEHAVIOR",
   "domain": "instance-00000001",
+  "server_name": "demo-vm-01",
   "instance_uuid": "…",
   "project_uuid": "…",
   "project_name": "demo-project",

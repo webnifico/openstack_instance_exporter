@@ -61,6 +61,14 @@ type OVNMapper struct {
 	lastAttempt    time.Time
 }
 
+type ovnRefreshStats struct {
+	linesTotal       int
+	linesParsed      int
+	linesNoUUID      int
+	linesNoZone      int
+	linesUnknownPort int
+}
+
 func NewOVNMapper() *OVNMapper {
 	return &OVNMapper{
 		zoneToInstance: make(map[uint16]string),
@@ -133,64 +141,90 @@ func (m *OVNMapper) Refresh(instanceByPort map[string]string, ipsByPort map[stri
 		return fmt.Errorf("ovn zone refresh failed: %w", err)
 	}
 
+	return m.refreshFromOutput(out, instanceByPort, ipsByPort)
+}
+
+func parseOVNZoneList(out []byte, instanceByPort map[string]string, ipsByPort map[string][]IPKey) (map[uint16]string, map[uint16]map[IPKey]struct{}, ovnRefreshStats, error) {
 	newZones := make(map[uint16]string)
 	newIPs := make(map[uint16]map[IPKey]struct{})
-
-	var (
-		linesTotal       int
-		linesParsed      int
-		linesNoUUID      int
-		linesNoZone      int
-		linesUnknownPort int
-	)
+	portZones := make(map[string]uint16)
+	stats := ovnRefreshStats{}
 
 	for _, raw := range bytes.Split(out, []byte{'\n'}) {
 		s := strings.TrimSpace(string(raw))
 		if s == "" {
 			continue
 		}
-		linesTotal++
+		stats.linesTotal++
 		fields := strings.Fields(s)
 		if len(fields) < 2 {
-			continue
+			return nil, nil, stats, fmt.Errorf("malformed OVN zone line %q", s)
 		}
 
 		portUUID := ""
+		portField := -1
 		zone := uint16(0)
 		zoneOK := false
 
-		for _, f := range fields {
+		for i, f := range fields {
 			if portUUID == "" && looksLikeUUID36(f) {
 				portUUID = f
+				portField = i
 				continue
 			}
-			if !zoneOK {
+			if portUUID == "" && !zoneOK {
 				if v, ok := parseUint16(f); ok {
 					zone = v
 					zoneOK = true
 				}
 			}
 		}
+		if portField >= 0 {
+			zoneOK = false
+			for _, f := range fields[portField+1:] {
+				if v, ok := parseUint16(f); ok {
+					zone = v
+					zoneOK = true
+					break
+				}
+			}
+		}
 
 		if portUUID == "" {
-			linesNoUUID++
+			stats.linesNoUUID++
+			if !zoneOK {
+				return nil, nil, stats, fmt.Errorf("OVN zone line has no port UUID: %q", s)
+			}
 			continue
 		}
 		if !zoneOK {
-			linesNoZone++
-			continue
+			stats.linesNoZone++
+			return nil, nil, stats, fmt.Errorf("OVN zone line has no valid zone: %q", s)
 		}
 
 		instanceUUID, ok := instanceByPort[portUUID]
 		if !ok {
-			linesUnknownPort++
+			stats.linesUnknownPort++
 			continue
 		}
+		if instanceUUID == "" {
+			return nil, nil, stats, fmt.Errorf("OVN port %s has an empty instance mapping", portUUID)
+		}
+		if existingZone, exists := portZones[portUUID]; exists && existingZone != zone {
+			return nil, nil, stats, fmt.Errorf("ambiguous OVN port %s maps to both zones %d and %d", portUUID, existingZone, zone)
+		}
+		portZones[portUUID] = zone
 
+		if existing, exists := newZones[zone]; exists && existing != instanceUUID {
+			return nil, nil, stats, fmt.Errorf("ambiguous OVN zone %d maps to both %s and %s", zone, existing, instanceUUID)
+		}
 		newZones[zone] = instanceUUID
 
 		if ips, okIPs := ipsByPort[portUUID]; okIPs && len(ips) > 0 {
-			set := make(map[IPKey]struct{}, len(ips))
+			set := newIPs[zone]
+			if set == nil {
+				set = make(map[IPKey]struct{}, len(ips))
+			}
 			for _, k := range ips {
 				if k == (IPKey{}) {
 					continue
@@ -202,10 +236,26 @@ func (m *OVNMapper) Refresh(instanceByPort map[string]string, ipsByPort map[stri
 			}
 		}
 
-		linesParsed++
+		stats.linesParsed++
+	}
+	if stats.linesTotal == 0 || stats.linesParsed == 0 || len(newZones) == 0 {
+		return nil, nil, stats, fmt.Errorf("OVN zone output contained no usable active-port mappings")
+	}
+	for zone := range newZones {
+		if len(newIPs[zone]) == 0 {
+			return nil, nil, stats, fmt.Errorf("OVN zone %d has no usable instance IPs", zone)
+		}
+	}
+	return newZones, newIPs, stats, nil
+}
+
+func (m *OVNMapper) refreshFromOutput(out []byte, instanceByPort map[string]string, ipsByPort map[string][]IPKey) error {
+	newZones, newIPs, stats, err := parseOVNZoneList(out, instanceByPort, ipsByPort)
+	if err != nil {
+		return err
 	}
 
-	logKV(LogLevelDebug, "mapping", "ovn_mapper", "refresh_success", "zones_found", len(newZones), "lines_total", linesTotal, "lines_parsed", linesParsed, "lines_no_uuid", linesNoUUID, "lines_no_zone", linesNoZone, "lines_unknown_port", linesUnknownPort)
+	logKV(LogLevelDebug, "mapping", "ovn_mapper", "refresh_success", "zones_found", len(newZones), "lines_total", stats.linesTotal, "lines_parsed", stats.linesParsed, "lines_no_uuid", stats.linesNoUUID, "lines_no_zone", stats.linesNoZone, "lines_unknown_port", stats.linesUnknownPort)
 
 	m.Lock()
 	m.zoneToInstance = newZones
@@ -214,6 +264,21 @@ func (m *OVNMapper) Refresh(instanceByPort map[string]string, ipsByPort map[stri
 	m.Unlock()
 
 	return nil
+}
+
+func (m *OVNMapper) LastRefresh() time.Time {
+	m.RLock()
+	last := m.lastRefresh
+	m.RUnlock()
+	return last
+}
+
+func (m *OVNMapper) IsStale(now time.Time, maxAge time.Duration) bool {
+	if maxAge <= 0 {
+		return false
+	}
+	last := m.LastRefresh()
+	return last.IsZero() || now.Sub(last) > maxAge
 }
 func (m *OVNMapper) GetInstance(zone uint16) string {
 	m.RLock()
@@ -287,6 +352,10 @@ func (im *InstanceManager) snapshotOVNPortToInstance(activeSet map[string]struct
 		}
 		for _, p := range meta.PortUUIDs {
 			if len(p) == 36 {
+				if previous, exists := m[p]; exists && previous != uuid {
+					m[p] = ""
+					continue
+				}
 				m[p] = uuid
 			}
 		}
@@ -299,19 +368,28 @@ func (im *InstanceManager) snapshotOVNPortToIPKeys(activeSet map[string]struct{}
 	defer im.domainMetaMu.RUnlock()
 	for uuid := range activeSet {
 		meta := im.domainMeta[uuid]
-		if meta == nil || len(meta.PortIPsByUUID) == 0 {
+		if meta == nil || len(meta.PortUUIDs) == 0 || len(meta.PortIPsByUUID) == 0 {
 			continue
 		}
-		for port, ips := range meta.PortIPsByUUID {
+		for _, port := range meta.PortUUIDs {
 			if len(port) != 36 {
 				continue
 			}
+			ips := meta.PortIPsByUUID[port]
 			keys := m[port]
+			seen := make(map[IPKey]struct{}, len(keys)+len(ips))
+			for _, key := range keys {
+				seen[key] = struct{}{}
+			}
 			for _, ip := range ips {
 				k := IPStrToKey(ip.Address)
 				if k == (IPKey{}) {
 					continue
 				}
+				if _, duplicate := seen[k]; duplicate {
+					continue
+				}
+				seen[k] = struct{}{}
 				keys = append(keys, k)
 			}
 			if len(keys) > 0 {

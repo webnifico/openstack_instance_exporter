@@ -60,15 +60,18 @@ func flowDirection(ipSet map[IPKey]struct{}, ct ConntrackEntry) string {
 // -----------------------------------------------------------------------------
 
 type ConntrackEntry struct {
-	Src     string
-	Dst     string
-	SrcPort uint16
-	DstPort uint16
-	Proto   uint8
-	Status  uint32
-	Zone    uint16
-	Bytes   uint64
-	Packets uint64
+	Src      string
+	Dst      string
+	SrcPort  uint16
+	DstPort  uint16
+	Proto    uint8
+	Status   uint32
+	Zone     uint16
+	Bytes    uint64
+	Packets  uint64
+	ICMPID   uint16
+	ICMPType uint8
+	ICMPCode uint8
 }
 
 type ConntrackFlowLite struct {
@@ -78,10 +81,16 @@ type ConntrackFlowLite struct {
 	DstPort        uint16
 	Proto          uint8
 	Zone           uint16
+	Status         uint32
+	ICMPID         uint16
+	ICMPType       uint8
+	ICMPCode       uint8
 	ForwardPackets uint64
 	ForwardBytes   uint64
 	ReversePackets uint64
 	ReverseBytes   uint64
+	PacketsPresent bool
+	BytesPresent   bool
 }
 
 type VMIPIdentity struct {

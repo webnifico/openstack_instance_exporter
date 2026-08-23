@@ -118,13 +118,13 @@ var rulesRestrictedLocal = []BehaviorRule{
 		Dir:    "outbound",
 		Source: "internal",
 		When: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) bool {
-			if feature.InfraHits <= 0 || feature.Flows <= 0 {
+			if feature.TenantPrivateHits <= 0 || feature.Flows <= 0 {
 				return false
 			}
-			if feature.UnrepliedRatio < sc.ratioThresh(ctx.Thresholds.InfraLateralUnreplied) {
+			if feature.TenantPrivateUnrepliedRatio < sc.ratioThresh(ctx.Thresholds.InfraLateralUnreplied) {
 				return false
 			}
-			return float64(feature.InfraMaxFlows) >= sc.threshHigh(float64(feature.Flows)*ctx.Thresholds.InfraLateralShareOfTotal)
+			return float64(feature.TenantPrivateMaxFlows) >= sc.threshHigh(float64(feature.Flows)*ctx.Thresholds.InfraLateralShareOfTotal)
 		},
 		Kind: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
 			return "lateral_probe_suspected"
@@ -155,7 +155,7 @@ var rulesDarkspace = []BehaviorRule{
 		Source: "internal",
 		When: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) bool {
 			return feature.UnmonitoredPortFlows > 0 &&
-				feature.UnrepliedRatio >= sc.ratioThresh(ctx.Thresholds.DarkUnreplied) &&
+				feature.UnmonitoredUnrepliedRatio >= sc.ratioThresh(ctx.Thresholds.DarkUnreplied) &&
 				feature.UnmonitoredPortFlows >= sc.scaleIntHigh(ctx.Thresholds.DarkFlowsWithUnreplied)
 		},
 		Kind: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
@@ -165,7 +165,7 @@ var rulesDarkspace = []BehaviorRule{
 			return "darkspace_port_detected"
 		},
 		Reason: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
-			return fmt.Sprintf("unmonitored_flows_%d_unreplied_%.2f", feature.UnmonitoredPortFlows, feature.UnrepliedRatio)
+			return fmt.Sprintf("unmonitored_flows_%d_unreplied_%.2f", feature.UnmonitoredPortFlows, feature.UnmonitoredUnrepliedRatio)
 		},
 	},
 	{
@@ -195,22 +195,23 @@ var rulesProtocol = []BehaviorRule{
 			if feature.SMTPFlows < sc.scaleIntHigh(ctx.Thresholds.SMTPFlows) {
 				return false
 			}
-			if !topPortIs(feature, 25, 465, 587) {
+			if !isSMTPPort(feature.SMTPTopDstPort) {
 				return false
 			}
-			if feature.UniqueRemotes < sc.scaleIntHigh(ctx.Thresholds.SMTPRemotes) {
+			if feature.SMTPUniqueRemotes < sc.scaleIntHigh(ctx.Thresholds.SMTPRemotes) {
 				return false
 			}
-			if feature.UnrepliedRatio < sc.ratioThresh(ctx.Thresholds.SMTPUnreplied) {
+			if feature.SMTPUnrepliedRatio < sc.ratioThresh(ctx.Thresholds.SMTPUnreplied) {
 				return false
 			}
-			return ev.EvidenceMode == "dominant_port" || ev.TopPortShare >= sc.threshHigh(ctx.Thresholds.SMTPPortDominanceShare)
+			_, smtpTopPortShare, smtpEvidenceMode := smtpBehaviorEvidenceFromFeature(feature)
+			return smtpEvidenceMode == "dominant_port" || smtpTopPortShare >= sc.threshHigh(ctx.Thresholds.SMTPPortDominanceShare)
 		},
 		Kind: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
 			return "smtp_spam_behavior_suspected"
 		},
 		Reason: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
-			return fmt.Sprintf("smtp_flows_%d_remotes_%d_unreplied_%.2f", feature.SMTPFlows, feature.UniqueRemotes, feature.UnrepliedRatio)
+			return fmt.Sprintf("smtp_flows_%d_remotes_%d_unreplied_%.2f", feature.SMTPFlows, feature.SMTPUniqueRemotes, feature.SMTPUnrepliedRatio)
 		},
 	},
 	{
@@ -218,19 +219,16 @@ var rulesProtocol = []BehaviorRule{
 		Dir:    "outbound",
 		Source: "internal",
 		When: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) bool {
-			if feature.StratumFlows < sc.scaleIntHigh(ctx.Thresholds.StratumFlows) {
-				return false
-			}
-			if !topPortIs(feature, 3333, 4444, 8333) {
-				return false
-			}
-			return feature.UniqueRemotes <= sc.scaleIntHigh(ctx.Thresholds.StratumMaxRemotes)
+			// Candidate and ambiguous-port tiers are retained by the dedicated
+			// mining state machine, but must not displace stronger generic
+			// classifications before Prometheus corroboration.
+			return feature.Mining.Valid && feature.Mining.Confidence == miningPortConfidenceHigh
 		},
 		Kind: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
 			return "outbound_stratum_mining_suspected"
 		},
 		Reason: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
-			return fmt.Sprintf("stratum_flows_%d_port_%d_remotes_%d", feature.StratumFlows, feature.TopDstPort, feature.UniqueRemotes)
+			return fmt.Sprintf("mining_%s_flows_%d_replied_%d_port_%d_remotes_%d", feature.Mining.Confidence.String(), feature.Mining.Flows, feature.Mining.RepliedFlows, feature.Mining.TopPort, feature.Mining.UniqueRemotes)
 		},
 	},
 	{
@@ -238,25 +236,25 @@ var rulesProtocol = []BehaviorRule{
 		Dir:    "outbound",
 		Source: "internal",
 		When: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) bool {
-			if !feature.ConntrackAcct || feature.BytesPerFlow <= 0 {
+			if !feature.DNSBytesPerFlowAvailable || feature.DNSBytesPerFlow <= 0 {
 				return false
 			}
 			if feature.TopDstPort != 53 {
 				return false
 			}
-			if feature.UDPCount <= sc.scaleIntHigh(ctx.Thresholds.DNSMinUDP) {
+			if feature.DNSUDPFlows <= sc.scaleIntHigh(ctx.Thresholds.DNSMinUDP) {
 				return false
 			}
-			if feature.BytesPerFlow <= sc.threshHigh(ctx.Thresholds.DNSMinBytesPerFlow) {
+			if feature.DNSBytesPerFlow <= sc.threshHigh(ctx.Thresholds.DNSMinBytesPerFlow) {
 				return false
 			}
-			return feature.UnrepliedRatio >= sc.ratioThresh(ctx.Thresholds.DNSUnreplied)
+			return feature.DNSUnrepliedRatio >= sc.ratioThresh(ctx.Thresholds.DNSUnreplied)
 		},
 		Kind: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
 			return "outbound_dns_tunneling_suspected"
 		},
 		Reason: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
-			return fmt.Sprintf("port_53_avg_bytes_%.0f_udp_%d_unreplied_%.2f", feature.BytesPerFlow, feature.UDPCount, feature.UnrepliedRatio)
+			return fmt.Sprintf("port_53_avg_bytes_%.0f_udp_%d_unreplied_%.2f", feature.DNSBytesPerFlow, feature.DNSUDPFlows, feature.DNSUnrepliedRatio)
 		},
 	},
 	{
@@ -265,14 +263,14 @@ var rulesProtocol = []BehaviorRule{
 		Source: "internal",
 		When: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) bool {
 			return feature.UDPCount > sc.scaleIntHigh(ctx.Thresholds.UDPFanoutUDP) &&
-				feature.UnrepliedRatio >= sc.ratioThresh(ctx.Thresholds.UDPFanoutUnreplied) &&
-				feature.UniqueRemotes >= sc.scaleIntHigh(ctx.Thresholds.UDPFanoutRemotes)
+				feature.UDPUnrepliedRatio >= sc.ratioThresh(ctx.Thresholds.UDPFanoutUnreplied) &&
+				feature.UDPUniqueRemotes >= sc.scaleIntHigh(ctx.Thresholds.UDPFanoutRemotes)
 		},
 		Kind: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
 			return "outbound_udp_fanout_suspected"
 		},
 		Reason: func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string {
-			return fmt.Sprintf("remotes_%d_unreplied_%.2f", feature.UniqueRemotes, feature.UnrepliedRatio)
+			return fmt.Sprintf("remotes_%d_unreplied_%.2f", feature.UDPUniqueRemotes, feature.UDPUnrepliedRatio)
 		},
 	},
 }

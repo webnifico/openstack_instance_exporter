@@ -1,5 +1,7 @@
 package main
 
+import "github.com/prometheus/client_golang/prometheus"
+
 func initConntrackMetrics(cm *ConntrackManager) {
 	cm.instanceConntrackIPFlowsDesc = newInstanceConntrackMetricDesc("oie_instance_conntrack_ip_flows", "Conntrack flow entries matched to this fixed IP (inbound + outbound)")
 	cm.instanceConntrackIPFlowsInboundDesc = newInstanceConntrackMetricDesc("oie_instance_conntrack_ip_flows_inbound", "Inbound conntrack flow entries matched to this fixed IP (VM as destination)")
@@ -24,4 +26,11 @@ func initConntrackMetrics(cm *ConntrackManager) {
 	cm.instanceInboundMaxFlowsSingleDstPortDesc = newInstanceConntrackMetricDesc("oie_instance_inbound_max_flows_single_dst_port", "Maximum inbound flows to a single destination port in the current interval")
 	cm.instanceInboundBytesPerFlowDesc = newInstanceConntrackMetricDesc("oie_instance_inbound_bytes_per_flow", "Inbound average bytes per conntrack flow for this fixed IP (requires nf_conntrack_acct=1)")
 	cm.instanceInboundPacketsPerFlowDesc = newInstanceConntrackMetricDesc("oie_instance_inbound_packets_per_flow", "Inbound average packets per conntrack flow for this fixed IP (requires nf_conntrack_acct=1)")
+
+	cm.instanceMiningSuspectedDesc = prometheus.NewDesc(
+		"oie_instance_mining_suspected",
+		"Persisted outbound mining-pool behavior classification (1 = currently suspected)",
+		labelsInstance("ip", "family", "port", "port_name", "confidence", "priority"),
+		nil,
+	)
 }

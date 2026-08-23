@@ -4301,6 +4301,210 @@
       ],
       "title": "Cluster Network Usage",
       "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 22000,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Current persisted mining evidence across the selected hypervisors and projects. Each row identifies the instance, fixed IP, destination port, endpoint name, evidence tier, and priority. This table includes candidates as well as warning-qualified detections: high alerts directly; high_persistent requires a 5-minute CPU average of at least 40%; shared requires at least 35%; shared_persistent requires at least 60%. CPU-correlated tiers also require at least three CPU samples in five minutes. A high_persistent candidate that remains without CPU corroboration becomes informational after 15 minutes.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "filterable": true,
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 18,
+            "x": 0,
+            "y": 104
+          },
+          "id": 22001,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "fields": "",
+              "reducer": [
+                "sum"
+              ],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": []
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "max by (instance, domain, server_name, instance_uuid, project_name, project_uuid, user_uuid, ip, family, port, port_name, confidence, priority) (oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"} == 1)",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "{{ server_name }} / {{ instance_uuid }} / {{ ip }}:{{ port }} / {{ confidence }}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Current Mining Evidence",
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true,
+                  "family": true,
+                  "user_uuid": true
+                },
+                "indexByName": {
+                  "instance": 0,
+                  "server_name": 1,
+                  "instance_uuid": 2,
+                  "project_name": 3,
+                  "project_uuid": 4,
+                  "domain": 5,
+                  "ip": 6,
+                  "port": 7,
+                  "port_name": 8,
+                  "confidence": 9,
+                  "priority": 10
+                },
+                "renameByName": {
+                  "confidence": "Evidence Tier",
+                  "domain": "Domain",
+                  "instance": "Hypervisor",
+                  "instance_uuid": "Instance UUID",
+                  "ip": "Fixed IP",
+                  "port": "Port",
+                  "port_name": "Mining Endpoint",
+                  "priority": "Priority",
+                  "project_name": "Project",
+                  "project_uuid": "Project UUID",
+                  "server_name": "Server"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Number of unique instances currently meeting the warning-level OpenStackInstanceMiningSuspected semantics. Dedicated high evidence alerts directly. A single persistent dedicated connection requires CPU >= 40%; shared evidence requires CPU >= 35%; shared persistent evidence requires CPU >= 60%. CPU-correlated tiers require at least three CPU samples during the five-minute window.",
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "green",
+                      "index": 0,
+                      "text": "None"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 6,
+            "x": 18,
+            "y": 104
+          },
+          "id": 22002,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "count(max by (domain, instance_uuid, project_uuid, user_uuid) (((oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\", confidence=\"high\"} == 1) or ((oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\", confidence=\"high_persistent\"} == 1) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 40) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 3)) or ((oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\", confidence=\"shared\"} == 1) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 35) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 3)) or ((oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\", confidence=\"shared_persistent\"} == 1) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 60) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 3))))) or vector(0)",
+              "instant": true,
+              "legendFormat": "Warning-qualified instances",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Warning-Qualified Mining Instances",
+          "type": "stat"
+        }
+      ],
+      "title": "Mining Detection",
+      "type": "row"
     }
   ],
   "preload": false,
@@ -4441,7 +4645,7 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(oie_instance_disk_info,disk_uuid)",
+        "definition": "label_values(oie_instance_disk_info,volume_uuid)",
         "hide": 2,
         "includeAll": true,
         "label": "Disk UUID",
@@ -4450,7 +4654,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(oie_instance_disk_info,disk_uuid)",
+          "query": "label_values(oie_instance_disk_info,volume_uuid)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,

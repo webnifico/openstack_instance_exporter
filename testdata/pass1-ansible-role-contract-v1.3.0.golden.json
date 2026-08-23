@@ -1,0 +1,735 @@
+{
+  "public_variables": [
+    "openstack_instance_exporter_architecture",
+    "openstack_instance_exporter_architecture_map",
+    "openstack_instance_exporter_behavior_ewma_fast_tau",
+    "openstack_instance_exporter_behavior_ewma_slow_tau",
+    "openstack_instance_exporter_behavior_ports_config_path",
+    "openstack_instance_exporter_behavior_ports_config_yaml",
+    "openstack_instance_exporter_behavior_rules_config_path",
+    "openstack_instance_exporter_behavior_rules_config_yaml",
+    "openstack_instance_exporter_behavior_sensitivity",
+    "openstack_instance_exporter_bind_port",
+    "openstack_instance_exporter_collection_interval",
+    "openstack_instance_exporter_conntrack_ipv4_enable",
+    "openstack_instance_exporter_conntrack_ipv6_enable",
+    "openstack_instance_exporter_conntrack_raw_rcv_timeout",
+    "openstack_instance_exporter_conntrack_raw_rcvbuf_bytes",
+    "openstack_instance_exporter_contacts_direction",
+    "openstack_instance_exporter_custom_ip_list",
+    "openstack_instance_exporter_customlist_direction",
+    "openstack_instance_exporter_customlist_enable",
+    "openstack_instance_exporter_customlist_path",
+    "openstack_instance_exporter_customlist_refresh",
+    "openstack_instance_exporter_customlist_src",
+    "openstack_instance_exporter_emergingthreats_direction",
+    "openstack_instance_exporter_emergingthreats_enable",
+    "openstack_instance_exporter_emergingthreats_refresh",
+    "openstack_instance_exporter_emergingthreats_url",
+    "openstack_instance_exporter_enabled",
+    "openstack_instance_exporter_host_interfaces",
+    "openstack_instance_exporter_host_ips_allow_private",
+    "openstack_instance_exporter_host_threats_enable",
+    "openstack_instance_exporter_inbound_behavior_enable",
+    "openstack_instance_exporter_install_dir",
+    "openstack_instance_exporter_libvirt_uri",
+    "openstack_instance_exporter_log_file_enable",
+    "openstack_instance_exporter_log_file_path",
+    "openstack_instance_exporter_log_level",
+    "openstack_instance_exporter_logrotate_content",
+    "openstack_instance_exporter_network_interface",
+    "openstack_instance_exporter_nf_conntrack_acct_enable",
+    "openstack_instance_exporter_nf_conntrack_acct_value",
+    "openstack_instance_exporter_outbound_behavior_enable",
+    "openstack_instance_exporter_profile",
+    "openstack_instance_exporter_profile_defaults",
+    "openstack_instance_exporter_severity_weight_behavior",
+    "openstack_instance_exporter_severity_weight_resource",
+    "openstack_instance_exporter_severity_weight_threat_list",
+    "openstack_instance_exporter_sha256",
+    "openstack_instance_exporter_spamhaus_direction",
+    "openstack_instance_exporter_spamhaus_enable",
+    "openstack_instance_exporter_spamhaus_ipv6_url",
+    "openstack_instance_exporter_spamhaus_refresh",
+    "openstack_instance_exporter_spamhaus_url",
+    "openstack_instance_exporter_threat_log_min_interval",
+    "openstack_instance_exporter_tor_exit_direction",
+    "openstack_instance_exporter_tor_exit_enable",
+    "openstack_instance_exporter_tor_exit_refresh",
+    "openstack_instance_exporter_tor_exit_url",
+    "openstack_instance_exporter_tor_relay_direction",
+    "openstack_instance_exporter_tor_relay_enable",
+    "openstack_instance_exporter_tor_relay_refresh",
+    "openstack_instance_exporter_tor_relay_url",
+    "openstack_instance_exporter_version",
+    "openstack_instance_exporter_web_listen_address",
+    "openstack_instance_exporter_web_telemetry_path",
+    "openstack_instance_exporter_worker_count"
+  ],
+  "defaults": {
+    "openstack_instance_exporter_architecture": "{{ openstack_instance_exporter_architecture_map.get(ansible_architecture, ansible_architecture) }}",
+    "openstack_instance_exporter_architecture_map": {
+      "amd64": "amd64",
+      "x86_64": "amd64"
+    },
+    "openstack_instance_exporter_enabled": false,
+    "openstack_instance_exporter_install_dir": "/opt/openstack_instance_exporter",
+    "openstack_instance_exporter_log_file_enable": false,
+    "openstack_instance_exporter_log_file_path": "/var/log/openstack_instance_exporter.log",
+    "openstack_instance_exporter_logrotate_content": "{% if openstack_instance_exporter_log_file_enable and (openstack_instance_exporter_log_file_path is defined and openstack_instance_exporter_log_file_path|length \u003e 0) %}\n{{ openstack_instance_exporter_log_file_path }} {\n  daily\n  rotate 14\n  missingok\n  notifempty\n  compress\n  delaycompress\n  copytruncate\n  create 0640 root root\n}\n{% endif %}\n",
+    "openstack_instance_exporter_network_interface": "br-monitoring",
+    "openstack_instance_exporter_nf_conntrack_acct_enable": false,
+    "openstack_instance_exporter_nf_conntrack_acct_value": 1,
+    "openstack_instance_exporter_profile": "disabled",
+    "openstack_instance_exporter_profile_defaults": {
+      "bidir-max": {
+        "behavior_sensitivity": 1.5,
+        "emergingthreats_direction": "any",
+        "emergingthreats_enable": true,
+        "inbound_behavior_enable": true,
+        "outbound_behavior_enable": true,
+        "spamhaus_direction": "any",
+        "spamhaus_enable": true,
+        "tor_exit_direction": "any",
+        "tor_exit_enable": true,
+        "tor_relay_direction": "any",
+        "tor_relay_enable": true
+      },
+      "bidir-observant": {
+        "behavior_sensitivity": 1.25,
+        "emergingthreats_direction": "any",
+        "emergingthreats_enable": true,
+        "inbound_behavior_enable": true,
+        "outbound_behavior_enable": true,
+        "spamhaus_direction": "any",
+        "spamhaus_enable": true,
+        "tor_exit_direction": "any",
+        "tor_exit_enable": true,
+        "tor_relay_direction": "any",
+        "tor_relay_enable": true
+      },
+      "bidir-standard": {
+        "behavior_sensitivity": 1,
+        "emergingthreats_direction": "any",
+        "emergingthreats_enable": true,
+        "inbound_behavior_enable": true,
+        "outbound_behavior_enable": true,
+        "spamhaus_direction": "any",
+        "spamhaus_enable": true
+      },
+      "outbound-max": {
+        "behavior_sensitivity": 1.5,
+        "emergingthreats_enable": true,
+        "outbound_behavior_enable": true,
+        "spamhaus_enable": true,
+        "tor_exit_enable": true,
+        "tor_relay_enable": true
+      },
+      "outbound-observant": {
+        "behavior_sensitivity": 1.25,
+        "emergingthreats_enable": true,
+        "outbound_behavior_enable": true,
+        "spamhaus_enable": true,
+        "tor_exit_enable": true,
+        "tor_relay_enable": true
+      },
+      "outbound-standard": {
+        "behavior_sensitivity": 1,
+        "emergingthreats_enable": true,
+        "outbound_behavior_enable": true,
+        "spamhaus_enable": true
+      },
+      "resource-only": {
+        "severity_weight_behavior": 0,
+        "severity_weight_resource": 1,
+        "severity_weight_threat_list": 0
+      }
+    },
+    "openstack_instance_exporter_sha256": "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/sha256sums.txt",
+    "openstack_instance_exporter_version": "v1.3.0",
+    "openstack_instance_exporter_web_listen_address": ""
+  },
+  "tasks": [
+    {
+      "block": [
+        {
+          "ansible.builtin.assert": {
+            "fail_msg": "openstack_instance_exporter paths and profile must be valid; paths must be absolute, non-root, and traversal-free, and the log path must not contain glob metacharacters",
+            "that": [
+              "(openstack_instance_exporter_install_dir | string) == (openstack_instance_exporter_install_dir | string | trim)",
+              "(openstack_instance_exporter_install_dir | string | trim) is match('^/')",
+              "((openstack_instance_exporter_install_dir | string | trim) | regex_replace('/+', '/')) != '/'",
+              "((openstack_instance_exporter_install_dir | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_customlist_path is not defined or (openstack_instance_exporter_customlist_path | string) == (openstack_instance_exporter_customlist_path | string | trim)",
+              "openstack_instance_exporter_customlist_path is not defined or (openstack_instance_exporter_customlist_path | string | trim) is match('^/')",
+              "openstack_instance_exporter_customlist_path is not defined or ((openstack_instance_exporter_customlist_path | string | trim) | regex_replace('/+', '/')) != '/'",
+              "openstack_instance_exporter_customlist_path is not defined or ((openstack_instance_exporter_customlist_path | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_behavior_ports_config_path is not defined or (openstack_instance_exporter_behavior_ports_config_path | string) == (openstack_instance_exporter_behavior_ports_config_path | string | trim)",
+              "openstack_instance_exporter_behavior_ports_config_path is not defined or (openstack_instance_exporter_behavior_ports_config_path | string | trim) is match('^/')",
+              "openstack_instance_exporter_behavior_ports_config_path is not defined or ((openstack_instance_exporter_behavior_ports_config_path | string | trim) | regex_replace('/+', '/')) != '/'",
+              "openstack_instance_exporter_behavior_ports_config_path is not defined or ((openstack_instance_exporter_behavior_ports_config_path | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_behavior_rules_config_path is not defined or (openstack_instance_exporter_behavior_rules_config_path | string) == (openstack_instance_exporter_behavior_rules_config_path | string | trim)",
+              "openstack_instance_exporter_behavior_rules_config_path is not defined or (openstack_instance_exporter_behavior_rules_config_path | string | trim) is match('^/')",
+              "openstack_instance_exporter_behavior_rules_config_path is not defined or ((openstack_instance_exporter_behavior_rules_config_path | string | trim) | regex_replace('/+', '/')) != '/'",
+              "openstack_instance_exporter_behavior_rules_config_path is not defined or ((openstack_instance_exporter_behavior_rules_config_path | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_log_file_path is not defined or (openstack_instance_exporter_log_file_path | string) == (openstack_instance_exporter_log_file_path | string | trim)",
+              "openstack_instance_exporter_log_file_path is not defined or (openstack_instance_exporter_log_file_path | string | trim) is match('^/')",
+              "openstack_instance_exporter_log_file_path is not defined or ((openstack_instance_exporter_log_file_path | string | trim) | regex_replace('/+', '/')) != '/'",
+              "openstack_instance_exporter_log_file_path is not defined or ((openstack_instance_exporter_log_file_path | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_log_file_path is not defined or '*' not in (openstack_instance_exporter_log_file_path | string | trim)",
+              "openstack_instance_exporter_log_file_path is not defined or '?' not in (openstack_instance_exporter_log_file_path | string | trim)",
+              "openstack_instance_exporter_log_file_path is not defined or '[' not in (openstack_instance_exporter_log_file_path | string | trim)",
+              "openstack_instance_exporter_profile in (['disabled'] + (openstack_instance_exporter_profile_defaults.keys() | list))"
+            ]
+          },
+          "name": "Validate safe openstack_instance_exporter installation paths"
+        },
+        {
+          "ansible.builtin.stat": {
+            "path": "{{ item }}"
+          },
+          "become": true,
+          "loop": [
+            "{{ openstack_instance_exporter_customlist_path | default('') }}",
+            "{{ openstack_instance_exporter_behavior_ports_config_path | default('') }}",
+            "{{ openstack_instance_exporter_behavior_rules_config_path | default('') }}",
+            "{{ openstack_instance_exporter_log_file_path | default('') }}"
+          ],
+          "name": "Inspect openstack_instance_exporter file-valued paths before installation changes",
+          "register": "oie_install_file_path_stats",
+          "when": "item | length \u003e 0"
+        },
+        {
+          "ansible.builtin.assert": {
+            "fail_msg": "openstack_instance_exporter custom, behavior, and log paths must identify files, not directories",
+            "that": [
+              "not (item.stat.isdir | default(false))"
+            ]
+          },
+          "loop": "{{ oie_install_file_path_stats.results | default([]) }}",
+          "name": "Reject directory-valued openstack_instance_exporter installation paths",
+          "when": "not (item.skipped | default(false))"
+        },
+        {
+          "ansible.builtin.stat": {
+            "follow": false,
+            "path": "{{ openstack_instance_exporter_install_dir }}"
+          },
+          "become": true,
+          "name": "Inspect openstack_instance_exporter installation directory before installation changes",
+          "register": "oie_install_dir_stat"
+        },
+        {
+          "ansible.builtin.assert": {
+            "fail_msg": "openstack_instance_exporter_install_dir exists but is not a real directory",
+            "that": [
+              "not (oie_install_dir_stat.stat.exists | default(false)) or ((oie_install_dir_stat.stat.isdir | default(false)) and not (oie_install_dir_stat.stat.islnk | default(false)))"
+            ]
+          },
+          "name": "Reject an unsafe existing openstack_instance_exporter installation path"
+        },
+        {
+          "ansible.builtin.assert": {
+            "fail_msg": "openstack_instance_exporter release artifacts support amd64 hosts only",
+            "that": [
+              "openstack_instance_exporter_architecture == 'amd64'"
+            ]
+          },
+          "name": "Validate supported openstack_instance_exporter architecture"
+        },
+        {
+          "ansible.posix.sysctl": {
+            "name": "net.netfilter.nf_conntrack_acct",
+            "reload": true,
+            "state": "present",
+            "sysctl_set": true,
+            "value": "{{ openstack_instance_exporter_nf_conntrack_acct_value }}"
+          },
+          "become": true,
+          "name": "Enable nf_conntrack_acct",
+          "notify": "Restart openstack_instance_exporter service",
+          "when": "openstack_instance_exporter_nf_conntrack_acct_enable"
+        },
+        {
+          "ansible.builtin.file": {
+            "group": "root",
+            "mode": "0755",
+            "owner": "root",
+            "path": "{{ openstack_instance_exporter_install_dir }}",
+            "state": "directory"
+          },
+          "become": true,
+          "name": "Ensure the openstack_instance_exporter install directory exists"
+        },
+        {
+          "ansible.builtin.get_url": {
+            "checksum": "sha256:{{ openstack_instance_exporter_sha256 }}",
+            "dest": "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter.tar.xz",
+            "group": "root",
+            "mode": "0644",
+            "owner": "root",
+            "url": "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/openstack_instance_exporter-{{ openstack_instance_exporter_version }}-linux-{{ openstack_instance_exporter_architecture }}.tar.xz"
+          },
+          "become": true,
+          "name": "Download openstack_instance_exporter tarball",
+          "register": "oie_tar_download_result"
+        },
+        {
+          "ansible.builtin.stat": {
+            "follow": false,
+            "path": "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter"
+          },
+          "become": true,
+          "name": "Inspect installed openstack_instance_exporter binary",
+          "register": "oie_installed_binary"
+        },
+        {
+          "ansible.builtin.unarchive": {
+            "dest": "{{ openstack_instance_exporter_install_dir }}",
+            "remote_src": "yes",
+            "src": "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter.tar.xz"
+          },
+          "become": true,
+          "name": "Extract openstack_instance_exporter tarball",
+          "notify": "Restart openstack_instance_exporter service",
+          "when": "oie_tar_download_result.changed or not ((oie_installed_binary.stat.isreg | default(false)) and (oie_installed_binary.stat.executable | default(false)) and ((oie_installed_binary.stat.size | default(0) | int) \u003e 0))"
+        },
+        {
+          "ansible.builtin.template": {
+            "dest": "/etc/systemd/system/openstack_instance_exporter.service",
+            "group": "root",
+            "mode": "0640",
+            "owner": "root",
+            "src": "openstack_instance_exporter.service.j2"
+          },
+          "become": true,
+          "name": "Create systemd service file for openstack_instance_exporter",
+          "notify": "Restart openstack_instance_exporter service",
+          "register": "oie_template_result"
+        },
+        {
+          "ansible.builtin.copy": {
+            "content": "{{ openstack_instance_exporter_logrotate_content }}",
+            "dest": "/etc/logrotate.d/openstack_instance_exporter",
+            "group": "root",
+            "mode": "0644",
+            "owner": "root"
+          },
+          "become": true,
+          "name": "Install openstack_instance_exporter logrotate rules",
+          "when": "openstack_instance_exporter_log_file_enable | default(false) | bool"
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "/etc/logrotate.d/openstack_instance_exporter",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove openstack_instance_exporter logrotate rules when file logging is disabled",
+          "when": "not (openstack_instance_exporter_log_file_enable | default(false) | bool)"
+        },
+        {
+          "ansible.builtin.copy": {
+            "content": "{{ openstack_instance_exporter_custom_ip_list | join('\n') ~ '\n' }}",
+            "dest": "{{ openstack_instance_exporter_customlist_path }}",
+            "group": "root",
+            "mode": "0644",
+            "owner": "root"
+          },
+          "become": true,
+          "name": "Write custom IP list from variable",
+          "notify": "Restart openstack_instance_exporter service",
+          "when": [
+            "openstack_instance_exporter_customlist_path is defined",
+            "openstack_instance_exporter_custom_ip_list is defined",
+            "openstack_instance_exporter_custom_ip_list | length \u003e 0"
+          ]
+        },
+        {
+          "ansible.builtin.copy": {
+            "dest": "{{ openstack_instance_exporter_customlist_path }}",
+            "group": "root",
+            "mode": "0644",
+            "owner": "root",
+            "src": "{{ openstack_instance_exporter_customlist_src }}"
+          },
+          "become": true,
+          "name": "Copy custom IP list file",
+          "notify": "Restart openstack_instance_exporter service",
+          "when": [
+            "openstack_instance_exporter_customlist_path is defined",
+            "openstack_instance_exporter_customlist_src is defined",
+            "openstack_instance_exporter_custom_ip_list is not defined or openstack_instance_exporter_custom_ip_list | length == 0"
+          ]
+        },
+        {
+          "ansible.builtin.copy": {
+            "content": "{{ openstack_instance_exporter_behavior_ports_config_yaml | trim ~ '\n' }}",
+            "dest": "{{ openstack_instance_exporter_behavior_ports_config_path }}",
+            "group": "root",
+            "mode": "0644",
+            "owner": "root"
+          },
+          "become": true,
+          "name": "Render behavior ports configuration from inline YAML",
+          "notify": "Restart openstack_instance_exporter service",
+          "when": [
+            "openstack_instance_exporter_behavior_ports_config_path is defined",
+            "openstack_instance_exporter_behavior_ports_config_yaml is defined",
+            "openstack_instance_exporter_behavior_ports_config_yaml | trim | length \u003e 0"
+          ]
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "{{ openstack_instance_exporter_behavior_ports_config_path }}",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove behavior ports configuration when inline YAML is empty",
+          "notify": "Restart openstack_instance_exporter service",
+          "when": [
+            "openstack_instance_exporter_behavior_ports_config_path is defined",
+            "openstack_instance_exporter_behavior_ports_config_yaml is not defined or openstack_instance_exporter_behavior_ports_config_yaml | trim | length == 0"
+          ]
+        },
+        {
+          "ansible.builtin.copy": {
+            "content": "{{ openstack_instance_exporter_behavior_rules_config_yaml | trim ~ '\n' }}",
+            "dest": "{{ openstack_instance_exporter_behavior_rules_config_path }}",
+            "group": "root",
+            "mode": "0644",
+            "owner": "root"
+          },
+          "become": true,
+          "name": "Render behavior rules configuration from inline YAML",
+          "notify": "Restart openstack_instance_exporter service",
+          "when": [
+            "openstack_instance_exporter_behavior_rules_config_path is defined",
+            "openstack_instance_exporter_behavior_rules_config_yaml is defined",
+            "openstack_instance_exporter_behavior_rules_config_yaml | trim | length \u003e 0"
+          ]
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "{{ openstack_instance_exporter_behavior_rules_config_path }}",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove behavior rules configuration when inline YAML is empty",
+          "notify": "Restart openstack_instance_exporter service",
+          "when": [
+            "openstack_instance_exporter_behavior_rules_config_path is defined",
+            "openstack_instance_exporter_behavior_rules_config_yaml is not defined or openstack_instance_exporter_behavior_rules_config_yaml | trim | length == 0"
+          ]
+        },
+        {
+          "ansible.builtin.systemd": {
+            "daemon_reload": "yes",
+            "name": "openstack_instance_exporter"
+          },
+          "become": true,
+          "name": "Reload openstack_instance_exporter service if changed",
+          "when": "oie_tar_download_result.changed or oie_template_result.changed"
+        },
+        {
+          "ansible.builtin.systemd": {
+            "enabled": "yes",
+            "name": "openstack_instance_exporter",
+            "state": "started"
+          },
+          "become": true,
+          "name": "Enable and start openstack_instance_exporter service"
+        }
+      ],
+      "name": "Installation and Configuration",
+      "tags": "install_oie",
+      "when": [
+        "'cleanup_oie' not in ansible_run_tags",
+        "openstack_instance_exporter_enabled | bool"
+      ]
+    },
+    {
+      "block": [
+        {
+          "ansible.builtin.stat": {
+            "path": "/etc/systemd/system/openstack_instance_exporter.service"
+          },
+          "become": true,
+          "name": "Check whether the openstack_instance_exporter service exists",
+          "register": "oie_disabled_service_file"
+        },
+        {
+          "ansible.builtin.systemd": {
+            "enabled": "no",
+            "name": "openstack_instance_exporter",
+            "state": "stopped"
+          },
+          "become": true,
+          "name": "Stop and disable the openstack_instance_exporter service",
+          "when": "oie_disabled_service_file.stat.exists"
+        }
+      ],
+      "name": "Disable openstack_instance_exporter when not enabled",
+      "tags": "install_oie",
+      "when": [
+        "'cleanup_oie' not in ansible_run_tags",
+        "not (openstack_instance_exporter_enabled | bool)"
+      ]
+    },
+    {
+      "block": [
+        {
+          "ansible.builtin.assert": {
+            "fail_msg": "openstack_instance_exporter paths must be absolute, non-root, and traversal-free; the log path must not contain glob metacharacters",
+            "that": [
+              "(openstack_instance_exporter_install_dir | string) == (openstack_instance_exporter_install_dir | string | trim)",
+              "(openstack_instance_exporter_install_dir | string | trim) is match('^/')",
+              "((openstack_instance_exporter_install_dir | string | trim) | regex_replace('/+', '/')) != '/'",
+              "((openstack_instance_exporter_install_dir | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_customlist_path is not defined or (openstack_instance_exporter_customlist_path | string) == (openstack_instance_exporter_customlist_path | string | trim)",
+              "openstack_instance_exporter_customlist_path is not defined or (openstack_instance_exporter_customlist_path | string | trim) is match('^/')",
+              "openstack_instance_exporter_customlist_path is not defined or ((openstack_instance_exporter_customlist_path | string | trim) | regex_replace('/+', '/')) != '/'",
+              "openstack_instance_exporter_customlist_path is not defined or ((openstack_instance_exporter_customlist_path | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_behavior_ports_config_path is not defined or (openstack_instance_exporter_behavior_ports_config_path | string) == (openstack_instance_exporter_behavior_ports_config_path | string | trim)",
+              "openstack_instance_exporter_behavior_ports_config_path is not defined or (openstack_instance_exporter_behavior_ports_config_path | string | trim) is match('^/')",
+              "openstack_instance_exporter_behavior_ports_config_path is not defined or ((openstack_instance_exporter_behavior_ports_config_path | string | trim) | regex_replace('/+', '/')) != '/'",
+              "openstack_instance_exporter_behavior_ports_config_path is not defined or ((openstack_instance_exporter_behavior_ports_config_path | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_behavior_rules_config_path is not defined or (openstack_instance_exporter_behavior_rules_config_path | string) == (openstack_instance_exporter_behavior_rules_config_path | string | trim)",
+              "openstack_instance_exporter_behavior_rules_config_path is not defined or (openstack_instance_exporter_behavior_rules_config_path | string | trim) is match('^/')",
+              "openstack_instance_exporter_behavior_rules_config_path is not defined or ((openstack_instance_exporter_behavior_rules_config_path | string | trim) | regex_replace('/+', '/')) != '/'",
+              "openstack_instance_exporter_behavior_rules_config_path is not defined or ((openstack_instance_exporter_behavior_rules_config_path | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_log_file_path is not defined or (openstack_instance_exporter_log_file_path | string) == (openstack_instance_exporter_log_file_path | string | trim)",
+              "openstack_instance_exporter_log_file_path is not defined or (openstack_instance_exporter_log_file_path | string | trim) is match('^/')",
+              "openstack_instance_exporter_log_file_path is not defined or ((openstack_instance_exporter_log_file_path | string | trim) | regex_replace('/+', '/')) != '/'",
+              "openstack_instance_exporter_log_file_path is not defined or ((openstack_instance_exporter_log_file_path | string | trim) | regex_search('(^|/)[.][.]?(/|$)')) is none",
+              "openstack_instance_exporter_log_file_path is not defined or '*' not in (openstack_instance_exporter_log_file_path | string | trim)",
+              "openstack_instance_exporter_log_file_path is not defined or '?' not in (openstack_instance_exporter_log_file_path | string | trim)",
+              "openstack_instance_exporter_log_file_path is not defined or '[' not in (openstack_instance_exporter_log_file_path | string | trim)"
+            ]
+          },
+          "name": "Validate safe openstack_instance_exporter cleanup paths"
+        },
+        {
+          "ansible.builtin.stat": {
+            "path": "{{ item }}"
+          },
+          "become": true,
+          "loop": [
+            "{{ openstack_instance_exporter_customlist_path | default('') }}",
+            "{{ openstack_instance_exporter_behavior_ports_config_path | default('') }}",
+            "{{ openstack_instance_exporter_behavior_rules_config_path | default('') }}",
+            "{{ openstack_instance_exporter_log_file_path | default('') }}",
+            "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter",
+            "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter.tar.xz"
+          ],
+          "name": "Inspect openstack_instance_exporter file-valued paths before cleanup",
+          "register": "oie_cleanup_file_path_stats",
+          "when": "item | length \u003e 0"
+        },
+        {
+          "ansible.builtin.assert": {
+            "fail_msg": "openstack_instance_exporter custom, behavior, log, and managed artifact paths must identify files, not directories",
+            "that": [
+              "not (item.stat.isdir | default(false))"
+            ]
+          },
+          "loop": "{{ oie_cleanup_file_path_stats.results | default([]) }}",
+          "name": "Reject directory-valued openstack_instance_exporter cleanup paths",
+          "when": "not (item.skipped | default(false))"
+        },
+        {
+          "ansible.builtin.stat": {
+            "follow": false,
+            "path": "{{ openstack_instance_exporter_install_dir }}"
+          },
+          "become": true,
+          "name": "Inspect openstack_instance_exporter installation directory before cleanup",
+          "register": "oie_cleanup_install_dir"
+        },
+        {
+          "ansible.builtin.assert": {
+            "fail_msg": "openstack_instance_exporter_install_dir exists but is not a real directory",
+            "that": [
+              "not (oie_cleanup_install_dir.stat.exists | default(false)) or ((oie_cleanup_install_dir.stat.isdir | default(false)) and not (oie_cleanup_install_dir.stat.islnk | default(false)))"
+            ]
+          },
+          "name": "Reject an unsafe existing openstack_instance_exporter cleanup path"
+        },
+        {
+          "ansible.builtin.stat": {
+            "path": "/etc/systemd/system/openstack_instance_exporter.service"
+          },
+          "become": true,
+          "name": "Check if openstack_instance_exporter service file exists",
+          "register": "oie_service_file"
+        },
+        {
+          "ansible.builtin.systemd": {
+            "enabled": "no",
+            "name": "openstack_instance_exporter",
+            "state": "stopped"
+          },
+          "become": true,
+          "name": "Ensure openstack_instance_exporter service is stopped and disabled",
+          "when": "oie_service_file.stat.exists"
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "/etc/systemd/system/openstack_instance_exporter.service",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove openstack_instance_exporter systemd service file",
+          "register": "service_file_removed"
+        },
+        {
+          "ansible.builtin.systemd": {
+            "daemon_reload": "yes"
+          },
+          "become": true,
+          "name": "Reload systemd daemon if service file was removed",
+          "when": "service_file_removed.changed"
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "/etc/logrotate.d/openstack_instance_exporter",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove openstack_instance_exporter logrotate configuration"
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "{{ openstack_instance_exporter_customlist_path }}",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove custom IP list file (if path is defined)",
+          "when": "openstack_instance_exporter_customlist_path is defined"
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "{{ openstack_instance_exporter_behavior_ports_config_path }}",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove behavior ports config file",
+          "when": "openstack_instance_exporter_behavior_ports_config_path is defined"
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "{{ openstack_instance_exporter_behavior_rules_config_path }}",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove behavior rules config file",
+          "when": "openstack_instance_exporter_behavior_rules_config_path is defined"
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "{{ openstack_instance_exporter_log_file_path }}",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove configured openstack_instance_exporter log file",
+          "when": [
+            "openstack_instance_exporter_log_file_path is defined",
+            "openstack_instance_exporter_log_file_path | length \u003e 1"
+          ]
+        },
+        {
+          "ansible.builtin.find": {
+            "file_type": "file",
+            "hidden": true,
+            "paths": "{{ openstack_instance_exporter_log_file_path | dirname }}",
+            "patterns": "^{{ openstack_instance_exporter_log_file_path | basename | regex_escape }}\\.[0-9]+(?:\\.gz)?$",
+            "recurse": false,
+            "use_regex": true
+          },
+          "become": true,
+          "name": "Find standard openstack_instance_exporter log files",
+          "register": "oie_log_files",
+          "when": [
+            "openstack_instance_exporter_log_file_path is defined",
+            "openstack_instance_exporter_log_file_path | length \u003e 1"
+          ]
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "{{ item.path }}",
+            "state": "absent"
+          },
+          "become": true,
+          "loop": "{{ oie_log_files.files | default([]) }}",
+          "loop_control": {
+            "label": "{{ item.path }}"
+          },
+          "name": "Remove standard openstack_instance_exporter log files"
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "{{ item }}",
+            "state": "absent"
+          },
+          "become": true,
+          "loop": [
+            "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter",
+            "{{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter.tar.xz"
+          ],
+          "name": "Remove managed openstack_instance_exporter installation artifacts",
+          "when": "oie_cleanup_install_dir.stat.isdir | default(false)"
+        },
+        {
+          "ansible.builtin.find": {
+            "file_type": "any",
+            "follow": false,
+            "hidden": true,
+            "paths": "{{ openstack_instance_exporter_install_dir }}",
+            "recurse": true
+          },
+          "become": true,
+          "name": "Inspect openstack_instance_exporter installation directory for unmanaged content",
+          "register": "oie_unmanaged_install_entries",
+          "when": "oie_cleanup_install_dir.stat.isdir | default(false)"
+        },
+        {
+          "ansible.builtin.assert": {
+            "fail_msg": "openstack_instance_exporter_install_dir contains unmanaged content or could not be inspected completely and will not be removed",
+            "that": [
+              "(oie_unmanaged_install_entries.files | default([]) | length) == 0",
+              "(oie_unmanaged_install_entries.skipped_paths | default({}) | length) == 0"
+            ]
+          },
+          "name": "Refuse removal of an installation directory containing unmanaged content",
+          "when": "oie_cleanup_install_dir.stat.isdir | default(false)"
+        },
+        {
+          "ansible.builtin.file": {
+            "path": "{{ openstack_instance_exporter_install_dir }}",
+            "state": "absent"
+          },
+          "become": true,
+          "name": "Remove the empty openstack_instance_exporter installation directory",
+          "when": [
+            "oie_cleanup_install_dir.stat.isdir | default(false)",
+            "(oie_unmanaged_install_entries.files | default([]) | length) == 0",
+            "(oie_unmanaged_install_entries.skipped_paths | default({}) | length) == 0"
+          ]
+        }
+      ],
+      "name": "OpenStack Instance Exporter Cleanup Tasks",
+      "tags": "never, cleanup_oie",
+      "when": "'cleanup_oie' in ansible_run_tags"
+    }
+  ],
+  "handlers": [
+    {
+      "ansible.builtin.systemd": {
+        "name": "openstack_instance_exporter",
+        "state": "restarted"
+      },
+      "become": true,
+      "name": "Restart openstack_instance_exporter service"
+    }
+  ]
+}

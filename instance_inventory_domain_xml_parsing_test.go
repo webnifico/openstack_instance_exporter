@@ -99,3 +99,27 @@ func TestParseDomainStaticFromXMLNameFallback(t *testing.T) {
 		t.Fatalf("meta.Name=%q want %q", meta.Name, "dom-fallback")
 	}
 }
+
+func TestParseDomainStaticDeduplicatesAndValidatesFixedIPs(t *testing.T) {
+	xmlDesc := `<domain><metadata><instance><name>vm</name><ports>
+<port uuid="port-a"><ip address="10.0.0.5" ipVersion="4"></ip><ip address="not-an-ip" ipVersion="4"></ip></port>
+<port uuid="port-b"><ip address="10.0.0.5" ipVersion="4"></ip><ip address="2001:db8::5"></ip></port>
+<port uuid="port-b"><ip address="2001:0db8:0:0:0:0:0:5" ipVersion="6"></ip></port>
+</ports></instance></metadata></domain>`
+	meta, err := parseDomainStaticFromXML("inst-uuid", "dom", xmlDesc)
+	if err != nil {
+		t.Fatalf("parseDomainStaticFromXML error: %v", err)
+	}
+	if len(meta.FixedIPs) != 2 {
+		t.Fatalf("duplicate or invalid fixed IPs survived: %#v", meta.FixedIPs)
+	}
+	if meta.FixedIPs[0].Address != "10.0.0.5" || meta.FixedIPs[0].Family != "4" {
+		t.Fatalf("unexpected IPv4 identity: %#v", meta.FixedIPs[0])
+	}
+	if meta.FixedIPs[1].Address != "2001:db8::5" || meta.FixedIPs[1].Family != "6" {
+		t.Fatalf("IPv6 family/canonicalization incorrect: %#v", meta.FixedIPs[1])
+	}
+	if !reflect.DeepEqual(meta.PortUUIDs, []string{"port-a", "port-b"}) {
+		t.Fatalf("duplicate port UUIDs survived: %#v", meta.PortUUIDs)
+	}
+}
