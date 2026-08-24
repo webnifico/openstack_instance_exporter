@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"math"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,6 +25,129 @@ import (
 )
 
 func main() {
+	os.Exit(runMain())
+}
+
+func validateStartupScalarFlags(behaviorSensitivity, resourceWeight, behaviorWeight, threatWeight float64) error {
+	for _, value := range []struct {
+		name  string
+		value float64
+	}{
+		{name: "behavior.sensitivity", value: behaviorSensitivity},
+		{name: "severity.weight.resource", value: resourceWeight},
+		{name: "severity.weight.behavior", value: behaviorWeight},
+		{name: "severity.weight.threat_list", value: threatWeight},
+	} {
+		if math.IsNaN(value.value) || math.IsInf(value.value, 0) {
+			return fmt.Errorf("%s must be finite", value.name)
+		}
+	}
+	return nil
+}
+
+type startupRuntimeFlags struct {
+	listenAddress               string
+	collectionInterval          time.Duration
+	workerCount                 int
+	behaviorEWMATauFast         time.Duration
+	behaviorEWMATauSlow         time.Duration
+	conntrackRawRcvBufBytes     int
+	conntrackNetlinkRecvTimeout time.Duration
+	threatLogMinInterval        time.Duration
+	threats                     CollectorConfig
+}
+
+func validateThreatFeedURL(name, rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil {
+		return fmt.Errorf("%s must be an HTTP(S) URL without embedded credentials", name)
+	}
+	return nil
+}
+
+func validateStartupRuntimeFlags(values startupRuntimeFlags) error {
+	if strings.TrimSpace(values.listenAddress) == "" {
+		return fmt.Errorf("web.listen-address must not be empty")
+	}
+	if values.collectionInterval <= 0 {
+		return fmt.Errorf("collection.interval must be greater than zero")
+	}
+	if values.workerCount < 0 {
+		return fmt.Errorf("worker.count must be zero or greater")
+	}
+	if values.behaviorEWMATauFast <= 0 {
+		return fmt.Errorf("behavior.ewma_fast_tau must be greater than zero")
+	}
+	if values.behaviorEWMATauSlow <= 0 {
+		return fmt.Errorf("behavior.ewma_slow_tau must be greater than zero")
+	}
+	if values.behaviorEWMATauFast >= values.behaviorEWMATauSlow {
+		return fmt.Errorf("behavior.ewma_fast_tau must be less than behavior.ewma_slow_tau")
+	}
+	if values.conntrackRawRcvBufBytes < 0 {
+		return fmt.Errorf("conntrack.raw.rcvbuf_bytes must be zero or greater")
+	}
+	if values.conntrackNetlinkRecvTimeout <= 0 {
+		return fmt.Errorf("conntrack.raw.rcv_timeout must be greater than zero")
+	}
+	if values.threatLogMinInterval < 0 {
+		return fmt.Errorf("threat.log.min_interval must be zero or greater")
+	}
+
+	validateProvider := func(enabled bool, prefix, urlFlag, rawURL string, refresh time.Duration) error {
+		if !enabled {
+			return nil
+		}
+		if refresh < 0 {
+			return fmt.Errorf("%s.refresh must be zero or greater", prefix)
+		}
+		return validateThreatFeedURL(urlFlag, rawURL)
+	}
+	if err := validateProvider(values.threats.TorExit.Enable, "tor.exit", "tor.exit.url", values.threats.TorExit.URL, values.threats.TorExit.Refresh); err != nil {
+		return err
+	}
+	if err := validateProvider(values.threats.TorRelay.Enable, "tor.relay", "tor.relay.url", values.threats.TorRelay.URL, values.threats.TorRelay.Refresh); err != nil {
+		return err
+	}
+	if err := validateProvider(values.threats.Emerging.Enable, "emergingthreats", "emergingthreats.url", values.threats.Emerging.URL, values.threats.Emerging.Refresh); err != nil {
+		return err
+	}
+	if values.threats.Spamhaus.Enable {
+		if values.threats.Spamhaus.Refresh < 0 {
+			return fmt.Errorf("spamhaus refresh interval must be zero or greater")
+		}
+		configured := 0
+		if strings.TrimSpace(values.threats.Spamhaus.URLv4) != "" {
+			configured++
+			if err := validateThreatFeedURL("spamhaus.url", values.threats.Spamhaus.URLv4); err != nil {
+				return err
+			}
+		}
+		if strings.TrimSpace(values.threats.Spamhaus.URLv6) != "" {
+			configured++
+			if err := validateThreatFeedURL("spamhaus.ipv6.url", values.threats.Spamhaus.URLv6); err != nil {
+				return err
+			}
+		}
+		if configured == 0 {
+			return fmt.Errorf("spamhaus requires at least one configured feed URL")
+		}
+	}
+	if values.threats.Custom.Enable {
+		if values.threats.Custom.Refresh < 0 {
+			return fmt.Errorf("customlist refresh interval must be zero or greater")
+		}
+		if strings.TrimSpace(values.threats.Custom.Path) == "" {
+			return fmt.Errorf("customlist.path must not be empty when customlist is enabled")
+		}
+		if strings.IndexByte(values.threats.Custom.Path, 0) >= 0 {
+			return fmt.Errorf("customlist.path contains a NUL byte")
+		}
+	}
+	return nil
+}
+
+func runMain() int {
 	var (
 		listenAddress, metricsPath, libvirtURI, logLevelFlag, logFilePath          string
 		hostInterfacesCSV, contactsDirection                                       string
@@ -113,7 +240,35 @@ func main() {
 	flag.StringVar(&logLevelFlag, "log.level", "info", "Log level (debug, info, warn, error; notice is accepted as an alias for warn)")
 	flag.DurationVar(&threatLogMinInterval, "threat.log.min_interval", 5*time.Minute, "Throttle repeated threat/behavior notice logs")
 
-	flag.Parse()
+	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
+		return 2
+	}
+	if err := validateStartupScalarFlags(behaviorSensitivity, wResource, wBehavior, wThreat); err != nil {
+		InitLogging(logLevelFlag, logFilePath, logFileEnable)
+		logMain.Error("invalid_startup_configuration", "err", err)
+		return 2
+	}
+	if err := validateStartupRuntimeFlags(startupRuntimeFlags{
+		listenAddress:               listenAddress,
+		collectionInterval:          collectionInterval,
+		workerCount:                 workerCount,
+		behaviorEWMATauFast:         behaviorEWMATauFast,
+		behaviorEWMATauSlow:         behaviorEWMATauSlow,
+		conntrackRawRcvBufBytes:     conntrackRawRcvBufBytes,
+		conntrackNetlinkRecvTimeout: conntrackNetlinkRecvTimeout,
+		threatLogMinInterval:        threatLogMinInterval,
+		threats:                     cfg,
+	}); err != nil {
+		InitLogging(logLevelFlag, logFilePath, logFileEnable)
+		logMain.Error("invalid_startup_configuration", "err", err)
+		return 2
+	}
+	if behaviorSensitivity < 0.1 {
+		behaviorSensitivity = 0.1
+	}
+	if behaviorSensitivity > 10.0 {
+		behaviorSensitivity = 10.0
+	}
 
 	cfg.ThreatLogMinInterval = threatLogMinInterval
 
@@ -123,10 +278,7 @@ func main() {
 	appliedLogLevel := InitLogging(logLevelFlag, logFilePath, logFileEnable)
 	logMain.Info("exporter_startup", "log_level_requested", logLevelFlag, "log_level_applied", appliedLogLevel)
 
-	effectiveWorkers := workerCount
-	if effectiveWorkers <= 0 {
-		effectiveWorkers = runtime.NumCPU()
-	}
+	effectiveWorkers := effectiveDomainWorkerCount(workerCount)
 	logMain.Info("startup_config",
 		"listen_address", listenAddress,
 		"metrics_path", metricsPath,
@@ -189,6 +341,7 @@ func main() {
 			"outbound_ports", portsStatus.OutboundPorts,
 			"err", portsStatus.Err,
 		)
+		return 2
 	}
 
 	externalRules, rulesStatus := LoadBehaviorExternalRules(behaviorRulesConfigPath)
@@ -212,6 +365,7 @@ func main() {
 			"port_sets", rulesStatus.PortSets,
 			"err", rulesStatus.Err,
 		)
+		return 2
 	}
 
 	defaultDir, err := parseContactDirection(contactsDirection)
@@ -221,11 +375,11 @@ func main() {
 			"value", contactsDirection,
 			"err", err,
 		)
-		os.Exit(2)
+		return 2
 	}
-	resolveDir := func(field, s string) ContactDirection {
+	resolveDir := func(field, s string) (ContactDirection, error) {
 		if s == "" {
-			return defaultDir
+			return defaultDir, nil
 		}
 		d, err := parseContactDirection(s)
 		if err != nil {
@@ -234,26 +388,30 @@ func main() {
 				"value", s,
 				"err", err,
 			)
-			os.Exit(2)
+			return ContactAny, err
 		}
-		return d
+		return d, nil
 	}
 
-	cfg.TorExit.Direction = resolveDir("dir_tor_exit", dirTorExit)
-	cfg.TorRelay.Direction = resolveDir("dir_tor_relay", dirTorRelay)
-	cfg.Emerging.Direction = resolveDir("dir_emerging", dirEmerging)
-	cfg.Custom.Direction = resolveDir("dir_custom", dirCustom)
-	cfg.Spamhaus.Direction = resolveDir("dir_spam", dirSpam)
+	var directionErr error
+	if cfg.TorExit.Direction, directionErr = resolveDir("dir_tor_exit", dirTorExit); directionErr != nil {
+		return 2
+	}
+	if cfg.TorRelay.Direction, directionErr = resolveDir("dir_tor_relay", dirTorRelay); directionErr != nil {
+		return 2
+	}
+	if cfg.Emerging.Direction, directionErr = resolveDir("dir_emerging", dirEmerging); directionErr != nil {
+		return 2
+	}
+	if cfg.Custom.Direction, directionErr = resolveDir("dir_custom", dirCustom); directionErr != nil {
+		return 2
+	}
+	if cfg.Spamhaus.Direction, directionErr = resolveDir("dir_spam", dirSpam); directionErr != nil {
+		return 2
+	}
 
 	if hostThreats && hostInterfacesCSV == "" {
 		hostInterfacesCSV = "bgp-nic"
-	}
-
-	if behaviorSensitivity < 0.1 {
-		behaviorSensitivity = 0.1
-	}
-	if behaviorSensitivity > 10.0 {
-		behaviorSensitivity = 10.0
 	}
 
 	cfg.LibvirtURI = libvirtURI
@@ -296,23 +454,33 @@ func main() {
 		logMain.Error("conntrack_acct_status_read_failed", "err", err)
 	}
 
+	if err := validateTelemetryPath(metricsPath); err != nil {
+		logHttpApp.Error("invalid_telemetry_path", "path", metricsPath, "err", err)
+		return 2
+	}
+
 	collector, err := NewMetricsCollector(cfg)
 	if err != nil {
 		logCollectorApp.Error("collector_create_failed", "err", err)
-		return
+		return 1
 	}
 	if collector == nil {
-		return
+		logCollectorApp.Error("collector_create_failed", "err", "collector is nil")
+		return 1
 	}
+	var stopCollector sync.Once
+	defer stopCollector.Do(func() { close(collector.shutdownChan) })
 
 	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(collector, collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}), collectors.NewGoCollector(), collectors.NewBuildInfoCollector())
+	registry.MustRegister(collector)
+	registry.MustRegister(defaultRuntimeCollectors()...)
 
-	http.Handle(metricsPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
-	http.HandleFunc("/debug/log-level", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.Handle(metricsPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	mux.HandleFunc("/debug/log-level", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost && r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
@@ -325,18 +493,105 @@ func main() {
 		}
 	})
 
-	srv := &http.Server{Addr: listenAddress}
-	go func() {
-		logHttpApp.Info("http_listen_start", "addr", listenAddress)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logHttpApp.Error("http_listen_failed", "err", err)
+	listener, err := listenForHTTP(listenAddress)
+	if err != nil {
+		logHttpApp.Error("http_listen_failed", "addr", listenAddress, "err", err)
+		return 1
+	}
+	srv := &http.Server{Addr: listenAddress, Handler: mux}
+	logHttpApp.Info("http_listen_start", "addr", listener.Addr().String())
+	if err := serveHTTPUntilShutdown(shutdownCtx, srv, listener, 10*time.Second); err != nil {
+		logHttpApp.Error("http_server_failed", "err", err)
+		return 1
+	}
+	logMain.Info("exporter_shutdown", "signal", shutdownCtx.Err())
+	return 0
+}
+
+func defaultRuntimeCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		collectors.NewGoCollector(),
+		collectors.NewBuildInfoCollector(),
+	}
+}
+
+func validateTelemetryPath(path string) (err error) {
+	if path == "" || !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("telemetry path must begin with /")
+	}
+	if path == "/" || strings.HasSuffix(path, "/") {
+		return fmt.Errorf("telemetry path must identify one exact endpoint")
+	}
+	if strings.ContainsAny(path, "?#{}") {
+		return fmt.Errorf("telemetry path must not contain a query, fragment, or wildcard pattern")
+	}
+	decoded, decodeErr := url.PathUnescape(path)
+	if decodeErr != nil || decoded != path {
+		return fmt.Errorf("telemetry path must be a literal unescaped URL path")
+	}
+	if path == "/debug/log-level" {
+		return fmt.Errorf("telemetry path conflicts with debug endpoint")
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("invalid telemetry path pattern: %v", recovered)
 		}
 	}()
+	probeMux := http.NewServeMux()
+	matched := false
+	probeMux.Handle(path, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		matched = true
+	}))
+	probeMux.Handle("/debug/log-level", http.NotFoundHandler())
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	probeMux.ServeHTTP(httptest.NewRecorder(), request)
+	if !matched {
+		return fmt.Errorf("telemetry path is not directly reachable without URL cleaning or query/fragment removal")
+	}
+	return nil
+}
 
-	<-shutdownCtx.Done()
-	logMain.Info("exporter_shutdown", "signal", shutdownCtx.Err())
-	close(collector.shutdownChan)
-	srv.Shutdown(context.Background())
+func listenForHTTP(address string) (net.Listener, error) {
+	return net.Listen("tcp", address)
+}
+
+func serveHTTPUntilShutdown(ctx context.Context, srv *http.Server, listener net.Listener, timeout time.Duration) error {
+	if ctx == nil || srv == nil || listener == nil {
+		return fmt.Errorf("HTTP lifecycle received nil input")
+	}
+	serveErr := make(chan error, 1)
+	go func() {
+		err := srv.Serve(listener)
+		if errors.Is(err, http.ErrServerClosed) {
+			err = nil
+		}
+		serveErr <- err
+	}()
+
+	select {
+	case err := <-serveErr:
+		if err == nil {
+			return fmt.Errorf("HTTP server stopped unexpectedly")
+		}
+		return err
+	case <-ctx.Done():
+	}
+
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		_ = srv.Close()
+		<-serveErr
+		return err
+	}
+	if err := <-serveErr; err != nil {
+		return err
+	}
+	return nil
 }
 
 // -----------------------------------------------------------------------------

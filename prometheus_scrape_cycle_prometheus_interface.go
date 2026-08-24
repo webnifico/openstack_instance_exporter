@@ -59,6 +59,9 @@ func (mc *MetricsCollector) describeHostMetrics(ch chan<- *prometheus.Desc) {
 func (mc *MetricsCollector) runCollectionCycle() []prometheus.Metric {
 	mc.collectionMu.Lock()
 	defer mc.collectionMu.Unlock()
+	if mc.collectionRunner != nil {
+		return mc.collectionRunner()
+	}
 
 	ch := make(chan prometheus.Metric, 1024)
 	metrics := make([]prometheus.Metric, 0, 1024)
@@ -81,37 +84,89 @@ func (mc *MetricsCollector) startBackgroundCollector() {
 	if interval <= 0 {
 		interval = 15 * time.Second
 	}
+	nextCollection := time.Now().Add(interval)
 
 	for {
-		t := time.NewTimer(interval)
-		select {
-		case <-mc.shutdownChan:
-			t.Stop()
+		if !waitForBackgroundCollectionDeadline(nextCollection, mc.shutdownChan) {
 			logCollectorMetric.Info("background_collector_shutdown")
 			return
-		case <-t.C:
 		}
 
 		metrics := mc.runCollectionCycle()
 		mc.cacheMu.Lock()
 		mc.cachedMetrics = metrics
+		mc.cacheInitialized = true
 		mc.cacheMu.Unlock()
+
+		nextCollection = advanceBackgroundCollectionDeadline(nextCollection, interval, time.Now())
 	}
 }
 
+func waitForBackgroundCollectionDeadline(deadline time.Time, shutdown <-chan struct{}) bool {
+	wait := time.Until(deadline)
+	if wait < 0 {
+		wait = 0
+	}
+	t := time.NewTimer(wait)
+	select {
+	case <-shutdown:
+		t.Stop()
+		return false
+	case <-t.C:
+	}
+
+	// If shutdown became ready with the timer, do not let select's random choice
+	// start another expensive collection after termination was requested.
+	select {
+	case <-shutdown:
+		return false
+	default:
+		return true
+	}
+}
+
+func advanceBackgroundCollectionDeadline(previous time.Time, interval time.Duration, now time.Time) time.Time {
+	next := previous.Add(interval)
+	if next.After(now) {
+		return next
+	}
+	missed := now.Sub(next)/interval + 1
+	return next.Add(missed * interval)
+}
+
+func (mc *MetricsCollector) cachedOrCollect() []prometheus.Metric {
+	mc.cacheMu.RLock()
+	cached := mc.cachedMetrics
+	initialized := mc.cacheInitialized
+	mc.cacheMu.RUnlock()
+	if initialized {
+		return cached
+	}
+
+	mc.initialCollectionMu.Lock()
+	defer mc.initialCollectionMu.Unlock()
+
+	mc.cacheMu.RLock()
+	cached = mc.cachedMetrics
+	initialized = mc.cacheInitialized
+	mc.cacheMu.RUnlock()
+	if initialized {
+		return cached
+	}
+
+	cached = mc.runCollectionCycle()
+	mc.cacheMu.Lock()
+	mc.cachedMetrics = cached
+	mc.cacheInitialized = true
+	mc.cacheMu.Unlock()
+	return cached
+}
+
 func (mc *MetricsCollector) Collect(ch chan<- prometheus.Metric) {
+	cached := mc.cachedOrCollect()
 	mc.backgroundOnce.Do(func() {
 		go mc.startBackgroundCollector()
 	})
-	mc.cacheMu.RLock()
-	cached := mc.cachedMetrics
-	mc.cacheMu.RUnlock()
-	if len(cached) == 0 {
-		cached = mc.runCollectionCycle()
-		mc.cacheMu.Lock()
-		mc.cachedMetrics = cached
-		mc.cacheMu.Unlock()
-	}
 	for _, m := range cached {
 		ch <- m
 	}

@@ -22,12 +22,21 @@ func (im *InstanceManager) getDomainMeta(dom libvirt.Domain, conn *libvirt.Libvi
 	if ok && meta != nil && time.Since(meta.LastUpdated) < 5*time.Minute {
 		return meta, nil
 	}
+	if conn == nil {
+		if meta != nil {
+			return meta, nil
+		}
+		return nil, fmt.Errorf("domain metadata unavailable for %s: libvirt connection is nil", instanceUUID)
+	}
 
 	im.xmlInflightMu.Lock()
 	if c, ok := im.xmlInflight[instanceUUID]; ok && c != nil {
 		im.xmlInflightMu.Unlock()
 		c.wg.Wait()
 		if c.err != nil {
+			if c.meta != nil {
+				return c.meta, nil
+			}
 			return c.meta, c.err
 		}
 		if c.meta != nil {
@@ -75,12 +84,20 @@ func (im *InstanceManager) getDomainMeta(dom libvirt.Domain, conn *libvirt.Libvi
 		xmlDesc, err = conn.DomainGetXMLDesc(dom, 0)
 	}
 	if err != nil {
+		if meta2 != nil {
+			c.meta = meta2
+			return meta2, nil
+		}
 		c.err = fmt.Errorf("failed to get domain XML description: %v", err)
 		return nil, c.err
 	}
 
 	meta, err = parseDomainStaticFromXML(instanceUUID, dom.Name, xmlDesc)
 	if err != nil {
+		if meta2 != nil {
+			c.meta = meta2
+			return meta2, nil
+		}
 		c.err = err
 		return nil, c.err
 	}
@@ -129,6 +146,7 @@ func (im *InstanceManager) updateVMIPIndex(instanceUUID string, fixedIPs []IP) {
 		return
 	}
 	keys := make([]IPKey, 0, len(fixedIPs))
+	seen := make(map[IPKey]struct{}, len(fixedIPs))
 	for _, ip := range fixedIPs {
 		if ip.Address == "" {
 			continue
@@ -137,20 +155,40 @@ func (im *InstanceManager) updateVMIPIndex(instanceUUID string, fixedIPs []IP) {
 		if k == (IPKey{}) {
 			continue
 		}
+		if _, exists := seen[k]; exists {
+			continue
+		}
+		seen[k] = struct{}{}
 		keys = append(keys, k)
 	}
 
 	im.vmIPIndexMu.Lock()
-	old := im.vmIPKeysByInstance[instanceUUID]
-	for _, k := range old {
-		delete(im.vmIPSet, k)
-		delete(im.vmIPToInstance, k)
+	if im.vmIPKeysByInstance == nil {
+		im.vmIPKeysByInstance = make(map[string][]IPKey)
+	}
+	if im.vmIPOwners == nil {
+		im.vmIPOwners = make(map[IPKey]map[string]struct{})
+	}
+	affected := make(map[IPKey]struct{}, len(im.vmIPKeysByInstance[instanceUUID])+len(keys))
+	for _, k := range im.vmIPKeysByInstance[instanceUUID] {
+		affected[k] = struct{}{}
+		owners := im.vmIPOwners[k]
+		delete(owners, instanceUUID)
+		if len(owners) == 0 {
+			delete(im.vmIPOwners, k)
+		}
 	}
 	for _, k := range keys {
-		im.vmIPSet[k] = struct{}{}
-		im.vmIPToInstance[k] = instanceUUID
+		affected[k] = struct{}{}
+		owners := im.vmIPOwners[k]
+		if owners == nil {
+			owners = make(map[string]struct{})
+			im.vmIPOwners[k] = owners
+		}
+		owners[instanceUUID] = struct{}{}
 	}
 	im.vmIPKeysByInstance[instanceUUID] = keys
+	im.projectVMIPKeysLocked(affected)
 	im.vmIPIndexMu.Unlock()
 }
 func (im *InstanceManager) removeVMIPIndex(instanceUUID string) {
@@ -158,13 +196,47 @@ func (im *InstanceManager) removeVMIPIndex(instanceUUID string) {
 		return
 	}
 	im.vmIPIndexMu.Lock()
-	old := im.vmIPKeysByInstance[instanceUUID]
-	for _, k := range old {
-		delete(im.vmIPSet, k)
-		delete(im.vmIPToInstance, k)
+	affected := make(map[IPKey]struct{}, len(im.vmIPKeysByInstance[instanceUUID]))
+	for _, k := range im.vmIPKeysByInstance[instanceUUID] {
+		affected[k] = struct{}{}
+		owners := im.vmIPOwners[k]
+		delete(owners, instanceUUID)
+		if len(owners) == 0 {
+			delete(im.vmIPOwners, k)
+		}
 	}
 	delete(im.vmIPKeysByInstance, instanceUUID)
+	im.projectVMIPKeysLocked(affected)
 	im.vmIPIndexMu.Unlock()
+}
+
+// projectVMIPKeysLocked updates the read-optimized indexes for addresses
+// changed by one instance. An empty projected owner marks an address as
+// ambiguous; the full incremental owner set retains enough information to
+// restore a sole owner when an overlap disappears.
+func (im *InstanceManager) projectVMIPKeysLocked(affected map[IPKey]struct{}) {
+	if im.vmIPSet == nil {
+		im.vmIPSet = make(map[IPKey]struct{})
+	}
+	if im.vmIPToInstance == nil {
+		im.vmIPToInstance = make(map[IPKey]string)
+	}
+	for affectedKey := range affected {
+		owners := im.vmIPOwners[affectedKey]
+		if len(owners) == 0 {
+			delete(im.vmIPSet, affectedKey)
+			delete(im.vmIPToInstance, affectedKey)
+			continue
+		}
+		im.vmIPSet[affectedKey] = struct{}{}
+		if len(owners) == 1 {
+			for owner := range owners {
+				im.vmIPToInstance[affectedKey] = owner
+			}
+		} else {
+			im.vmIPToInstance[affectedKey] = ""
+		}
+	}
 }
 func (im *InstanceManager) isInstanceActive(instanceUUID string) bool {
 	im.activeInstancesMu.RLock()

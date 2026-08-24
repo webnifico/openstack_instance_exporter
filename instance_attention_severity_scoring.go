@@ -7,7 +7,9 @@ import (
 
 type resourceAxisV2 struct {
 	EWMA        float64
+	Impact      float64
 	Initialized bool
+	LastUpdate  time.Time
 }
 type resourceV2State struct {
 	LastUpdate        time.Time
@@ -21,35 +23,41 @@ type resourceV2State struct {
 	LastCapActive     bool
 }
 type resourceAxisResult struct {
-	PRaw   float64
-	Conf   float64
-	Impact float64
-	PEff   float64
-	EWMA   float64
-	Sev    float64
-	Alpha  float64
-	Tau    float64
+	Available bool
+	PRaw      float64
+	Conf      float64
+	Impact    float64
+	PEff      float64
+	EWMA      float64
+	Sev       float64
+	Alpha     float64
+	Tau       float64
 }
 type resourceV2Input struct {
 	Now time.Time
 
-	CpuPRaw   float64
-	CpuConf   float64
-	CpuImpact float64
+	CpuAvailable bool
+	CpuPRaw      float64
+	CpuConf      float64
+	CpuImpact    float64
 
-	MemPRaw   float64
-	MemConf   float64
-	MemImpact float64
+	MemAvailable bool
+	MemPRaw      float64
+	MemConf      float64
+	MemImpact    float64
 
-	DiskPRaw   float64
-	DiskConf   float64
-	DiskImpact float64
+	DiskAvailable bool
+	DiskPRaw      float64
+	DiskConf      float64
+	DiskImpact    float64
 
-	NetPRaw   float64
-	NetConf   float64
-	NetImpact float64
+	NetAvailable bool
+	NetPRaw      float64
+	NetConf      float64
+	NetImpact    float64
 }
 type resourceV2Output struct {
+	Available            bool
 	DtSeconds            float64
 	OverallRaw           float64
 	OverallFinal         float64
@@ -65,24 +73,44 @@ type resourceV2Output struct {
 }
 
 func attentionSeverityWeighted(scoring SeverityConfig, resourceSeverity float64, resourceActive bool, behaviorScore float64, behaviorActive bool, threatSeverity float64, threatActive bool) float64 {
+	maxWeight := 0.0
+	if resourceActive && scoring.ResourceWeight > maxWeight {
+		maxWeight = scoring.ResourceWeight
+	}
+	if behaviorActive && scoring.BehaviorWeight > maxWeight {
+		maxWeight = scoring.BehaviorWeight
+	}
+	if threatActive && scoring.ThreatWeight > maxWeight {
+		maxWeight = scoring.ThreatWeight
+	}
+	if maxWeight <= 0 {
+		return 0
+	}
+
 	totalW := 0.0
 	sum := 0.0
 	if resourceActive && scoring.ResourceWeight > 0 {
-		totalW += scoring.ResourceWeight
-		sum += resourceSeverity * scoring.ResourceWeight
+		weight := scoring.ResourceWeight / maxWeight
+		totalW += weight
+		sum += resourceSeverity * weight
 	}
 	if behaviorActive && scoring.BehaviorWeight > 0 {
-		totalW += scoring.BehaviorWeight
-		sum += behaviorScore * scoring.BehaviorWeight
+		weight := scoring.BehaviorWeight / maxWeight
+		totalW += weight
+		sum += behaviorScore * weight
 	}
 	if threatActive && scoring.ThreatWeight > 0 {
-		totalW += scoring.ThreatWeight
-		sum += threatSeverity * scoring.ThreatWeight
-	}
-	if totalW <= 0 {
-		return 0
+		weight := scoring.ThreatWeight / maxWeight
+		totalW += weight
+		sum += threatSeverity * weight
 	}
 	return sum / totalW
+}
+
+func attentionInputsAvailable(scoring SeverityConfig, resourceActive, behaviorActive, threatActive bool) bool {
+	return (resourceActive && scoring.ResourceWeight > 0) ||
+		(behaviorActive && scoring.BehaviorWeight > 0) ||
+		(threatActive && scoring.ThreatWeight > 0)
 }
 
 func updateAxisV2(a *resourceAxisV2, pEff, dtSeconds, riseTau, fallTau float64) (ewmaOut, alphaOut, tauUsed float64) {
@@ -165,6 +193,26 @@ func topAxisName(cpu, mem, disk, net float64) string {
 	}
 	return top
 }
+
+func topAvailableAxisName(cpu, mem, disk, net resourceAxisResult) string {
+	top := ""
+	value := -1.0
+	for _, candidate := range []struct {
+		name string
+		axis resourceAxisResult
+	}{
+		{name: "cpu", axis: cpu},
+		{name: "mem", axis: mem},
+		{name: "disk", axis: disk},
+		{name: "net", axis: net},
+	} {
+		if candidate.axis.Available && candidate.axis.Sev > value {
+			top = candidate.name
+			value = candidate.axis.Sev
+		}
+	}
+	return top
+}
 func (mc *MetricsCollector) getResourceV2State(instanceUUID string) *resourceV2State {
 	mc.resourceV2Mu.Lock()
 	defer mc.resourceV2Mu.Unlock()
@@ -196,13 +244,18 @@ func (mc *MetricsCollector) computeResourceV2(instanceUUID string, in resourceV2
 
 	now := in.Now
 	dt := mc.collectionInterval.Seconds()
+	anyFresh := in.CpuAvailable || in.MemAvailable || in.DiskAvailable || in.NetAvailable
 	if !s.LastUpdate.IsZero() {
-		d := now.Sub(s.LastUpdate).Seconds()
-		if d > 0 && d < 300 {
+		if d := now.Sub(s.LastUpdate).Seconds(); d > 0 {
 			dt = d
 		}
 	}
-	s.LastUpdate = now
+	if dt <= 0 {
+		dt = 1
+	}
+	if anyFresh {
+		s.LastUpdate = now
+	}
 	out.DtSeconds = dt
 
 	const power = 2.0
@@ -217,31 +270,41 @@ func (mc *MetricsCollector) computeResourceV2(instanceUUID string, in resourceV2
 	const netRiseTau = 30.0
 	const netFallTau = 120.0
 
-	pEffCPU := clamp01(in.CpuPRaw * clamp01(in.CpuConf))
-	pEffMEM := clamp01(in.MemPRaw * clamp01(in.MemConf))
-	pEffDISK := clamp01(in.DiskPRaw * clamp01(in.DiskConf))
-	pEffNET := clamp01(in.NetPRaw * clamp01(in.NetConf))
+	updateAxis := func(state *resourceAxisV2, available bool, pRaw, conf, impact, riseTau, fallTau float64) resourceAxisResult {
+		result := resourceAxisResult{PRaw: clamp01(pRaw), Conf: clamp01(conf), Impact: clamp01(impact)}
+		if available {
+			result.PEff = clamp01(result.PRaw * result.Conf)
+			state.Impact = result.Impact
+			axisDT := mc.collectionInterval.Seconds()
+			if !state.LastUpdate.IsZero() {
+				if elapsed := now.Sub(state.LastUpdate).Seconds(); elapsed > 0 {
+					axisDT = elapsed
+				}
+			}
+			if axisDT <= 0 {
+				axisDT = 1
+			}
+			ew, alpha, tau := updateAxisV2(state, result.PEff, axisDT, riseTau, fallTau)
+			state.LastUpdate = now
+			result.Available = true
+			result.EWMA, result.Alpha, result.Tau = ew, alpha, tau
+			result.Sev = axisSeverityV2(ew, scale, power, state.Impact)
+			return result
+		}
+		if state.Initialized {
+			result.Available = true
+			result.Impact = state.Impact
+			result.EWMA = state.EWMA
+			result.Sev = axisSeverityV2(state.EWMA, scale, power, state.Impact)
+		}
+		return result
+	}
 
-	out.CPU = resourceAxisResult{PRaw: clamp01(in.CpuPRaw), Conf: clamp01(in.CpuConf), Impact: clamp01(in.CpuImpact), PEff: pEffCPU}
-	out.MEM = resourceAxisResult{PRaw: clamp01(in.MemPRaw), Conf: clamp01(in.MemConf), Impact: clamp01(in.MemImpact), PEff: pEffMEM}
-	out.DISK = resourceAxisResult{PRaw: clamp01(in.DiskPRaw), Conf: clamp01(in.DiskConf), Impact: clamp01(in.DiskImpact), PEff: pEffDISK}
-	out.NET = resourceAxisResult{PRaw: clamp01(in.NetPRaw), Conf: clamp01(in.NetConf), Impact: clamp01(in.NetImpact), PEff: pEffNET}
-
-	ew, a, tau := updateAxisV2(&s.Cpu, pEffCPU, dt, cpuRiseTau, cpuFallTau)
-	out.CPU.EWMA, out.CPU.Alpha, out.CPU.Tau = ew, a, tau
-	out.CPU.Sev = axisSeverityV2(ew, scale, power, out.CPU.Impact)
-
-	ew, a, tau = updateAxisV2(&s.Mem, pEffMEM, dt, memRiseTau, memFallTau)
-	out.MEM.EWMA, out.MEM.Alpha, out.MEM.Tau = ew, a, tau
-	out.MEM.Sev = axisSeverityV2(ew, scale, power, out.MEM.Impact)
-
-	ew, a, tau = updateAxisV2(&s.Disk, pEffDISK, dt, diskRiseTau, diskFallTau)
-	out.DISK.EWMA, out.DISK.Alpha, out.DISK.Tau = ew, a, tau
-	out.DISK.Sev = axisSeverityV2(ew, scale, power, out.DISK.Impact)
-
-	ew, a, tau = updateAxisV2(&s.Net, pEffNET, dt, netRiseTau, netFallTau)
-	out.NET.EWMA, out.NET.Alpha, out.NET.Tau = ew, a, tau
-	out.NET.Sev = axisSeverityV2(ew, scale, power, out.NET.Impact)
+	out.CPU = updateAxis(&s.Cpu, in.CpuAvailable, in.CpuPRaw, in.CpuConf, in.CpuImpact, cpuRiseTau, cpuFallTau)
+	out.MEM = updateAxis(&s.Mem, in.MemAvailable, in.MemPRaw, in.MemConf, in.MemImpact, memRiseTau, memFallTau)
+	out.DISK = updateAxis(&s.Disk, in.DiskAvailable, in.DiskPRaw, in.DiskConf, in.DiskImpact, diskRiseTau, diskFallTau)
+	out.NET = updateAxis(&s.Net, in.NetAvailable, in.NetPRaw, in.NetConf, in.NetImpact, netRiseTau, netFallTau)
+	out.Available = out.CPU.Available || out.MEM.Available || out.DISK.Available || out.NET.Available
 
 	const lpP = 3.0
 	const wCPU = 0.25
@@ -249,13 +312,22 @@ func (mc *MetricsCollector) computeResourceV2(instanceUUID string, in resourceV2
 	const wDISK = 0.30
 	const wNET = 0.20
 
-	overallRaw := lpBlend(lpP, out.CPU.Sev, out.MEM.Sev, out.DISK.Sev, out.NET.Sev, wCPU, wMEM, wDISK, wNET)
+	weight := func(available bool, configured float64) float64 {
+		if available {
+			return configured
+		}
+		return 0
+	}
+	overallRaw := lpBlend(lpP, out.CPU.Sev, out.MEM.Sev, out.DISK.Sev, out.NET.Sev,
+		weight(out.CPU.Available, wCPU), weight(out.MEM.Available, wMEM), weight(out.DISK.Available, wDISK), weight(out.NET.Available, wNET))
 	out.OverallRaw = overallRaw
 
-	if overallRaw >= 95 {
-		s.OverallHi95Streak++
-	} else {
-		s.OverallHi95Streak = 0
+	if anyFresh {
+		if overallRaw >= 95 {
+			s.OverallHi95Streak++
+		} else {
+			s.OverallHi95Streak = 0
+		}
 	}
 
 	axes90 := countAxesAbove90(out.CPU.Sev, out.MEM.Sev, out.DISK.Sev, out.NET.Sev)
@@ -273,7 +345,7 @@ func (mc *MetricsCollector) computeResourceV2(instanceUUID string, in resourceV2
 		out.CapActive = true
 	}
 	out.OverallFinal = overallFinal
-	out.TopAxis = topAxisName(out.CPU.Sev, out.MEM.Sev, out.DISK.Sev, out.NET.Sev)
+	out.TopAxis = topAvailableAxisName(out.CPU, out.MEM, out.DISK, out.NET)
 
 	return out, s
 }

@@ -1,0 +1,6 @@
+---
+- name: Validate openstack_instance_exporter role syntax
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: openstack_instance_exporter

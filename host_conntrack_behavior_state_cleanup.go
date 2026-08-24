@@ -46,6 +46,12 @@ func (cm *ConntrackManager) cleanupBehaviorState(activeSet map[string]struct{}) 
 		for k, s := range cm.behaviorEWMA[i] {
 			if _, ok := activeSet[k.InstanceUUID]; !ok || (now-s.LastSeenUnix) > behaviorIdentityTTLSeconds {
 				delete(cm.behaviorEWMA[i], k)
+				delete(cm.behaviorLastSeverity[i], k)
+			}
+		}
+		for k := range cm.behaviorLastSeverity[i] {
+			if _, ok := activeSet[k.InstanceUUID]; !ok {
+				delete(cm.behaviorLastSeverity[i], k)
 			}
 		}
 		cm.behaviorEWMAMu[i].Unlock()
@@ -78,8 +84,13 @@ func (cm *ConntrackManager) cleanupBehaviorState(activeSet map[string]struct{}) 
 		}
 	}
 	for k, st := range cm.behaviorEmit {
-		if _, ok := activeSet[k.InstanceUUID]; !ok || (now-st.LastEmitUnix) > 3600 {
+		if _, ok := activeSet[k.InstanceUUID]; !ok || (now-st.LastEmitUnix) > behaviorPrevKeyTTLSeconds {
 			delete(cm.behaviorEmit, k)
+		}
+	}
+	for k, st := range cm.miningAlerts {
+		if _, ok := activeSet[k.InstanceUUID]; !ok || (now-st.LastSeenUnix) > behaviorIdentityTTLSeconds {
+			delete(cm.miningAlerts, k)
 		}
 	}
 	cm.behaviorAlertMu.Unlock()

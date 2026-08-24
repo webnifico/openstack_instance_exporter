@@ -8,7 +8,7 @@ prometheus_alert_rules:
         labels:
           severity: "warning"
         annotations:
-          description: "Combined resource+threat attention score for instance {{ $labels.instance_uuid }} is elevated. Needs review."
+          description: "Combined resource, behavior, and threat-list attention score for instance {{ $labels.instance_uuid }} is elevated. Needs review."
           summary: "Instance {{ $labels.instance_uuid }} attention severity high (>= 60)"
 
       - alert: "OpenStackInstanceAttentionSevere"
@@ -17,7 +17,7 @@ prometheus_alert_rules:
         labels:
           severity: "critical"
         annotations:
-          description: "Instance {{ $labels.instance_uuid }} shows severe combined load/threat behaviour. Likely P0/P1 outcome."
+          description: "Instance {{ $labels.instance_uuid }} shows severe combined resource, behavior, or threat-list evidence."
           summary: "Instance {{ $labels.instance_uuid }} attention severity severe (>= 85)"
 
       - alert: "OpenStackInstanceThreatScoreHigh"
@@ -156,7 +156,7 @@ prometheus_alert_rules:
           summary: "Project {{ $labels.project_name }} has many hot instances"
 
       - alert: "OpenStackInstanceHighCPUUsage"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_cpu_vcpu_percent{domain!=\\\"\\\"}) > 75"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_cpu_vcpu_percent{domain!=\"\"}) > 75"
         for: "30m"
         labels:
           severity: "warning"
@@ -192,7 +192,7 @@ prometheus_alert_rules:
           summary: "Instance {{ $labels.instance_uuid }} high major fault rate"
 
       - alert: "OpenStackInstanceHighDiskReadIOPSLocal"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\\\"local\\\"}) > 8000"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\"local\"}) > 8000"
         for: "10m"
         labels:
           severity: "warning"
@@ -201,7 +201,7 @@ prometheus_alert_rules:
           summary: "High local read IOPS on {{ $labels.instance_uuid }}"
 
       - alert: "OpenStackInstanceHighDiskReadIOPSVolumes"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\\\"volumes\\\"}) > 2000"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\"volumes\"}) > 2000"
         for: "10m"
         labels:
           severity: "warning"
@@ -210,7 +210,7 @@ prometheus_alert_rules:
           summary: "High volumes read IOPS on {{ $labels.instance_uuid }}"
 
       - alert: "OpenStackInstanceHighDiskReadIOPSPremium"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\\\"premium\\\"}) > 6000"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\"premium\"}) > 6000"
         for: "10m"
         labels:
           severity: "warning"
@@ -219,7 +219,7 @@ prometheus_alert_rules:
           summary: "High premium read IOPS on {{ $labels.instance_uuid }}"
 
       - alert: "OpenStackInstanceHighDiskReadIOPSUltra"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\\\"ultra\\\"}) > 12000"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_read_iops{disk_type=\"ultra\"}) > 12000"
         for: "10m"
         labels:
           severity: "warning"
@@ -228,7 +228,7 @@ prometheus_alert_rules:
           summary: "High ultra read IOPS on {{ $labels.instance_uuid }}"
 
       - alert: "OpenStackInstanceHighDiskWriteIOPSLocal"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\\\"local\\\"}) > 8000"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\"local\"}) > 8000"
         for: "10m"
         labels:
           severity: "warning"
@@ -237,7 +237,7 @@ prometheus_alert_rules:
           summary: "High local write IOPS on {{ $labels.instance_uuid }}"
 
       - alert: "OpenStackInstanceHighDiskWriteIOPSVolumes"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\\\"volumes\\\"}) > 2000"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\"volumes\"}) > 2000"
         for: "10m"
         labels:
           severity: "warning"
@@ -246,7 +246,7 @@ prometheus_alert_rules:
           summary: "High volumes write IOPS on {{ $labels.instance_uuid }}"
 
       - alert: "OpenStackInstanceHighDiskWriteIOPSPremium"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\\\"premium\\\"}) > 6000"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\"premium\"}) > 6000"
         for: "10m"
         labels:
           severity: "warning"
@@ -255,7 +255,7 @@ prometheus_alert_rules:
           summary: "High premium write IOPS on {{ $labels.instance_uuid }}"
 
       - alert: "OpenStackInstanceHighDiskWriteIOPSUltra"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\\\"ultra\\\"}) > 12000"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, disk_type) (oie_instance_disk_write_iops{disk_type=\"ultra\"}) > 12000"
         for: "10m"
         labels:
           severity: "warning"
@@ -264,7 +264,7 @@ prometheus_alert_rules:
           summary: "High ultra write IOPS on {{ $labels.instance_uuid }}"
 
       - alert: "OpenStackInstanceDiskReadLatencyHigh"
-        expr: "rate(oie_instance_disk_read_seconds_total[5m]) / clamp_min(rate(oie_instance_disk_read_requests_total[5m]), 1) > 0.15"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, volume_uuid, disk_type, disk_path) (oie_instance_disk_read_latency_seconds) > 0.15"
         for: "2m"
         labels:
           severity: "warning"
@@ -273,7 +273,7 @@ prometheus_alert_rules:
           summary: "Instance {{ $labels.instance_uuid }} disk read latency high"
 
       - alert: "OpenStackInstanceDiskWriteLatencyHigh"
-        expr: "rate(oie_instance_disk_write_seconds_total[5m]) / clamp_min(rate(oie_instance_disk_write_requests_total[5m]), 1) > 0.10"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, volume_uuid, disk_type, disk_path) (oie_instance_disk_write_latency_seconds) > 0.10"
         for: "2m"
         labels:
           severity: "warning"
@@ -282,7 +282,7 @@ prometheus_alert_rules:
           summary: "Instance {{ $labels.instance_uuid }} disk write latency high"
 
       - alert: "OpenStackInstanceDiskFlushLatencyHigh"
-        expr: "rate(oie_instance_disk_flush_seconds_total[5m]) / clamp_min(rate(oie_instance_disk_flush_requests_total[5m]), 1) > 0.04"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid, volume_uuid, disk_type, disk_path) (oie_instance_disk_flush_latency_seconds) > 0.04"
         for: "2m"
         labels:
           severity: "warning"
@@ -345,7 +345,7 @@ prometheus_alert_rules:
           summary: "High sustained TX bandwidth ({{ $labels.instance_uuid }})"
 
       - alert: "OpenStackInstanceNetworkReceiveDropRatioHigh"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_rx_dropped_total[5m]) / clamp_min(rate(oie_instance_net_rx_packets_total[5m]), 1)) > 0.02"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_rx_dropped_total[5m]) / clamp_min(rate(oie_instance_net_rx_packets_total[5m]) + rate(oie_instance_net_rx_dropped_total[5m]), 0.000000001)) > 0.02"
         for: "15m"
         labels:
           severity: "warning"
@@ -354,7 +354,7 @@ prometheus_alert_rules:
           summary: "RX drop ratio high ({{ $labels.instance_uuid }})"
 
       - alert: "OpenStackInstanceNetworkTransmitDropRatioHigh"
-        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_tx_dropped_total[5m]) / clamp_min(rate(oie_instance_net_tx_packets_total[5m]), 1)) > 0.02"
+        expr: "max by (domain, instance_uuid, project_uuid, user_uuid) (rate(oie_instance_net_tx_dropped_total[5m]) / clamp_min(rate(oie_instance_net_tx_packets_total[5m]) + rate(oie_instance_net_tx_dropped_total[5m]), 0.000000001)) > 0.02"
         for: "15m"
         labels:
           severity: "warning"
@@ -386,7 +386,7 @@ prometheus_alert_rules:
         labels:
           severity: "info"
         annotations:
-          description: "Conntrack flow entries above 5,000 for 30 minutes. Potential P5 (Zombie Flow) application leak or sustained high-flow connection pool."
+          description: "Conntrack flow entries above 5,000 for 30 minutes. Possible application leak or sustained high-flow connection pool."
           summary: "Sustained mid-range conntrack volume ({{ $labels.instance_uuid }})"
 
       - alert: "OpenStackInstanceOutboundPortScanBurst"
@@ -504,7 +504,7 @@ prometheus_alert_rules:
         labels:
           severity: "warning"
         annotations:
-          description: "5+ Spamhaus contacts in 5 minutes. High confidence botnet/malware C2."
+          description: "5+ contacts in 5 minutes with IPs or networks present in the Spamhaus DROP/EDROP feed. Investigate the instance and connection evidence."
           summary: "Repeated Spamhaus contacts ({{ $labels.instance_uuid }})"
 
       - alert: "OpenStackInstanceTorRelayRepeatedContact"
@@ -535,7 +535,7 @@ prometheus_alert_rules:
           summary: "Repeated custom-list contacts ({{ $labels.instance_uuid }})"
 
       - alert: "OpenStackInstanceExporterProcessCPUHigh"
-        expr: "rate(process_cpu_seconds_total{job=\\\"openstack-instance-exporter\\\"}[5m]) > 0.5"
+        expr: "rate(process_cpu_seconds_total{job=\"openstack-instance-exporter\"}[5m]) > 0.5"
         for: "5m"
         labels:
           severity: "warning"
@@ -571,7 +571,7 @@ prometheus_alert_rules:
           summary: "Conntrack read errors on host {{ $labels.instance }}"
 
       - alert: "OpenStackInstanceExporterConntrackRawReaderFailed"
-        expr: "max by (instance, job) (oie_host_conntrack_raw_ok{job=\\\"openstack-instance-exporter\\\"}) == 0"
+        expr: "max by (instance, job) (oie_host_conntrack_raw_ok{job=\"openstack-instance-exporter\"}) == 0"
         for: "2m"
         labels:
           severity: "warning"
@@ -580,7 +580,7 @@ prometheus_alert_rules:
           summary: "Conntrack raw reader failing on host {{ $labels.instance }}"
 
       - alert: "OpenStackInstanceExporterConntrackReadStale"
-        expr: "max by (instance, job) (oie_host_conntrack_stale_seconds{job=\\\"openstack-instance-exporter\\\"}) > 120"
+        expr: "max by (instance, job) (oie_host_conntrack_stale_seconds{job=\"openstack-instance-exporter\"}) > 120"
         for: "2m"
         labels:
           severity: "warning"
@@ -624,3 +624,20 @@ prometheus_alert_rules:
         annotations:
           description: "Custom IP list has not refreshed successfully in over 12 hours."
           summary: "Custom list refresh stale"
+
+      - alert: "OpenStackInstanceMiningSuspected"
+        expr: "(oie_instance_mining_suspected{confidence=\\\"high\\\"} == 1) or (oie_instance_mining_suspected{confidence=\\\"high_persistent\\\"} == 1 and on (domain, instance_uuid, project_uuid, user_uuid) max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent[5m])) >= 40 and on (domain, instance_uuid, project_uuid, user_uuid) max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent[5m])) >= 3) or (oie_instance_mining_suspected{confidence=\\\"shared\\\"} == 1 and on (domain, instance_uuid, project_uuid, user_uuid) max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent[5m])) >= 35 and on (domain, instance_uuid, project_uuid, user_uuid) max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent[5m])) >= 3) or (oie_instance_mining_suspected{confidence=\\\"shared_persistent\\\"} == 1 and on (domain, instance_uuid, project_uuid, user_uuid) max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent[5m])) >= 60 and on (domain, instance_uuid, project_uuid, user_uuid) max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent[5m])) >= 3)"
+        labels:
+          severity: "warning"
+        annotations:
+          description: "Persistent replied outbound TCP flows from {{ $labels.instance_uuid }} ({{ $labels.ip }}) matched the built-in mining-pool catalogue on port {{ $labels.port }} ({{ $labels.port_name }}, confidence={{ $labels.confidence }}, priority={{ $labels.priority }}). Single-flow and ambiguous-port candidates require sustained instance CPU corroboration."
+          summary: "Mining-pool behavior suspected for instance {{ $labels.instance_uuid }}"
+
+      - alert: "OpenStackInstanceMiningCandidatePersistent"
+        expr: "(oie_instance_mining_suspected{confidence=\\\"high_persistent\\\"} == 1) unless on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent[5m])) >= 40 and on (domain, instance_uuid, project_uuid, user_uuid) max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent[5m])) >= 3)"
+        for: "15m"
+        labels:
+          severity: "info"
+        annotations:
+          description: "A replied outbound TCP connection from {{ $labels.instance_uuid }} ({{ $labels.ip }}) has remained on dedicated mining endpoint port {{ $labels.port }} ({{ $labels.port_name }}) for 15 minutes without enough corroboration for the warning-level mining alert."
+          summary: "Persistent mining-port candidate for instance {{ $labels.instance_uuid }}"

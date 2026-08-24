@@ -3,9 +3,13 @@
 openstack_instance_exporter_enabled: false
 
 # Version / install
-openstack_instance_exporter_version: "v1.1.1"
+openstack_instance_exporter_version: "v1.3.0"
 openstack_instance_exporter_sha256: "https://github.com/webnifico/openstack_instance_exporter/releases/download/{{ openstack_instance_exporter_version }}/sha256sums.txt"
 openstack_instance_exporter_install_dir: "/opt/openstack_instance_exporter"
+openstack_instance_exporter_architecture_map:
+  x86_64: amd64
+  amd64: amd64
+openstack_instance_exporter_architecture: "{{ openstack_instance_exporter_architecture_map.get(ansible_architecture, ansible_architecture) }}"
 
 # Bind / web
 openstack_instance_exporter_network_interface: br-monitoring
@@ -71,7 +75,7 @@ openstack_instance_exporter_web_listen_address: ""
 # - If inbound_monitored is provided, it replaces the built-in inbound map.
 # - If outbound_monitored is provided, it replaces the built-in outbound map.
 # - If only one direction is provided, the other direction stays on built-ins.
-# - If the file is missing, invalid, empty, or unparsable, exporter falls back to built-ins.
+# - A configured file that is missing, invalid, empty, or unparsable stops startup.
 #
 # openstack_instance_exporter_behavior_ports_config_yaml: |
 #   behavior:
@@ -93,7 +97,7 @@ openstack_instance_exporter_web_listen_address: ""
 # - The FIRST rule whose conditions match is the one that applies.
 # - There is no automatic "best match" or specificity ranking.
 # - YAML ordering matters when rules overlap.
-# - Severity does NOT affect rule selection; it is only an output attribute.
+# - Severity does NOT affect rule selection; it is calculated from matched evidence.
 #
 # Provide YAML content directly via Ansible var (templated to the path above).
 # If unset/empty, no file is rendered. There are built-in rules already defined.
@@ -108,7 +112,6 @@ openstack_instance_exporter_web_listen_address: ""
 #       direction: inbound
 #       port_set: admin
 #       kind: inbound_admin
-#       severity: high
 
 # Inbound behavior summaries (counts only, no per-port/per-remote series)
 # openstack_instance_exporter_inbound_behavior_enable: false

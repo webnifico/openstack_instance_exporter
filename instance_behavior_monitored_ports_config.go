@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"io"
 	"os"
 	"strings"
 )
@@ -122,7 +124,7 @@ func builtinBehaviorInboundMonitoredPorts() map[uint16]string {
 	}
 }
 func builtinBehaviorOutboundMonitoredPorts() map[uint16]string {
-	return map[uint16]string{
+	ports := map[uint16]string{
 		// --- Standard Outbound Traffic ---
 		21:  "ftp",
 		22:  "ssh",
@@ -151,7 +153,7 @@ func builtinBehaviorOutboundMonitoredPorts() map[uint16]string {
 		9050: "tor_socks",
 		9418: "git",
 		6081: "geneve",
-		8333: "stratum_alt_8333",
+		8333: "bitcoin_p2p",
 
 		// --- Lateral Movement Indicators ---
 		88:    "kerberos",
@@ -183,6 +185,12 @@ func builtinBehaviorOutboundMonitoredPorts() map[uint16]string {
 		9200:  "elasticsearch",
 		27017: "mongodb",
 	}
+	for port, info := range builtinMiningPortCatalog {
+		if _, exists := ports[port]; !exists {
+			ports[port] = info.Name
+		}
+	}
+	return ports
 }
 func validateBehaviorPortMap(in map[int]string) (map[uint16]string, error) {
 	out := make(map[uint16]string, len(in))
@@ -224,10 +232,25 @@ func BuildBehaviorPortMaps(path string) (map[uint16]string, map[uint16]string, B
 	}
 
 	var cfg behaviorPortsConfigFile
-	if err := yaml.Unmarshal(b, &cfg); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(b))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&cfg); err != nil {
 		status.Status = "parse_error"
 		status.Using = "builtin"
 		status.Err = err.Error()
+		status.InboundPorts = len(builtinIn)
+		status.OutboundPorts = len(builtinOut)
+		return builtinIn, builtinOut, status
+	}
+	var extra interface{}
+	if err := decoder.Decode(&extra); err != io.EOF {
+		status.Status = "parse_error"
+		status.Using = "builtin"
+		if err == nil {
+			status.Err = "multiple YAML documents are not supported"
+		} else {
+			status.Err = err.Error()
+		}
 		status.InboundPorts = len(builtinIn)
 		status.OutboundPorts = len(builtinOut)
 		return builtinIn, builtinOut, status

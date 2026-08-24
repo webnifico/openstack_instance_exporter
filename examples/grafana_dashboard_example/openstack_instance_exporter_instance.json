@@ -2336,8 +2336,8 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "(sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_read_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_read_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n)))[${__range_s}s:] @ end()))",
-              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "expr": "(sum by (instance_uuid, instance, project_name, project_uuid, volume_uuid, disk_type, disk_path) (\n  rate(oie_instance_disk_read_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((sum by (instance_uuid, instance, project_name, project_uuid, volume_uuid, disk_type, disk_path) (\n  rate(oie_instance_disk_read_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n)))[${__range_s}s:] @ end()))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }} / {{ disk_path }}",
               "range": true,
               "refId": "A"
             }
@@ -2440,8 +2440,8 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "(sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_write_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_write_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n)))[${__range_s}s:] @ end()))",
-              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "expr": "(sum by (instance_uuid, instance, project_name, project_uuid, volume_uuid, disk_type, disk_path) (\n  rate(oie_instance_disk_write_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((sum by (instance_uuid, instance, project_name, project_uuid, volume_uuid, disk_type, disk_path) (\n  rate(oie_instance_disk_write_gbytes_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n)))[${__range_s}s:] @ end()))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }} / {{ disk_path }}",
               "range": true,
               "refId": "A"
             }
@@ -2544,8 +2544,8 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "(sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n)))[${__range_s}s:] @ end()))",
-              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "expr": "(sum by (instance_uuid, instance, project_name, project_uuid, volume_uuid, disk_type, disk_path) (\n  rate(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((sum by (instance_uuid, instance, project_name, project_uuid, volume_uuid, disk_type, disk_path) (\n  rate(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n)))[${__range_s}s:] @ end()))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }} / {{ disk_path }}",
               "range": true,
               "refId": "A"
             }
@@ -2648,8 +2648,8 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "(sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((sum by (instance_uuid, instance, project_name, project_uuid, disk_uuid, disk_type) (\n  rate(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n)))[${__range_s}s:] @ end()))",
-              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }}",
+              "expr": "(sum by (instance_uuid, instance, project_name, project_uuid, volume_uuid, disk_type, disk_path) (\n  rate(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n))\nand\ntopk(${gvar_oie_top_n}, ${gvar_oie_rank_by:raw}(((sum by (instance_uuid, instance, project_name, project_uuid, volume_uuid, disk_type, disk_path) (\n  rate(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[1m])\n)))[${__range_s}s:] @ end()))",
+              "legendFormat": "{{ project_name }} / {{ project_uuid }} / {{ instance_uuid }} / {{ disk_path }}",
               "range": true,
               "refId": "A"
             }
@@ -4937,6 +4937,389 @@
         }
       ],
       "title": "Instance Conntrack",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 2090,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Number of selected instances with any currently persisted mining evidence, including candidates that have not met the warning-level CPU corroboration gate.",
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "green",
+                      "index": 0,
+                      "text": "Clear"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 66
+          },
+          "id": 2091,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "count(max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"} == 1)) or vector(0)",
+              "instant": true,
+              "legendFormat": "Persisted evidence",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Instances With Mining Evidence",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Number of selected instances currently meeting the warning-level OpenStackInstanceMiningSuspected semantics. Dedicated high evidence alerts directly. A single persistent dedicated connection requires CPU >= 40%; shared evidence requires CPU >= 35%; shared persistent evidence requires CPU >= 60%. CPU-correlated tiers require at least three CPU samples during the five-minute window.",
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "green",
+                      "index": 0,
+                      "text": "Clear"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 6,
+            "y": 66
+          },
+          "id": 2092,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "count(max by (domain, instance_uuid, project_uuid, user_uuid) (((oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\", confidence=\"high\"} == 1) or ((oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\", confidence=\"high_persistent\"} == 1) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 40) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 3)) or ((oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\", confidence=\"shared\"} == 1) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 35) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 3)) or ((oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\", confidence=\"shared_persistent\"} == 1) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (avg_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 60) and on (domain, instance_uuid, project_uuid, user_uuid) (max by (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m])) >= 3))))) or vector(0)",
+              "instant": true,
+              "legendFormat": "Warning-qualified",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Warning-Qualified Mining Instances",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Persisted mining evidence history for the selected instances. Series identify the server, instance UUID, fixed IP, destination port and endpoint name, evidence tier, and priority. A value of 1 means that evidence tier was active at that point in time. A high_persistent candidate without CPU corroboration becomes informational after 15 minutes.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Evidence active",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "stepAfter",
+                "lineWidth": 2,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 66
+          },
+          "id": 2093,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "max by (instance, server_name, instance_uuid, project_name, project_uuid, ip, family, port, port_name, confidence, priority) (oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"} == 1)",
+              "legendFormat": "{{ server_name }} / {{ instance_uuid }} / {{ ip }}:{{ port }} {{ port_name }} / {{ confidence }} / {{ priority }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Mining Evidence History",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Five-minute average vCPU utilization for selected instances with active mining evidence, shown only when at least three CPU samples exist in the window. Alert thresholds are evidence-tier specific: high needs no CPU corroboration; high_persistent uses 40%; shared uses 35%; shared_persistent uses 60%.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-GrYlRd"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "5m Avg vCPU Usage",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "scheme",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "pointSize": 4,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              },
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 35
+                  },
+                  {
+                    "color": "orange",
+                    "value": 40
+                  },
+                  {
+                    "color": "red",
+                    "value": 60
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 74
+          },
+          "id": 2094,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max",
+                "mean"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "max by (instance, server_name, instance_uuid, project_name, project_uuid) ((avg_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) and on (domain, instance_uuid, project_uuid, user_uuid) (count_over_time(oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"}[5m]) >= 3)) and on (domain, instance_uuid, project_uuid, user_uuid) max by (domain, instance_uuid, project_uuid, user_uuid) (oie_instance_mining_suspected{job=\"openstack-instance-exporter\", instance=~\"$gvar_oie_hypervisor.*\", project_uuid=~\"$gvar_oie_project_uuid\", project_name=~\"$gvar_oie_project_name\", instance_uuid=~\"$gvar_oie_instance_uuid\"} == 1))",
+              "legendFormat": "{{ server_name }} / {{ project_name }} / {{ instance_uuid }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Mining Candidate CPU Corroboration (5m Avg; >=3 Samples)",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Instance Mining Detection",
       "type": "row"
     }
   ],

@@ -4,10 +4,62 @@ import (
 	libvirt "github.com/digitalocean/go-libvirt"
 	"github.com/prometheus/client_golang/prometheus"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func combineBehaviorSignals(outbound, inbound float64, outboundEnabled, inboundEnabled bool) (float64, bool) {
+	signal := 0.0
+	available := false
+	if outboundEnabled {
+		signal = outbound
+		available = true
+	}
+	if inboundEnabled && (!available || inbound > signal) {
+		signal = inbound
+		available = true
+	}
+	return signal, available
+}
+
+func typedParamUint64(value interface{}) (uint64, bool) {
+	switch v := value.(type) {
+	case uint64:
+		return v, true
+	case uint32:
+		return uint64(v), true
+	case uint:
+		return uint64(v), true
+	case int64:
+		if v >= 0 {
+			return uint64(v), true
+		}
+	case int32:
+		if v >= 0 {
+			return uint64(v), true
+		}
+	case int:
+		if v >= 0 {
+			return uint64(v), true
+		}
+	case bool:
+		if v {
+			return 1, true
+		}
+		return 0, true
+	}
+	return 0, false
+}
+
+func typedParamInt(value interface{}) (int, bool) {
+	u, ok := typedParamUint64(value)
+	if !ok || u > uint64(^uint(0)>>1) {
+		return 0, false
+	}
+	return int(u), true
+}
 
 func parseLibvirtStats(params []libvirt.TypedParam) *ParsedStats {
 	s := &ParsedStats{
@@ -18,92 +70,112 @@ func parseLibvirtStats(params []libvirt.TypedParam) *ParsedStats {
 
 	for _, p := range params {
 		field := p.Field
-		var uVal uint64
-		var strVal string
+		uVal, uOK := typedParamUint64(p.Value.I)
+		strVal, strOK := p.Value.I.(string)
+		uOK = uOK && (p.Value.D == 0 || p.Value.D >= uint32(libvirt.TypedParamInt) && p.Value.D <= uint32(libvirt.TypedParamUllong))
+		strOK = strOK && (p.Value.D == 0 || p.Value.D == uint32(libvirt.TypedParamString))
 
-		switch v := p.Value.I.(type) {
-		case uint64:
-			uVal = v
-		case int64:
-			uVal = uint64(v)
-		case uint32:
-			uVal = uint64(v)
-		case int32:
-			uVal = uint64(v)
-		case int:
-			uVal = uint64(v)
-		case string:
-			strVal = v
-		case bool:
-			if v {
-				uVal = 1
-			}
-		}
-
-		if field == "state.state" {
-			if i, ok := p.Value.I.(int32); ok {
-				s.State = int(i)
-			} else if i, ok := p.Value.I.(int); ok {
+		if field == "state.state" && uOK {
+			if i, ok := typedParamInt(p.Value.I); ok {
 				s.State = i
+				s.StatePresent = true
 			}
 		}
 
-		if field == "cpu.time" {
+		if field == "cpu.time" && uOK {
 			s.CpuTime = uVal
+			s.CpuTimePresent = true
 		}
-		if field == "cpu.user" {
+		if field == "cpu.user" && uOK {
 			s.CpuUser = uVal
+			s.CpuUserPresent = true
 		}
-		if field == "cpu.system" {
+		if field == "cpu.system" && uOK {
 			s.CpuSystem = uVal
+			s.CpuSystemPresent = true
+		}
+		if field == "vcpu.current" && uOK {
+			s.VcpuCurrent = uVal
+			s.VcpuCurrentPresent = true
 		}
 
-		if field == "balloon.maximum" {
+		if field == "balloon.maximum" && uOK {
 			s.MemMax = uVal
+			s.MemMaxPresent = true
 		}
-		if field == "balloon.current" {
+		if field == "balloon.current" && uOK {
 			s.MemCur = uVal
+			s.MemCurPresent = true
 		}
-		if field == "balloon.usable" {
+		if field == "balloon.usable" && uOK {
 			s.MemUsable = uVal
+			s.MemUsablePresent = true
 		}
-		if field == "balloon.rss" {
+		if field == "balloon.rss" && uOK {
 			s.MemRss = uVal
+			s.MemRssPresent = true
 		}
-		if field == "balloon.swap_in" {
+		if field == "balloon.swap_in" && uOK {
 			s.SwapIn = uVal
+			s.SwapInPresent = true
 		}
-		if field == "balloon.swap_out" {
+		if field == "balloon.swap_out" && uOK {
 			s.SwapOut = uVal
+			s.SwapOutPresent = true
 		}
-		if field == "balloon.major_fault" {
+		if field == "balloon.major_fault" && uOK {
 			s.MajorFault = uVal
+			s.MajorFaultPresent = true
 		}
-		if field == "balloon.minor_fault" {
+		if field == "balloon.minor_fault" && uOK {
 			s.MinorFault = uVal
+			s.MinorFaultPresent = true
+		}
+		if field == "balloon.hugetlb_pgalloc" && uOK {
+			s.HugetlbPgAlloc = uVal
+			s.HugetlbPgAllocPresent = true
+		}
+		if field == "balloon.hugetlb_pgfail" && uOK {
+			s.HugetlbPgFail = uVal
+			s.HugetlbPgFailPresent = true
+		}
+		if field == "net.count" && uOK {
+			s.NetCount = uVal
+			s.NetCountPresent = true
+		}
+		if field == "block.count" && uOK {
+			s.BlockCount = uVal
+			s.BlockCountPresent = true
 		}
 
 		if strings.HasPrefix(field, "vcpu.") {
 			parts := strings.Split(field, ".")
-			if len(parts) >= 3 {
+			if len(parts) == 3 {
 				idx, err := strconv.Atoi(parts[1])
 				if err != nil || idx < 0 {
+					continue
+				}
+				key := parts[2]
+				if !uOK || key != "state" && key != "time" && key != "wait" && key != "delay" {
 					continue
 				}
 				if _, ok := s.Vcpus[idx]; !ok {
 					s.Vcpus[idx] = &VcpuStat{}
 				}
 				v := s.Vcpus[idx]
-				key := parts[2]
 				switch key {
 				case "state":
 					v.State = uVal
+					v.StatePresent = true
 				case "time":
 					v.Time = uVal
+					v.TimePresent = true
 				case "wait":
 					v.Wait = uVal
+					v.WaitPresent = true
 				case "delay":
 					v.Delay = uVal
+					v.DelayPresent = true
 				}
 			}
 		}
@@ -115,57 +187,83 @@ func parseLibvirtStats(params []libvirt.TypedParam) *ParsedStats {
 				if err != nil || idx < 0 {
 					continue
 				}
+				key := parts[2]
+				validField := len(parts) == 3 && key == "name" && strOK
+				if len(parts) == 4 && uOK {
+					subKey := parts[3]
+					validField = ((key == "rd" || key == "wr") && (subKey == "reqs" || subKey == "bytes" || subKey == "times")) ||
+						(key == "fl" && (subKey == "reqs" || subKey == "times"))
+				} else if len(parts) == 3 && uOK {
+					validField = key == "capacity" || key == "allocation" || key == "physical"
+				}
+				if !validField {
+					continue
+				}
 				if _, ok := s.Disks[idx]; !ok {
 					s.Disks[idx] = &DiskStat{}
 				}
 				d := s.Disks[idx]
-				key := parts[2]
 
-				if key == "name" {
+				if key == "name" && strOK {
 					d.Name = strVal
+					d.NamePresent = true
 					continue
 				}
 
-				if len(parts) >= 4 {
+				if len(parts) == 4 {
+					if !uOK {
+						continue
+					}
 					subKey := parts[3]
 					switch key {
 					case "rd":
 						if subKey == "reqs" {
 							d.RdReqs = uVal
+							d.RdReqsPresent = true
 						}
 						if subKey == "bytes" {
 							d.RdBytes = uVal
+							d.RdBytesPresent = true
 						}
 						if subKey == "times" {
 							d.RdTime = uVal
+							d.RdTimePresent = true
 						}
 					case "wr":
 						if subKey == "reqs" {
 							d.WrReqs = uVal
+							d.WrReqsPresent = true
 						}
 						if subKey == "bytes" {
 							d.WrBytes = uVal
+							d.WrBytesPresent = true
 						}
 						if subKey == "times" {
 							d.WrTime = uVal
+							d.WrTimePresent = true
 						}
 					case "fl":
 						if subKey == "reqs" {
 							d.FlReqs = uVal
+							d.FlReqsPresent = true
 						}
 						if subKey == "times" {
 							d.FlTime = uVal
+							d.FlTimePresent = true
 						}
 					}
-				} else {
+				} else if uOK {
 					if key == "capacity" {
 						d.Capacity = uVal
+						d.CapacityPresent = true
 					}
 					if key == "allocation" {
 						d.Allocation = uVal
+						d.AllocationPresent = true
 					}
 					if key == "physical" {
 						d.Physical = uVal
+						d.PhysicalPresent = true
 					}
 				}
 			}
@@ -178,45 +276,65 @@ func parseLibvirtStats(params []libvirt.TypedParam) *ParsedStats {
 				if err != nil || idx < 0 {
 					continue
 				}
+				key := parts[2]
+				validField := len(parts) == 3 && key == "name" && strOK
+				if len(parts) == 4 && uOK {
+					subKey := parts[3]
+					validField = (key == "rx" || key == "tx") && (subKey == "bytes" || subKey == "pkts" || subKey == "errs" || subKey == "drop")
+				}
+				if !validField {
+					continue
+				}
 				if _, ok := s.Nets[idx]; !ok {
 					s.Nets[idx] = &NetStat{}
 				}
 				n := s.Nets[idx]
-				key := parts[2]
 
-				if key == "name" {
+				if key == "name" && strOK {
 					n.Name = strVal
+					n.NamePresent = true
 					continue
 				}
 
-				if len(parts) >= 4 {
+				if len(parts) == 4 {
+					if !uOK {
+						continue
+					}
 					subKey := parts[3]
 					switch key {
 					case "rx":
 						if subKey == "bytes" {
 							n.RxBytes = uVal
+							n.RxBytesPresent = true
 						}
 						if subKey == "pkts" {
 							n.RxPkts = uVal
+							n.RxPktsPresent = true
 						}
 						if subKey == "errs" {
 							n.RxErrs = uVal
+							n.RxErrsPresent = true
 						}
 						if subKey == "drop" {
 							n.RxDrop = uVal
+							n.RxDropPresent = true
 						}
 					case "tx":
 						if subKey == "bytes" {
 							n.TxBytes = uVal
+							n.TxBytesPresent = true
 						}
 						if subKey == "pkts" {
 							n.TxPkts = uVal
+							n.TxPktsPresent = true
 						}
 						if subKey == "errs" {
 							n.TxErrs = uVal
+							n.TxErrsPresent = true
 						}
 						if subKey == "drop" {
 							n.TxDrop = uVal
+							n.TxDropPresent = true
 						}
 					}
 				}
@@ -225,19 +343,33 @@ func parseLibvirtStats(params []libvirt.TypedParam) *ParsedStats {
 	}
 	return s
 }
+
+func effectiveDomainVCPUCount(configured int, stat *ParsedStats) int {
+	if stat != nil && stat.VcpuCurrentPresent && stat.VcpuCurrent > 0 && stat.VcpuCurrent <= uint64(^uint(0)>>1) {
+		return int(stat.VcpuCurrent)
+	}
+	if configured > 0 {
+		return configured
+	}
+	if stat != nil {
+		return len(stat.Vcpus)
+	}
+	return 0
+}
+
 func (mc *MetricsCollector) collectDomainMetrics(
 	record libvirt.DomainStatsRecord,
 	connAgg *ConntrackAgg,
 	hostIPs map[string]struct{},
 	agg *hostAgg,
 	hostConntrackMax uint64,
+	hostConntrackMaxAvailable bool,
+	conntrackFresh bool,
+	libvirtFresh bool,
 ) {
 	mc.libvirtMu.Lock()
 	conn := mc.libvirtConn
 	mc.libvirtMu.Unlock()
-	if conn == nil {
-		return
-	}
 	meta, err := mc.im.getDomainMeta(record.Dom, conn)
 	if err != nil {
 		logCollectorMetric.Error("domain_meta_failed", "err", err)
@@ -252,12 +384,9 @@ func (mc *MetricsCollector) collectDomainMetrics(
 	projectName := meta.ProjectName
 	userName := meta.UserName
 	flavorName := meta.FlavorName
-	vcpuCount := meta.VCPUCount
-	if len(stat.Vcpus) > 0 {
-		vcpuCount = len(stat.Vcpus)
-	}
+	vcpuCount := effectiveDomainVCPUCount(meta.VCPUCount, stat)
 	memMB := meta.MemMB
-	if stat.MemMax > 0 {
+	if stat.MemMaxPresent && stat.MemMax > 0 {
 		memMB = int(stat.MemMax / 1024)
 	}
 	rootType := meta.RootType
@@ -274,7 +403,7 @@ func (mc *MetricsCollector) collectDomainMetrics(
 		outboundSignal      float64
 		inboundSignal       float64
 	)
-	fixedIPs := meta.FixedIPs
+	fixedIPs := deduplicateIPs(meta.FixedIPs)
 	ipSet := make(map[string]struct{}, len(fixedIPs))
 	for _, ip := range fixedIPs {
 		ipSet[ip.Address] = struct{}{}
@@ -284,7 +413,11 @@ func (mc *MetricsCollector) collectDomainMetrics(
 		if projectName == "" {
 			projectName = "unknown"
 		}
-		agg.projects[projectName] = struct{}{}
+		projectIdentity := "name:" + projectName
+		if projectUUID != "" {
+			projectIdentity = "uuid:" + projectUUID
+		}
+		agg.projects[projectIdentity] = struct{}{}
 		if vcpuCount > 0 {
 			agg.vcpus += vcpuCount
 		}
@@ -295,9 +428,9 @@ func (mc *MetricsCollector) collectDomainMetrics(
 	stateDesc = strings.TrimPrefix(stateDesc, "vir_domain_")
 	stateDesc = strings.TrimPrefix(stateDesc, "domain")
 	stateDesc = strings.Trim(stateDesc, "_")
-	instanceRunning := stateCode == int(libvirt.DomainRunning)
-	dynamicMetrics = append(dynamicMetrics,
-		prometheus.MustNewConstMetric(
+	instanceRunning := stat.StatePresent && stateCode == int(libvirt.DomainRunning)
+	if stat.StatePresent {
+		dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(
 			mc.im.instanceStateDesc,
 			prometheus.GaugeValue,
 			float64(stateCode),
@@ -308,26 +441,26 @@ func (mc *MetricsCollector) collectDomainMetrics(
 			projectName,
 			userUUID,
 			stateDesc,
-		),
-		prometheus.MustNewConstMetric(
-			mc.im.instanceInfoDesc,
-			prometheus.GaugeValue,
-			1.0,
-			domain,
-			serverName,
-			instanceUUID,
-			projectUUID,
-			projectName,
-			userUUID,
-			userName,
-			flavorName,
-			strconv.Itoa(vcpuCount),
-			strconv.Itoa(memMB),
-			rootType,
-			createdAt,
-			metadataVersion,
-		),
-	)
+		))
+	}
+	dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(
+		mc.im.instanceInfoDesc,
+		prometheus.GaugeValue,
+		1.0,
+		domain,
+		serverName,
+		instanceUUID,
+		projectUUID,
+		projectName,
+		userUUID,
+		userName,
+		flavorName,
+		strconv.Itoa(vcpuCount),
+		strconv.Itoa(memMB),
+		rootType,
+		createdAt,
+		metadataVersion,
+	))
 	if vcpuCount > 0 {
 		dynamicMetrics = append(dynamicMetrics,
 			prometheus.MustNewConstMetric(
@@ -359,7 +492,8 @@ func (mc *MetricsCollector) collectDomainMetrics(
 		)
 	}
 	var guestUsedMB float64
-	guestUsedMB, resourceMemSeverity = mc.collectDomainMemoryMetrics(
+	var guestUsedAvailable, memPressureAvailable bool
+	guestUsedMB, resourceMemSeverity, guestUsedAvailable, memPressureAvailable = mc.collectDomainMemoryMetrics(
 		stat,
 		now,
 		domain,
@@ -370,10 +504,13 @@ func (mc *MetricsCollector) collectDomainMetrics(
 		userUUID,
 		instanceRunning,
 		memMB,
+		libvirtFresh && instanceRunning,
 		&dynamicMetrics,
 	)
+	_ = guestUsedMB
 	diskCountDomain := 0
-	diskCountDomain, maxDiskIOSignal, maxDiskActivity = mc.collectDomainDiskMetrics(
+	var diskAvailable bool
+	diskCountDomain, maxDiskIOSignal, maxDiskActivity, diskAvailable = mc.collectDomainDiskMetrics(
 		meta,
 		stat,
 		now,
@@ -383,12 +520,13 @@ func (mc *MetricsCollector) collectDomainMetrics(
 		projectUUID,
 		projectName,
 		userUUID,
+		libvirtFresh && instanceRunning,
 		&dynamicMetrics,
 	)
 	if agg != nil && diskCountDomain > 0 {
 		agg.disks += diskCountDomain
 	}
-	cpuPressure := mc.collectDomainCPUMetrics(
+	cpuPressure, cpuAvailable := mc.collectDomainCPUMetrics(
 		stat,
 		domain,
 		serverName,
@@ -397,9 +535,11 @@ func (mc *MetricsCollector) collectDomainMetrics(
 		projectName,
 		userUUID,
 		vcpuCount,
+		libvirtFresh && instanceRunning,
 		&dynamicMetrics,
 	)
-	netPPS, netDropRate, outboundSignal, inboundSignal, maxConntrackFlows = mc.collectDomainNetworkAndConntrack(
+	var netRatesAvailable, conntrackAvailable bool
+	netPPS, netDropRate, outboundSignal, inboundSignal, maxConntrackFlows, netRatesAvailable, conntrackAvailable = mc.collectDomainNetworkAndConntrack(
 		meta,
 		stat,
 		now,
@@ -415,9 +555,11 @@ func (mc *MetricsCollector) collectDomainMetrics(
 		ipSet,
 		hostIPs,
 		hostConntrackMax,
+		conntrackFresh,
+		libvirtFresh,
 		&dynamicMetrics,
 	)
-	intelCombined := mc.collectDomainThreatSignals(
+	intelCombined, threatAvailable := mc.collectDomainThreatSignals(
 		connAgg,
 		ipSet,
 		domain,
@@ -426,6 +568,7 @@ func (mc *MetricsCollector) collectDomainMetrics(
 		projectUUID,
 		projectName,
 		userUUID,
+		conntrackFresh,
 		&dynamicMetrics,
 	)
 	cpuPRaw := clamp01(cpuPressure)
@@ -433,9 +576,9 @@ func (mc *MetricsCollector) collectDomainMetrics(
 	cpuImpact := clamp01(math.Log1p(float64(vcpuCount)) / math.Log1p(16.0))
 	memPRaw := clamp01(resourceMemSeverity / 100.0)
 	memConf := 0.0
-	if memMB > 0 && guestUsedMB > 0 {
+	if memMB > 0 && guestUsedAvailable {
 		memConf = 1.0
-	} else if memMB > 0 {
+	} else if memMB > 0 && memPressureAvailable {
 		memConf = 0.5
 	}
 	memImpact := clamp01(math.Log1p(float64(memMB)) / math.Log1p(32768.0))
@@ -444,16 +587,11 @@ func (mc *MetricsCollector) collectDomainMetrics(
 	diskImpact := diskConf
 	const basePPS = 1000.0
 	dropConf := clamp01(netPPS / basePPS)
-	ctConf := 0.0
 	ctRatio := 0.0
 	ctPressure := 0.0
-	ctMax := hostConntrackMax
-	if ctMax == 0 {
-		ctMax = 200000
-	}
-	if maxConntrackFlows > 0 {
-		ctRatio = float64(maxConntrackFlows) / float64(ctMax)
-		ctConf = 1.0
+	ctSourceAvailable := conntrackAvailable && hostConntrackMaxAvailable && hostConntrackMax > 0
+	if ctSourceAvailable {
+		ctRatio = float64(maxConntrackFlows) / float64(hostConntrackMax)
 		if ctRatio > 0.01 {
 			ctPressure = clamp01((ctRatio - 0.01) / (0.10 - 0.01))
 		}
@@ -462,65 +600,82 @@ func (mc *MetricsCollector) collectDomainMetrics(
 	if netDropRate > 0.0001 {
 		dropPressure = clamp01(math.Log10(netDropRate/0.0001) / math.Log10(0.01/0.0001))
 	}
-	netPRaw := math.Max(dropPressure, ctPressure)
-	netConf := math.Max(dropConf, ctConf)
-	netImpact := clamp01(math.Log1p(netPPS) / math.Log1p(20000.0))
-	if ctRatio > 0 {
-		netImpact = math.Max(netImpact, clamp01(ctRatio/0.10))
+	dropImpact := clamp01(math.Log1p(netPPS) / math.Log1p(20000.0))
+	ctImpact := clamp01(ctRatio / 0.10)
+	netPRaw := dropPressure
+	netConf := dropConf
+	netImpact := dropImpact
+	projectedSeverity := func(pressure, confidence, impact float64) float64 {
+		return math.Pow(clamp01(pressure)*clamp01(confidence), 2) * clamp01(impact)
+	}
+	dropProjected := projectedSeverity(dropPressure, dropConf, dropImpact)
+	ctProjected := projectedSeverity(ctPressure, 1.0, ctImpact)
+	if ctSourceAvailable && (ctProjected > dropProjected ||
+		(ctProjected == dropProjected && ctPressure > dropPressure)) {
+		netPRaw = ctPressure
+		netConf = 1.0
+		netImpact = ctImpact
 	}
 	var resOut resourceV2Output
 	var resState *resourceV2State
 	if instanceRunning {
 		resOut, resState = mc.computeResourceV2(instanceUUID, resourceV2Input{
-			Now:     now,
-			CpuPRaw: cpuPRaw, CpuConf: cpuConf, CpuImpact: cpuImpact,
-			MemPRaw: memPRaw, MemConf: memConf, MemImpact: memImpact,
-			DiskPRaw: diskPRaw, DiskConf: diskConf, DiskImpact: diskImpact,
-			NetPRaw: netPRaw, NetConf: netConf, NetImpact: netImpact,
+			Now:          now,
+			CpuAvailable: cpuAvailable, CpuPRaw: cpuPRaw, CpuConf: cpuConf, CpuImpact: cpuImpact,
+			MemAvailable: memPressureAvailable && memMB > 0, MemPRaw: memPRaw, MemConf: memConf, MemImpact: memImpact,
+			DiskAvailable: diskAvailable, DiskPRaw: diskPRaw, DiskConf: diskConf, DiskImpact: diskImpact,
+			NetAvailable: netRatesAvailable || ctSourceAvailable, NetPRaw: netPRaw, NetConf: netConf, NetImpact: netImpact,
 		})
 		mc.maybeLogResourceV2Event(domain, serverName, instanceUUID, projectUUID, projectName, userUUID, resOut, resState)
-	} else {
-		resOut, _ = mc.computeResourceV2(instanceUUID, resourceV2Input{Now: now})
 	}
 	resourceSeverity := 0.0
-	if instanceRunning {
+	if instanceRunning && resOut.Available {
 		resourceSeverity = resOut.OverallFinal
 	}
-	behaviorSignal := 0.0
-	behaviorWeightOutbound := 0.0
-	behaviorWeightInbound := 0.0
-	if mc.cm.outboundBehaviorEnabled {
-		behaviorWeightOutbound = 1.0
-	}
-	if mc.cm.inboundBehaviorEnabled {
-		behaviorWeightInbound = 1.0
-	}
-	totalBehaviorWeight := behaviorWeightOutbound + behaviorWeightInbound
-	if totalBehaviorWeight > 0 {
-		behaviorSignal = (outboundSignal*behaviorWeightOutbound + inboundSignal*behaviorWeightInbound) / totalBehaviorWeight
-	}
+	behaviorDataAvailable := instanceRunning && connAgg != nil && len(fixedIPs) > 0
+	behaviorSignal, behaviorAvailable := combineBehaviorSignals(
+		outboundSignal,
+		inboundSignal,
+		mc.cm.outboundBehaviorEnabled && behaviorDataAvailable,
+		mc.cm.inboundBehaviorEnabled && behaviorDataAvailable,
+	)
 	behavior01 := clamp01(behaviorSignal)
 	behaviorScore := behavior01 * 100.0
 	threatListSeverity := intelCombined * 100.0
 	attentionSeverity := attentionSeverityWeighted(
 		mc.scoring,
 		resourceSeverity,
-		instanceRunning,
+		instanceRunning && resOut.Available,
 		behaviorScore,
-		totalBehaviorWeight > 0,
+		behaviorAvailable,
 		threatListSeverity,
-		mc.tm != nil && mc.tm.anyThreatsEnabled(),
+		threatAvailable,
 	)
-	dynamicMetrics = append(dynamicMetrics,
-		prometheus.MustNewConstMetric(mc.instanceResourceSeverityDesc, prometheus.GaugeValue, resourceSeverity, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),
-		prometheus.MustNewConstMetric(mc.instanceResourceCpuSeverityDesc, prometheus.GaugeValue, resOut.CPU.Sev, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),
-		prometheus.MustNewConstMetric(mc.instanceResourceMemSeverityDesc, prometheus.GaugeValue, resOut.MEM.Sev, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),
-		prometheus.MustNewConstMetric(mc.instanceResourceDiskSeverityDesc, prometheus.GaugeValue, resOut.DISK.Sev, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),
-		prometheus.MustNewConstMetric(mc.instanceResourceNetSeverityDesc, prometheus.GaugeValue, resOut.NET.Sev, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),
-		prometheus.MustNewConstMetric(mc.instanceThreatListSeverityDesc, prometheus.GaugeValue, threatListSeverity, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),
-		prometheus.MustNewConstMetric(mc.instanceAttentionSeverityDesc, prometheus.GaugeValue, attentionSeverity, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),
-		prometheus.MustNewConstMetric(mc.instanceBehaviorSeverityDesc, prometheus.GaugeValue, behaviorScore, domain, serverName, instanceUUID, projectUUID, projectName, userUUID),
-	)
+	attentionAvailable := attentionInputsAvailable(mc.scoring, instanceRunning && resOut.Available, behaviorAvailable, threatAvailable)
+	if resOut.Available {
+		dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(mc.instanceResourceSeverityDesc, prometheus.GaugeValue, resourceSeverity, domain, serverName, instanceUUID, projectUUID, projectName, userUUID))
+	}
+	if resOut.CPU.Available {
+		dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(mc.instanceResourceCpuSeverityDesc, prometheus.GaugeValue, resOut.CPU.Sev, domain, serverName, instanceUUID, projectUUID, projectName, userUUID))
+	}
+	if resOut.MEM.Available {
+		dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(mc.instanceResourceMemSeverityDesc, prometheus.GaugeValue, resOut.MEM.Sev, domain, serverName, instanceUUID, projectUUID, projectName, userUUID))
+	}
+	if resOut.DISK.Available {
+		dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(mc.instanceResourceDiskSeverityDesc, prometheus.GaugeValue, resOut.DISK.Sev, domain, serverName, instanceUUID, projectUUID, projectName, userUUID))
+	}
+	if resOut.NET.Available {
+		dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(mc.instanceResourceNetSeverityDesc, prometheus.GaugeValue, resOut.NET.Sev, domain, serverName, instanceUUID, projectUUID, projectName, userUUID))
+	}
+	if threatAvailable {
+		dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(mc.instanceThreatListSeverityDesc, prometheus.GaugeValue, threatListSeverity, domain, serverName, instanceUUID, projectUUID, projectName, userUUID))
+	}
+	if attentionAvailable {
+		dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(mc.instanceAttentionSeverityDesc, prometheus.GaugeValue, attentionSeverity, domain, serverName, instanceUUID, projectUUID, projectName, userUUID))
+	}
+	if behaviorAvailable {
+		dynamicMetrics = append(dynamicMetrics, prometheus.MustNewConstMetric(mc.instanceBehaviorSeverityDesc, prometheus.GaugeValue, behaviorScore, domain, serverName, instanceUUID, projectUUID, projectName, userUUID))
+	}
 	if agg != nil {
 		agg.metrics = append(agg.metrics, dynamicMetrics...)
 	}
@@ -537,8 +692,10 @@ func (mc *MetricsCollector) collectDomainNetworkAndConntrack(
 	ipSet map[string]struct{},
 	hostIPs map[string]struct{},
 	hostConntrackMax uint64,
+	conntrackFresh bool,
+	libvirtFresh bool,
 	dynamicMetrics *[]prometheus.Metric,
-) (float64, float64, float64, float64, int) {
+) (float64, float64, float64, float64, int, bool, bool) {
 
 	var rxPktsTotal, txPktsTotal, rxDropTotal, txDropTotal uint64
 	knownIfaces := make(map[string]struct{}, len(meta.Interfaces))
@@ -546,50 +703,98 @@ func (mc *MetricsCollector) collectDomainNetworkAndConntrack(
 		knownIfaces[kn] = struct{}{}
 	}
 
+	matchedIfaces := 0
+	netCountersComplete := true
+	addAggregateCounter := func(total *uint64, value uint64) {
+		if ^uint64(0)-*total < value {
+			*total = ^uint64(0)
+			netCountersComplete = false
+			return
+		}
+		*total += value
+	}
+	seenIfaces := make(map[string]struct{}, len(stat.Nets))
 	for _, iface := range stat.Nets {
 		if _, ok := knownIfaces[iface.Name]; !ok {
 			continue
 		}
+		if _, duplicate := seenIfaces[iface.Name]; duplicate {
+			continue
+		}
+		seenIfaces[iface.Name] = struct{}{}
+		matchedIfaces++
 
-		rxPktsTotal += iface.RxPkts
-		txPktsTotal += iface.TxPkts
-		rxDropTotal += iface.RxDrop
-		txDropTotal += iface.TxDrop
+		if iface.RxPktsPresent {
+			addAggregateCounter(&rxPktsTotal, iface.RxPkts)
+		} else {
+			netCountersComplete = false
+		}
+		if iface.TxPktsPresent {
+			addAggregateCounter(&txPktsTotal, iface.TxPkts)
+		} else {
+			netCountersComplete = false
+		}
+		if iface.RxDropPresent {
+			addAggregateCounter(&rxDropTotal, iface.RxDrop)
+		} else {
+			netCountersComplete = false
+		}
+		if iface.TxDropPresent {
+			addAggregateCounter(&txDropTotal, iface.TxDrop)
+		} else {
+			netCountersComplete = false
+		}
 
 		netStats := []struct {
-			val  float64
-			desc *prometheus.Desc
+			present bool
+			val     float64
+			desc    *prometheus.Desc
 		}{
-			{roundToFiveDecimals(float64(iface.RxBytes) * bytesToGigabytes), mc.im.instanceNetRxGbytesTotalDesc},
-			{roundToFiveDecimals(float64(iface.TxBytes) * bytesToGigabytes), mc.im.instanceNetTxGbytesTotalDesc},
-			{float64(iface.RxPkts), mc.im.instanceNetRxPacketsTotalDesc},
-			{float64(iface.TxPkts), mc.im.instanceNetTxPacketsTotalDesc},
-			{float64(iface.RxErrs), mc.im.instanceNetRxErrorsTotalDesc},
-			{float64(iface.TxErrs), mc.im.instanceNetTxErrorsTotalDesc},
-			{float64(iface.RxDrop), mc.im.instanceNetRxDroppedTotalDesc},
-			{float64(iface.TxDrop), mc.im.instanceNetTxDroppedTotalDesc},
+			{iface.RxBytesPresent, roundToFiveDecimals(float64(iface.RxBytes) * bytesToGigabytes), mc.im.instanceNetRxGbytesTotalDesc},
+			{iface.TxBytesPresent, roundToFiveDecimals(float64(iface.TxBytes) * bytesToGigabytes), mc.im.instanceNetTxGbytesTotalDesc},
+			{iface.RxPktsPresent, float64(iface.RxPkts), mc.im.instanceNetRxPacketsTotalDesc},
+			{iface.TxPktsPresent, float64(iface.TxPkts), mc.im.instanceNetTxPacketsTotalDesc},
+			{iface.RxErrsPresent, float64(iface.RxErrs), mc.im.instanceNetRxErrorsTotalDesc},
+			{iface.TxErrsPresent, float64(iface.TxErrs), mc.im.instanceNetTxErrorsTotalDesc},
+			{iface.RxDropPresent, float64(iface.RxDrop), mc.im.instanceNetRxDroppedTotalDesc},
+			{iface.TxDropPresent, float64(iface.TxDrop), mc.im.instanceNetTxDroppedTotalDesc},
 		}
 
 		for _, s := range netStats {
-			*dynamicMetrics = append(*dynamicMetrics, prometheus.MustNewConstMetric(s.desc, prometheus.CounterValue, s.val, domain, serverName, instanceUUID, projectUUID, projectName, userUUID, iface.Name))
+			if s.present {
+				*dynamicMetrics = append(*dynamicMetrics, prometheus.MustNewConstMetric(s.desc, prometheus.CounterValue, s.val, domain, serverName, instanceUUID, projectUUID, projectName, userUUID, iface.Name))
+			}
 		}
 	}
 
 	netPPS := 0.0
 	netDropRate := 0.0
-	if instanceRunning {
-		pp, dr, _ := mc.im.calculateNetRates(instanceUUID, rxPktsTotal, txPktsTotal, rxDropTotal, txDropTotal, now)
-		netPPS = pp
+	netRatesAvailable := false
+	completeInterfaceSet := matchedIfaces > 0 &&
+		matchedIfaces == len(knownIfaces) &&
+		matchedIfaces == len(stat.Nets) &&
+		(!stat.NetCountPresent || stat.NetCount == uint64(matchedIfaces))
+	if instanceRunning && libvirtFresh && completeInterfaceSet && netCountersComplete {
+		interfaceNames := make([]string, 0, len(seenIfaces))
+		for name := range seenIfaces {
+			interfaceNames = append(interfaceNames, name)
+		}
+		sort.Strings(interfaceNames)
+		interfaceSet := strings.Join(interfaceNames, "\x00")
+		pp, dr, droppedPPS, valid := mc.im.calculateNetRatesForInterfaceSet(instanceUUID, interfaceSet, rxPktsTotal, txPktsTotal, rxDropTotal, txDropTotal, now)
+		netPPS = pp + droppedPPS
 		netDropRate = dr
+		netRatesAvailable = valid
 	}
 
 	outboundSignal := 0.0
 	inboundSignal := 0.0
 	maxConntrackFlows := 0
 
+	conntrackAvailable := instanceRunning && conntrackFresh && connAgg != nil && len(fixedIPs) > 0
 	if instanceRunning && connAgg != nil && len(fixedIPs) > 0 {
-		outboundSignal, inboundSignal, maxConntrackFlows = mc.cm.calculateConntrackMetrics(fixedIPs, connAgg, ipSet, hostIPs, hostConntrackMax, domain, serverName, instanceUUID, projectUUID, projectName, userUUID, dynamicMetrics)
+		outboundSignal, inboundSignal, maxConntrackFlows = mc.cm.calculateConntrackMetrics(fixedIPs, connAgg, ipSet, hostIPs, hostConntrackMax, conntrackFresh, domain, serverName, instanceUUID, projectUUID, projectName, userUUID, dynamicMetrics)
 	}
 
-	return netPPS, netDropRate, outboundSignal, inboundSignal, maxConntrackFlows
+	return netPPS, netDropRate, outboundSignal, inboundSignal, maxConntrackFlows, netRatesAvailable, conntrackAvailable
 }

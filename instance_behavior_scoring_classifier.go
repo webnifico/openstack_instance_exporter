@@ -5,31 +5,56 @@ import (
 	"math"
 )
 
+type behaviorClassification struct {
+	Hit                bool
+	Kind               string
+	Reason             string
+	RuleID             string
+	RuleSource         string
+	SynergyDarkScan    bool
+	SynergyDarkPhysics bool
+}
+
+func behaviorClassificationHit(kind, reason, ruleID, ruleSource string) behaviorClassification {
+	return behaviorClassification{
+		Hit:        true,
+		Kind:       kind,
+		Reason:     reason,
+		RuleID:     ruleID,
+		RuleSource: ruleSource,
+	}
+}
+
 func newBehaviorScaler(sens float64) behaviorScaler {
-	if sens <= 0 {
+	if sens <= 0 || math.IsNaN(sens) || math.IsInf(sens, 0) {
 		sens = 1.0
 	}
 	return behaviorScaler{sens: sens}
 }
+
+func saturatingScaledInt(value float64) int {
+	maxInt := int(^uint(0) >> 1)
+	if math.IsInf(value, 1) || value >= float64(maxInt) {
+		return maxInt
+	}
+	value = math.Ceil(value)
+	if value < 1 {
+		return 1
+	}
+	return int(value)
+}
+
 func (s behaviorScaler) scaleIntHigh(v int) int {
 	if v <= 0 {
 		return v
 	}
-	t := int(math.Ceil(float64(v) / s.sens))
-	if t < 1 {
-		t = 1
-	}
-	return t
+	return saturatingScaledInt(float64(v) / s.sens)
 }
 func (s behaviorScaler) scaleIntLow(v int) int {
 	if v <= 0 {
 		return v
 	}
-	t := int(math.Ceil(float64(v) * s.sens))
-	if t < 1 {
-		t = 1
-	}
-	return t
+	return saturatingScaledInt(float64(v) * s.sens)
 }
 func (s behaviorScaler) threshHigh(v float64) float64 {
 	return v / s.sens
@@ -38,7 +63,17 @@ func (s behaviorScaler) threshLow(v float64) float64 {
 	return v * s.sens
 }
 func (s behaviorScaler) ratioThresh(base float64) float64 {
-	t := 0.5 + (base-0.5)/s.sens
+	t := base / s.sens
+	if t < 0 {
+		return 0
+	}
+	if t > 1 {
+		return 1
+	}
+	return t
+}
+func (s behaviorScaler) ratioUpperBound(base float64) float64 {
+	t := base * s.sens
 	if t < 0 {
 		return 0
 	}
@@ -57,62 +92,65 @@ func (s behaviorScaler) anomThresh(base float64) float64 {
 	}
 	return v
 }
-func (cm *ConntrackManager) classifyBehavior(feature *BehaviorFeature, hostImpact float64, anoms behaviorAnomalies, dstPortCounts map[uint16]int) (bool, string, string, string, string) {
+func (cm *ConntrackManager) classifyBehavior(feature BehaviorFeature, hostImpact float64, anoms behaviorAnomalies, dstPortCounts map[uint16]int) behaviorClassification {
 	sc := newBehaviorScaler(cm.behaviorSensitivity)
-	ev := buildBehaviorEvidence(*feature)
+	ev := buildBehaviorEvidence(feature)
 	ctx := &RuleCtx{Thresholds: defaultRuleThresholds, DstPortCounts: dstPortCounts}
 
-	restrictedHit, restrictedRuleID, restrictedKind, restrictedReason, restrictedSource := evalRules(*feature, sc, ev, ctx, rulesRestrictedLocal)
+	restrictedHit, restrictedRuleID, restrictedKind, restrictedReason, restrictedSource := evalRules(feature, sc, ev, ctx, rulesRestrictedLocal)
 	if restrictedHit {
-		return true, restrictedKind, restrictedReason, restrictedRuleID, restrictedSource
+		return behaviorClassificationHit(restrictedKind, restrictedReason, restrictedRuleID, restrictedSource)
 	}
 
-	darkHit, darkRuleID, darkKind, darkReason, darkSource := evalRules(*feature, sc, ev, ctx, rulesDarkspace)
-	scanHit, scanKind, scanReason := cm.classifyOutboundScanning(*feature, anoms, sc)
-	inboundExposureHit, inboundExposureKind, inboundExposureReason := cm.classifyInboundExposure(*feature, sc)
-	inboundAttackHit, inboundAttackKind, inboundAttackReason := cm.classifyInboundAttackPatterns(*feature, sc)
-	protoHit, protoRuleID, protoKind, protoReason, protoSource := evalRules(*feature, sc, ev, ctx, rulesProtocol)
+	darkHit, darkRuleID, darkKind, darkReason, darkSource := evalRules(feature, sc, ev, ctx, rulesDarkspace)
+	scanHit, scanKind, scanReason := cm.classifyOutboundScanning(feature, anoms, sc)
+	inboundExposureHit, inboundExposureKind, inboundExposureReason := cm.classifyInboundExposure(feature, sc)
+	inboundAttackHit, inboundAttackKind, inboundAttackReason := cm.classifyInboundAttackPatterns(feature, sc)
+	protoHit, protoRuleID, protoKind, protoReason, protoSource := evalRules(feature, sc, ev, ctx, rulesProtocol)
 
-	feature.SynergyDarkScan = darkHit && scanHit
-	feature.SynergyDarkPhysics = darkHit && protoHit
+	withSynergy := func(result behaviorClassification) behaviorClassification {
+		result.SynergyDarkScan = darkHit && scanHit
+		result.SynergyDarkPhysics = darkHit && protoHit
+		return result
+	}
 
 	if darkHit && protoHit {
-		return true, "darkspace_plus_physics", darkReason + " | " + protoReason, "synergy_darkspace_plus_physics", "internal"
+		return withSynergy(behaviorClassificationHit("darkspace_plus_physics", darkReason+" | "+protoReason, "synergy_darkspace_plus_physics", "internal"))
 	}
 	if darkHit && scanHit {
-		return true, "darkspace_plus_scan", darkReason + " | " + scanReason, "synergy_darkspace_plus_scan", "internal"
+		return withSynergy(behaviorClassificationHit("darkspace_plus_scan", darkReason+" | "+scanReason, "synergy_darkspace_plus_scan", "internal"))
 	}
 	if darkHit {
-		return true, darkKind, darkReason, darkRuleID, darkSource
+		return withSynergy(behaviorClassificationHit(darkKind, darkReason, darkRuleID, darkSource))
 	}
 	if scanHit {
-		return true, scanKind, scanReason, "legacy_scan", "internal"
+		return withSynergy(behaviorClassificationHit(scanKind, scanReason, "legacy_scan", "internal"))
 	}
 	if protoHit {
-		return true, protoKind, protoReason, protoRuleID, protoSource
+		return withSynergy(behaviorClassificationHit(protoKind, protoReason, protoRuleID, protoSource))
 	}
 	if inboundAttackHit {
-		return true, inboundAttackKind, inboundAttackReason, "legacy_inbound_attack_patterns", "internal"
+		return withSynergy(behaviorClassificationHit(inboundAttackKind, inboundAttackReason, "legacy_inbound_attack_patterns", "internal"))
 	}
 	if inboundExposureHit {
-		return true, inboundExposureKind, inboundExposureReason, "legacy_inbound_exposure", "internal"
+		return withSynergy(behaviorClassificationHit(inboundExposureKind, inboundExposureReason, "legacy_inbound_exposure", "internal"))
 	}
-	if hit, kind, reason := cm.classifyCapacityAndFlood(*feature, hostImpact, sc); hit {
-		return true, kind, reason, "legacy_capacity_and_flood", "internal"
+	if hit, kind, reason := cm.classifyCapacityAndFlood(feature, hostImpact, sc); hit {
+		return withSynergy(behaviorClassificationHit(kind, reason, "legacy_capacity_and_flood", "internal"))
 	}
-	if hit, kind, reason := cm.classifyEWMABands(*feature, anoms, sc); hit {
-		return true, kind, reason, "legacy_ewma_bands", "internal"
+	if hit, kind, reason := cm.classifyEWMABands(feature, anoms, sc); hit {
+		return withSynergy(behaviorClassificationHit(kind, reason, "legacy_ewma_bands", "internal"))
 	}
 
 	externalRules := cm.externalBehaviorRules
 	if len(externalRules) > 0 {
-		extHit, extRuleID, extKind, extReason, extSource := evalRules(*feature, sc, ev, ctx, externalRules)
+		extHit, extRuleID, extKind, extReason, extSource := evalRules(feature, sc, ev, ctx, externalRules)
 		if extHit {
-			return true, extKind, extReason, extRuleID, extSource
+			return withSynergy(behaviorClassificationHit(extKind, extReason, extRuleID, extSource))
 		}
 	}
 
-	return false, "", "", "", ""
+	return withSynergy(behaviorClassification{})
 }
 func (cm *ConntrackManager) classifyOutboundScanning(feature BehaviorFeature, anoms behaviorAnomalies, sc behaviorScaler) (bool, string, string) {
 	if feature.Direction != "outbound" {
@@ -147,20 +185,21 @@ func (cm *ConntrackManager) classifyInboundExposure(feature BehaviorFeature, sc 
 	if feature.AdminPortFlows <= 0 {
 		return false, "", ""
 	}
-	if feature.PublicRemotes <= 0 {
+	if feature.AdminUniqueRemotes <= 0 {
 		return false, "", ""
 	}
-	adminTop := isAdminExposurePort(feature.TopDstPort)
+	adminTop := isAdminExposurePort(feature.AdminTopDstPort)
 	adminRatio := float64(feature.AdminPortFlows) / float64(maxInt(1, feature.Flows))
 	if !adminTop && adminRatio < sc.threshHigh(0.50) {
 		return false, "", ""
 	}
-	if feature.NewRemotes >= sc.scaleIntHigh(10) || feature.UniqueRemotes >= sc.scaleIntHigh(20) || feature.UnrepliedRatio >= sc.ratioThresh(0.60) {
-		port := feature.TopDstPort
+	failedAdminVolume := feature.AdminPortFlows >= sc.scaleIntHigh(10) && feature.AdminUnrepliedRatio >= sc.ratioThresh(0.60)
+	if feature.AdminNewRemotes >= sc.scaleIntHigh(10) || feature.AdminUniqueRemotes >= sc.scaleIntHigh(20) || failedAdminVolume {
+		port := feature.AdminTopDstPort
 		if !adminTop {
 			port = 0
 		}
-		return true, "inbound_admin_port_exposure_suspected", fmt.Sprintf("admin_flows_%d_admin_ratio_%.2f_port_%d_public_remotes_%d", feature.AdminPortFlows, adminRatio, port, feature.PublicRemotes)
+		return true, "inbound_admin_port_exposure_suspected", fmt.Sprintf("admin_flows_%d_admin_ratio_%.2f_port_%d_public_remotes_%d", feature.AdminPortFlows, adminRatio, port, feature.AdminUniqueRemotes)
 	}
 	return false, "", ""
 }
@@ -171,26 +210,25 @@ func (cm *ConntrackManager) classifyInboundAttackPatterns(feature BehaviorFeatur
 	if feature.Flows < sc.scaleIntHigh(20) {
 		return false, "", ""
 	}
-	if feature.UnrepliedRatio < sc.ratioThresh(0.60) {
-		return false, "", ""
-	}
-
 	topRemoteShare, _, evidenceMode := behaviorEvidenceFromFeature(feature)
-	if feature.NewRemotes >= sc.scaleIntHigh(20) && feature.UniqueDstPorts <= sc.scaleIntHigh(4) {
-		if evidenceMode == "dominant_port" {
-			return true, "inbound_service_spray_suspected", "rapid_new_remote_ips"
+	if feature.UnrepliedRatio >= sc.ratioThresh(0.60) {
+		if feature.NewRemotes >= sc.scaleIntHigh(20) && feature.UniqueDstPorts <= sc.scaleIntLow(4) {
+			if evidenceMode == "dominant_port" {
+				return true, "inbound_service_spray_suspected", "rapid_new_remote_ips"
+			}
+			return true, "inbound_distributed_probe_suspected", "rapid_new_remote_ips"
 		}
-		return true, "inbound_distributed_probe_suspected", "rapid_new_remote_ips"
+		if evidenceMode == "dominant_remote" && feature.UniqueDstPorts >= sc.scaleIntHigh(10) {
+			return true, "inbound_single_remote_multiport_probe_suspected", fmt.Sprintf("many_ports_single_remote_ports_%d", feature.UniqueDstPorts)
+		}
+		if evidenceMode == "dominant_remote" && topRemoteShare >= sc.threshHigh(0.90) && feature.Flows >= sc.scaleIntHigh(200) {
+			return true, "inbound_single_remote_flood", fmt.Sprintf("dominant_remote_share_%.2f", topRemoteShare)
+		}
 	}
-	if evidenceMode == "dominant_remote" && feature.UniqueDstPorts >= sc.scaleIntHigh(10) {
-		return true, "inbound_single_remote_multiport_probe_suspected", fmt.Sprintf("many_ports_single_remote_ports_%d", feature.UniqueDstPorts)
-	}
-	if evidenceMode == "dominant_remote" && topRemoteShare >= sc.threshHigh(0.90) && feature.Flows >= sc.scaleIntHigh(200) {
-		return true, "inbound_single_remote_flood", fmt.Sprintf("dominant_remote_share_%.2f", topRemoteShare)
-	}
-	if feature.UDPCount >= sc.scaleIntHigh(100) && feature.UnrepliedRatio >= sc.ratioThresh(0.90) {
+	if feature.UDPCount >= sc.scaleIntHigh(100) && feature.UDPUnrepliedRatio >= sc.ratioThresh(0.90) {
 		kind := "inbound_udp_flood_suspected"
-		if evidenceMode == "dominant_port" {
+		_, _, udpEvidenceMode := udpBehaviorEvidenceFromFeature(feature)
+		if udpEvidenceMode == "dominant_port" {
 			kind = "inbound_udp_targeted_flood_suspected"
 		}
 		return true, kind, fmt.Sprintf("udp_unreplied_spike_count_%d", feature.UDPCount)
@@ -212,11 +250,15 @@ func (cm *ConntrackManager) classifyCapacityAndFlood(feature BehaviorFeature, ho
 			kind = "host_multicast_storm_suspected"
 		} else if feature.Direction == "inbound" {
 			kind = "inbound_conntrack_pressure"
-		} else if feature.ConntrackAcct && feature.UnrepliedRatio < sc.ratioThresh(0.2) {
-			if (feature.BytesPerFlow > 0 && feature.BytesPerFlow < sc.threshLow(float64(lowThroughputBytesPerFlow))) || (feature.PacketsPerFlow > 0 && feature.PacketsPerFlow < sc.threshLow(float64(lowThroughputPacketsPerFlow))) {
+		} else if feature.ConntrackAcct && feature.UnrepliedRatio < sc.ratioUpperBound(0.2) {
+			lowBytes := feature.BytesPerFlowAvailable && feature.BytesPerFlow < sc.threshLow(float64(lowThroughputBytesPerFlow))
+			lowPackets := feature.PacketsPerFlowAvailable && feature.PacketsPerFlow < sc.threshLow(float64(lowThroughputPacketsPerFlow))
+			highBytes := feature.BytesPerFlowAvailable && feature.BytesPerFlow > sc.threshHigh(float64(heavyThroughputBytesPerFlow))
+			highPackets := feature.PacketsPerFlowAvailable && feature.PacketsPerFlow > sc.threshHigh(float64(heavyThroughputPacketsPerFlow))
+			if lowBytes || lowPackets {
 				kind = "host_accumulating_stale_flows"
 				reason = "low_throughput_high_count"
-			} else if feature.BytesPerFlow > sc.threshHigh(float64(heavyThroughputBytesPerFlow)) || feature.PacketsPerFlow > sc.threshHigh(float64(heavyThroughputPacketsPerFlow)) {
+			} else if highBytes || highPackets {
 				kind = "host_high_throughput_anomaly"
 				reason = "high_bytes_per_flow"
 			}
