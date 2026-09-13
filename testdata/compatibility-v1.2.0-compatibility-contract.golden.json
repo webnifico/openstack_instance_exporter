@@ -1,0 +1,186 @@
+{
+  "source": {
+    "kind": "development-baseline",
+    "commit": "2d04a3914130cbe8e4e07ae1c71b8b4e1e012e8c"
+  },
+  "metrics": {
+    "legacy_names_and_labels": {
+      "path": "testdata/metrics-v1.2.0.golden",
+      "count": 126
+    },
+    "approved_type_changes": [
+      {
+        "name": "oie_host_threat_customlist_refresh_errors_total",
+        "previous_type": "GAUGE",
+        "current_type": "COUNTER"
+      },
+      {
+        "name": "oie_host_threat_emergingthreats_refresh_errors_total",
+        "previous_type": "GAUGE",
+        "current_type": "COUNTER"
+      },
+      {
+        "name": "oie_host_threat_spamhaus_refresh_errors_total",
+        "previous_type": "GAUGE",
+        "current_type": "COUNTER"
+      },
+      {
+        "name": "oie_host_threat_tor_exit_refresh_errors_total",
+        "previous_type": "GAUGE",
+        "current_type": "COUNTER"
+      },
+      {
+        "name": "oie_host_threat_tor_relay_refresh_errors_total",
+        "previous_type": "GAUGE",
+        "current_type": "COUNTER"
+      }
+    ],
+    "approved_help_changes": [
+      {
+        "name": "oie_instance_attention_severity",
+        "previous_help": "Combined attention severity (0-100) based on resource pressure and threat signals",
+        "current_help": "Combined attention severity (0-100) based on resource pressure, behavior anomalies, and threat-list signals"
+      }
+    ],
+    "approved_additions": [
+      {
+        "descriptor": "oie_instance_mining_suspected|domain,server_name,instance_uuid,project_uuid,project_name,user_uuid,ip,family,port,port_name,confidence,priority",
+        "name": "oie_instance_mining_suspected",
+        "type": "GAUGE",
+        "help": "Persisted outbound mining-pool behavior classification (1 = currently suspected)"
+      }
+    ]
+  },
+  "cli": {
+    "legacy_contract": {
+      "path": "testdata/cli-flags-v1.2.0.golden",
+      "count": 48
+    }
+  },
+  "ansible": {
+    "legacy_public_variables": [
+      "openstack_instance_exporter_behavior_ewma_fast_tau",
+      "openstack_instance_exporter_behavior_ewma_slow_tau",
+      "openstack_instance_exporter_behavior_ports_config_path",
+      "openstack_instance_exporter_behavior_ports_config_yaml",
+      "openstack_instance_exporter_behavior_rules_config_path",
+      "openstack_instance_exporter_behavior_rules_config_yaml",
+      "openstack_instance_exporter_behavior_sensitivity",
+      "openstack_instance_exporter_bind_port",
+      "openstack_instance_exporter_collection_interval",
+      "openstack_instance_exporter_conntrack_ipv4_enable",
+      "openstack_instance_exporter_conntrack_ipv6_enable",
+      "openstack_instance_exporter_conntrack_raw_rcv_timeout",
+      "openstack_instance_exporter_conntrack_raw_rcvbuf_bytes",
+      "openstack_instance_exporter_contacts_direction",
+      "openstack_instance_exporter_custom_ip_list",
+      "openstack_instance_exporter_customlist_direction",
+      "openstack_instance_exporter_customlist_enable",
+      "openstack_instance_exporter_customlist_path",
+      "openstack_instance_exporter_customlist_refresh",
+      "openstack_instance_exporter_customlist_src",
+      "openstack_instance_exporter_emergingthreats_direction",
+      "openstack_instance_exporter_emergingthreats_enable",
+      "openstack_instance_exporter_emergingthreats_refresh",
+      "openstack_instance_exporter_emergingthreats_url",
+      "openstack_instance_exporter_enabled",
+      "openstack_instance_exporter_host_interfaces",
+      "openstack_instance_exporter_host_ips_allow_private",
+      "openstack_instance_exporter_host_threats_enable",
+      "openstack_instance_exporter_inbound_behavior_enable",
+      "openstack_instance_exporter_install_dir",
+      "openstack_instance_exporter_libvirt_uri",
+      "openstack_instance_exporter_log_file_enable",
+      "openstack_instance_exporter_log_file_path",
+      "openstack_instance_exporter_log_level",
+      "openstack_instance_exporter_logrotate_content",
+      "openstack_instance_exporter_network_interface",
+      "openstack_instance_exporter_nf_conntrack_acct_enable",
+      "openstack_instance_exporter_nf_conntrack_acct_value",
+      "openstack_instance_exporter_outbound_behavior_enable",
+      "openstack_instance_exporter_profile",
+      "openstack_instance_exporter_profile_defaults",
+      "openstack_instance_exporter_severity_weight_behavior",
+      "openstack_instance_exporter_severity_weight_resource",
+      "openstack_instance_exporter_severity_weight_threat_list",
+      "openstack_instance_exporter_sha256",
+      "openstack_instance_exporter_spamhaus_direction",
+      "openstack_instance_exporter_spamhaus_enable",
+      "openstack_instance_exporter_spamhaus_ipv6_url",
+      "openstack_instance_exporter_spamhaus_refresh",
+      "openstack_instance_exporter_spamhaus_url",
+      "openstack_instance_exporter_threat_log_min_interval",
+      "openstack_instance_exporter_tor_exit_direction",
+      "openstack_instance_exporter_tor_exit_enable",
+      "openstack_instance_exporter_tor_exit_refresh",
+      "openstack_instance_exporter_tor_exit_url",
+      "openstack_instance_exporter_tor_relay_direction",
+      "openstack_instance_exporter_tor_relay_enable",
+      "openstack_instance_exporter_tor_relay_refresh",
+      "openstack_instance_exporter_tor_relay_url",
+      "openstack_instance_exporter_version",
+      "openstack_instance_exporter_web_listen_address",
+      "openstack_instance_exporter_web_telemetry_path",
+      "openstack_instance_exporter_worker_count"
+    ],
+    "approved_additions": [
+      "openstack_instance_exporter_architecture",
+      "openstack_instance_exporter_architecture_map"
+    ],
+    "approved_default_changes": [
+      {
+        "name": "openstack_instance_exporter_version",
+        "previous": "v1.1.1",
+        "current": "v2.0.0"
+      }
+    ]
+  },
+  "grafana": {
+    "legacy_dashboard_uids": {
+      "openstack_instance_exporter_cluster.json": "r83k2mnsf0p4z",
+      "openstack_instance_exporter_hypervisor.json": "d92k2mnsf0p4z",
+      "openstack_instance_exporter_instance.json": "i92k2mnsf0p4z",
+      "openstack_instance_exporter_project.json": "e92k2mnsf0p4z",
+      "openstack_instance_exporter_threats.json": "oie-threat-overview"
+    }
+  },
+  "alerts": {
+    "legacy_rules": {
+      "path": "testdata/prometheus-alerts-v1.2.0.golden.yml",
+      "count": 69
+    },
+    "legacy_names": {
+      "path": "testdata/alerts-v1.2.0.golden",
+      "count": 69
+    },
+    "approved_additions": [
+      "OpenStackInstanceMiningSuspected",
+      "OpenStackInstanceMiningCandidatePersistent"
+    ],
+    "approved_expression_changes": [
+      "OpenStackInstanceDiskFlushLatencyHigh",
+      "OpenStackInstanceDiskReadLatencyHigh",
+      "OpenStackInstanceDiskWriteLatencyHigh",
+      "OpenStackInstanceExporterConntrackRawReaderFailed",
+      "OpenStackInstanceExporterConntrackReadStale",
+      "OpenStackInstanceExporterProcessCPUHigh",
+      "OpenStackInstanceHighCPUUsage",
+      "OpenStackInstanceHighDiskReadIOPSLocal",
+      "OpenStackInstanceHighDiskReadIOPSPremium",
+      "OpenStackInstanceHighDiskReadIOPSUltra",
+      "OpenStackInstanceHighDiskReadIOPSVolumes",
+      "OpenStackInstanceHighDiskWriteIOPSLocal",
+      "OpenStackInstanceHighDiskWriteIOPSPremium",
+      "OpenStackInstanceHighDiskWriteIOPSUltra",
+      "OpenStackInstanceHighDiskWriteIOPSVolumes",
+      "OpenStackInstanceNetworkReceiveDropRatioHigh",
+      "OpenStackInstanceNetworkTransmitDropRatioHigh"
+    ],
+    "approved_annotation_changes": [
+      "OpenStackInstanceAttentionHigh",
+      "OpenStackInstanceAttentionSevere",
+      "OpenStackInstanceSpamhausRepeatedContact",
+      "OpenStackInstanceZombieFlowWarning"
+    ]
+  }
+}

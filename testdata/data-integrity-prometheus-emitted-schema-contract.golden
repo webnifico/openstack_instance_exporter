@@ -1,0 +1,23 @@
+oie_instance_behavior_severity|type=GAUGE|help=Pure behavior severity (0-100) derived from conntrack behavior signals (no intel)|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_conntrack_ip_flows_inbound|type=GAUGE|help=Inbound conntrack flow entries matched to this fixed IP (VM as destination)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_conntrack_ip_flows_outbound|type=GAUGE|help=Outbound conntrack flow entries matched to this fixed IP (VM as source)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_conntrack_ip_flows|type=GAUGE|help=Conntrack flow entries matched to this fixed IP (inbound + outbound)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_cpu_vcpu_count|type=GAUGE|help=Allocated vCPU count for this instance|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_info|type=GAUGE|help=Static instance metadata|labels=created_at,domain,flavor,instance_uuid,mem_mb,metadata_version,project_name,project_uuid,root_type,server_name,user_name,user_uuid,vcpus
+oie_instance_mem_allocated_mb|type=GAUGE|help=Allocated memory for this instance (MB)|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mem_rss_mb|type=GAUGE|help=Resident Set Size (Actual Host RAM used) (MB)|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mem_used_mb|type=GAUGE|help=Guest-view used memory for this instance (MB)|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_mining_suspected|type=GAUGE|help=Persisted outbound mining-pool behavior classification (1 = currently suspected)|labels=confidence,domain,family,instance_uuid,ip,port,port_name,priority,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_bytes_per_flow|type=GAUGE|help=Outbound average bytes per conntrack flow for this fixed IP (requires nf_conntrack_acct=1)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_flows|type=GAUGE|help=Outbound conntrack flows initiated by this fixed IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_max_flows_single_dst_port|type=GAUGE|help=Maximum outbound flows to a single destination port in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_max_flows_single_remote|type=GAUGE|help=Maximum outbound flows to a single remote IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_new_dst_ports|type=GAUGE|help=Outbound new destination ports discovered since previous interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_new_remotes|type=GAUGE|help=Outbound new remote IPs discovered since previous interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_packets_per_flow|type=GAUGE|help=Outbound average packets per conntrack flow for this fixed IP (requires nf_conntrack_acct=1)|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_unique_dst_ports|type=GAUGE|help=Outbound unique destination ports in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_outbound_unique_remotes|type=GAUGE|help=Outbound unique remote IPs for this fixed IP in the current interval|labels=domain,family,instance_uuid,ip,project_name,project_uuid,server_name,user_uuid
+oie_instance_resource_mem_severity|type=GAUGE|help=Resource memory axis severity (0-100) based on pressure EWMA|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_resource_net_severity|type=GAUGE|help=Resource network axis severity (0-100) based on drop/capacity pressure EWMA|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_resource_severity|type=GAUGE|help=Resource pressure severity (0-100) combining CPU, memory, disk and network/conntrack|labels=domain,instance_uuid,project_name,project_uuid,server_name,user_uuid
+oie_instance_state_code|type=GAUGE|help=Libvirt state code|labels=domain,instance_uuid,project_name,project_uuid,server_name,state_desc,user_uuid

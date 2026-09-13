@@ -1,0 +1,105 @@
+---
+- name: Validate openstack_instance_exporter release preflight
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    oie_preflight_root: "/tmp/oie-operational-configuration-preflight-{{ ansible_date_time.epoch }}"
+    oie_test_archive: "/tmp/openstack_instance_exporter-v2.0.0-linux-amd64.tar.xz"
+    oie_test_sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  tasks:
+    - name: Confirm preflight targets do not exist
+      ansible.builtin.stat:
+        path: "{{ oie_preflight_root }}-{{ item }}"
+        follow: false
+      loop:
+        - source
+        - checksum
+        - retype
+      register: oie_initial_stats
+
+    - name: Require clean preflight targets
+      ansible.builtin.assert:
+        that:
+          - not (item.stat.exists | default(false))
+      loop: "{{ oie_initial_stats.results }}"
+
+    - name: Exercise missing archive selection
+      block:
+        - name: Invoke role without an archive source
+          ansible.builtin.include_role:
+            name: openstack_instance_exporter
+          vars:
+            openstack_instance_exporter_enabled: true
+            openstack_instance_exporter_install_dir: "{{ oie_preflight_root }}-source"
+            openstack_instance_exporter_web_listen_address: "127.0.0.1:19120"
+            openstack_instance_exporter_archive_src: ""
+            openstack_instance_exporter_download_url: ""
+            openstack_instance_exporter_sha256: "{{ oie_test_sha256 }}"
+        - name: Reject accepted missing archive selection
+          ansible.builtin.fail:
+            msg: "the role accepted a missing archive source"
+      rescue:
+        - name: Record archive selection rejection
+          ansible.builtin.set_fact:
+            oie_source_rejected: "{{ ansible_failed_task.name == 'Validate openstack_instance_exporter release settings' }}"
+
+    - name: Exercise malformed archive checksum
+      block:
+        - name: Invoke role with a malformed archive checksum
+          ansible.builtin.include_role:
+            name: openstack_instance_exporter
+          vars:
+            openstack_instance_exporter_enabled: true
+            openstack_instance_exporter_install_dir: "{{ oie_preflight_root }}-checksum"
+            openstack_instance_exporter_web_listen_address: "127.0.0.1:19120"
+            openstack_instance_exporter_archive_src: "{{ oie_test_archive }}"
+            openstack_instance_exporter_download_url: ""
+            openstack_instance_exporter_sha256: not-a-checksum
+        - name: Reject accepted malformed archive checksum
+          ansible.builtin.fail:
+            msg: "the role accepted a malformed SHA-256"
+      rescue:
+        - name: Record malformed checksum rejection
+          ansible.builtin.set_fact:
+            oie_checksum_rejected: "{{ ansible_failed_task.name == 'Validate openstack_instance_exporter release settings' }}"
+
+    - name: Exercise invalid retype monitoring switch
+      block:
+        - name: Invoke role with an invalid retype monitoring switch
+          ansible.builtin.include_role:
+            name: openstack_instance_exporter
+          vars:
+            openstack_instance_exporter_enabled: true
+            openstack_instance_exporter_install_dir: "{{ oie_preflight_root }}-retype"
+            openstack_instance_exporter_web_listen_address: "127.0.0.1:19120"
+            openstack_instance_exporter_archive_src: "{{ oie_test_archive }}"
+            openstack_instance_exporter_download_url: ""
+            openstack_instance_exporter_sha256: "{{ oie_test_sha256 }}"
+            openstack_instance_exporter_volume_retype_enable: invalid
+        - name: Reject accepted invalid retype monitoring switch
+          ansible.builtin.fail:
+            msg: "the role accepted an invalid retype monitoring switch"
+      rescue:
+        - name: Record retype monitoring switch rejection
+          ansible.builtin.set_fact:
+            oie_retype_rejected: "{{ ansible_failed_task.name == 'Validate openstack_instance_exporter release settings' }}"
+
+    - name: Inspect preflight targets after rejection
+      ansible.builtin.stat:
+        path: "{{ oie_preflight_root }}-{{ item }}"
+        follow: false
+      loop:
+        - source
+        - checksum
+        - retype
+      register: oie_final_stats
+
+    - name: Verify invalid configurations failed before mutation
+      ansible.builtin.assert:
+        that:
+          - oie_source_rejected | default(false) | bool
+          - oie_checksum_rejected | default(false) | bool
+          - oie_retype_rejected | default(false) | bool
+          - not (item.stat.exists | default(false))
+      loop: "{{ oie_final_stats.results }}"

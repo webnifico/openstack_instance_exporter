@@ -1,0 +1,194 @@
+schema_version: 1
+category: benign
+fixtures:
+  - id: web_server
+    description: Sustained replied inbound HTTP and HTTPS traffic from a broad public client set.
+    input_observations: {engine: behavior, direction: inbound, cycles: 4, interval_seconds: 15, flows: 800, unique_remotes: 200, new_remotes: 10, unique_dst_ports: 2, new_dst_ports: 0, max_single_remote: 12, max_single_dst_port: 520, top_dst_port: 443, unreplied_ratio: 0.02, tcp_flows: 800, tcp_unreplied_ratio: 0.02, tcp_top_remote_flows: 12, tcp_top_dst_port_flows: 520}
+    expected_metrics: [oie_instance_inbound_flows, oie_instance_inbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: reverse_proxy
+    description: High-volume replied proxy ingress distributed across ordinary web ports.
+    input_observations: {engine: behavior, direction: inbound, cycles: 4, interval_seconds: 15, flows: 4000, unique_remotes: 800, new_remotes: 20, unique_dst_ports: 3, new_dst_ports: 0, max_single_remote: 20, max_single_dst_port: 2500, top_dst_port: 443, unreplied_ratio: 0.01, tcp_flows: 4000, tcp_unreplied_ratio: 0.01, tcp_top_remote_flows: 20, tcp_top_dst_port_flows: 2500}
+    expected_metrics: [oie_instance_inbound_flows, oie_instance_inbound_max_flows_single_dst_port, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: dns_resolver
+    description: Replied recursive DNS traffic to a small stable resolver set.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 1200, unique_remotes: 4, new_remotes: 0, unique_dst_ports: 1, new_dst_ports: 0, max_single_remote: 350, max_single_dst_port: 1200, top_dst_port: 53, unreplied_ratio: 0.02, udp_flows: 1200, udp_unique_remotes: 4, udp_unreplied_ratio: 0.02, udp_top_remote_flows: 350, udp_top_dst_port_flows: 1200}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: smtp_server_or_relay
+    description: Successful outbound mail relay delivery to many remote mail exchangers.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 800, unique_remotes: 100, new_remotes: 8, unique_dst_ports: 1, new_dst_ports: 0, max_single_remote: 15, max_single_dst_port: 800, top_dst_port: 25, unreplied_ratio: 0.01, tcp_flows: 800, tcp_unreplied_ratio: 0.01, tcp_top_remote_flows: 15, tcp_top_dst_port_flows: 800, smtp_flows: 800, smtp_unique_remotes: 100, smtp_unreplied_ratio: 0.01}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: database_server
+    description: Replied inbound database sessions from a stable application tier.
+    input_observations: {engine: behavior, direction: inbound, cycles: 4, interval_seconds: 15, flows: 1200, unique_remotes: 120, new_remotes: 2, unique_dst_ports: 1, new_dst_ports: 0, max_single_remote: 20, max_single_dst_port: 1200, top_dst_port: 5432, unreplied_ratio: 0.01, tcp_flows: 1200, tcp_unreplied_ratio: 0.01, tcp_top_remote_flows: 20, tcp_top_dst_port_flows: 1200}
+    expected_metrics: [oie_instance_inbound_flows, oie_instance_inbound_unique_dst_ports, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: database_replication
+    description: High-throughput replied replication to a small fixed peer set.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 2000, unique_remotes: 3, new_remotes: 0, unique_dst_ports: 1, new_dst_ports: 0, max_single_remote: 700, max_single_dst_port: 2000, top_dst_port: 5432, unreplied_ratio: 0.0, tcp_flows: 2000, tcp_unreplied_ratio: 0.0, tcp_top_remote_flows: 700, tcp_top_dst_port_flows: 2000}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_max_flows_single_remote, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: monitoring_server
+    description: Regular replied polling of many monitored endpoints on stable service ports.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 5000, unique_remotes: 1000, new_remotes: 5, unique_dst_ports: 5, new_dst_ports: 0, max_single_remote: 5, max_single_dst_port: 1800, top_dst_port: 9100, unreplied_ratio: 0.02, tcp_flows: 5000, tcp_unreplied_ratio: 0.02, tcp_top_remote_flows: 5, tcp_top_dst_port_flows: 1800}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: vpn_appliance
+    description: Large replied inbound UDP workload from many roaming VPN clients.
+    input_observations: {engine: behavior, direction: inbound, cycles: 4, interval_seconds: 15, flows: 8000, unique_remotes: 1200, new_remotes: 30, unique_dst_ports: 1, new_dst_ports: 0, max_single_remote: 10, max_single_dst_port: 8000, top_dst_port: 1194, unreplied_ratio: 0.03, udp_flows: 8000, udp_unique_remotes: 1200, udp_unreplied_ratio: 0.03, udp_top_remote_flows: 10, udp_top_dst_port_flows: 8000}
+    expected_metrics: [oie_instance_inbound_flows, oie_instance_inbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: package_update
+    description: Replied package downloads from a small mirror and CDN destination set.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 2000, unique_remotes: 12, new_remotes: 4, unique_dst_ports: 2, new_dst_ports: 0, max_single_remote: 400, max_single_dst_port: 1700, top_dst_port: 443, unreplied_ratio: 0.01, tcp_flows: 2000, tcp_unreplied_ratio: 0.01, tcp_top_remote_flows: 400, tcp_top_dst_port_flows: 1700}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_dst_ports, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: backup_process
+    description: Sustained replied backup transfer to two stable external repositories.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 4000, unique_remotes: 2, new_remotes: 0, unique_dst_ports: 1, new_dst_ports: 0, max_single_remote: 2200, max_single_dst_port: 4000, top_dst_port: 873, unreplied_ratio: 0.0, tcp_flows: 4000, tcp_unreplied_ratio: 0.0, tcp_top_remote_flows: 2200, tcp_top_dst_port_flows: 4000}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_max_flows_single_remote, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: high_legitimate_cpu
+    description: CPU-bound workload with ordinary low-error outbound service traffic.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 200, unique_remotes: 8, new_remotes: 0, unique_dst_ports: 2, new_dst_ports: 0, max_single_remote: 40, max_single_dst_port: 160, top_dst_port: 443, unreplied_ratio: 0.01, tcp_flows: 200, tcp_unreplied_ratio: 0.01, tcp_top_remote_flows: 40, tcp_top_dst_port_flows: 160, cpu_percent: 98}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_cpu_vcpu_percent, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 40}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: high_legitimate_iops
+    description: Storage-intensive workload with normal replied network behavior.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 200, unique_remotes: 4, new_remotes: 0, unique_dst_ports: 1, new_dst_ports: 0, max_single_remote: 60, max_single_dst_port: 200, top_dst_port: 443, unreplied_ratio: 0.01, tcp_flows: 200, tcp_unreplied_ratio: 0.01, tcp_top_remote_flows: 60, tcp_top_dst_port_flows: 200, disk_read_iops: 18000, disk_write_iops: 12000}
+    expected_metrics: [oie_instance_disk_read_iops, oie_instance_disk_write_iops, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 40}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: high_legitimate_connection_count
+    description: Large established connection population with low failure ratio and low host-table impact.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 20000, unique_remotes: 200, new_remotes: 0, unique_dst_ports: 10, new_dst_ports: 0, max_single_remote: 120, max_single_dst_port: 4000, top_dst_port: 443, unreplied_ratio: 0.01, tcp_flows: 20000, tcp_unreplied_ratio: 0.01, tcp_top_remote_flows: 120, tcp_top_dst_port_flows: 4000, host_impact_percent: 5}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 55}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: high_legitimate_remote_breadth
+    description: Stable successful telemetry fanout across thousands of remote endpoints.
+    input_observations: {engine: behavior, direction: outbound, cycles: 4, interval_seconds: 15, flows: 5000, unique_remotes: 5000, new_remotes: 0, unique_dst_ports: 3, new_dst_ports: 0, max_single_remote: 1, max_single_dst_port: 3000, top_dst_port: 443, unreplied_ratio: 0.01, tcp_flows: 5000, tcp_unreplied_ratio: 0.01, tcp_top_remote_flows: 1, tcp_top_dst_port_flows: 3000}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 45}
+    expected_state_transitions: [clean]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: remains_clean
+
+  - id: alternate_port_web_service
+    description: Replied HTTP-alt traffic on shared port 8008 with low CPU and no mining corroboration.
+    input_observations: {engine: behavior, direction: outbound, cycles: 5, interval_seconds: 15, flows: 12, unique_remotes: 1, new_remotes: 0, unique_dst_ports: 1, new_dst_ports: 0, max_single_remote: 12, max_single_dst_port: 12, top_dst_port: 8008, unreplied_ratio: 0.0, tcp_flows: 12, tcp_unreplied_ratio: 0.0, tcp_top_remote_flows: 12, tcp_top_dst_port_flows: 12, mining_port: 8008, mining_flows: 12, mining_replied_flows: 12, mining_unique_remotes: 1, cpu_percent: 20}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_mining_suspected, oie_instance_cpu_vcpu_percent]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 25}
+    expected_state_transitions: [candidate, corroboration_required]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: long_lived_ordinary_tcp_connection
+    description: One replied long-lived ordinary TCP session on shared port 7777 with low CPU.
+    input_observations: {engine: behavior, direction: outbound, cycles: 7, interval_seconds: 15, flows: 1, unique_remotes: 1, new_remotes: 0, unique_dst_ports: 1, new_dst_ports: 0, max_single_remote: 1, max_single_dst_port: 1, top_dst_port: 7777, unreplied_ratio: 0.0, tcp_flows: 1, tcp_unreplied_ratio: 0.0, tcp_top_remote_flows: 1, tcp_top_dst_port_flows: 1, mining_port: 7777, mining_flows: 1, mining_replied_flows: 1, mining_unique_remotes: 1, cpu_percent: 10}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_mining_suspected, oie_instance_cpu_vcpu_percent]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 15}
+    expected_state_transitions: [candidate, corroboration_required]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: clean_cycle_resets_state

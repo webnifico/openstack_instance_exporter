@@ -20,14 +20,17 @@ func behaviorSeverityScore(feature BehaviorFeature) int {
 		if feature.InfraHits > 0 {
 			policyScore = math.Max(policyScore, clamp01(float64(feature.InfraMaxFlows)/float64(feature.Flows))*100.0)
 		}
+		if feature.TenantPrivateHits > 0 {
+			policyScore = math.Max(policyScore, clamp01(float64(feature.TenantPrivateMaxFlows)/float64(feature.Flows))*100.0)
+		}
 		if feature.LocalScanHits > 0 {
 			policyScore = math.Max(policyScore, clamp01(float64(feature.LocalScanHits)/float64(feature.Flows))*100.0)
 		}
 		if feature.BGPFlows > 0 {
-			policyScore = math.Max(policyScore, 100.0)
+			policyScore = math.Max(policyScore, clamp01(float64(feature.BGPFlows)/float64(feature.Flows))*100.0)
 		}
 		if feature.GeneveFlows > 0 {
-			policyScore = math.Max(policyScore, 100.0)
+			policyScore = math.Max(policyScore, clamp01(float64(feature.GeneveFlows)/float64(feature.Flows))*100.0)
 		}
 		if feature.MetadataHits > 0 {
 			policyScore = math.Max(policyScore, clamp01(float64(feature.MetadataMaxFlows)/float64(feature.Flows))*100.0)
@@ -64,13 +67,21 @@ func behaviorConfidenceScore(feature BehaviorFeature, kind string, topRemoteShar
 		conf *= 0.85
 	}
 
-	if (kind == "restricted_network_probe" || kind == "lateral_probe_suspected") && (feature.InfraHits > 0 || feature.LocalScanHits > 0) {
+	restrictedEvidence := kind == "restricted_network_probe" && (feature.InfraHits > 0 || feature.LocalScanHits > 0)
+	lateralEvidence := kind == "lateral_probe_suspected" && feature.TenantPrivateHits > 0
+	if restrictedEvidence || lateralEvidence {
 		if conf < 70.0 {
 			conf = 70.0
 		}
 	}
 	if kind == "bgp_peering_attempt" || kind == "geneve_underlay_attempt" {
-		if conf < 80.0 {
+		restrictedFlows := feature.BGPFlows
+		if kind == "geneve_underlay_attempt" {
+			restrictedFlows = feature.GeneveFlows
+		}
+		if restrictedFlows < 3 && conf > 49.0 {
+			conf = 49.0
+		} else if restrictedFlows >= 3 && persistenceHits >= 2 && conf < 80.0 {
 			conf = 80.0
 		}
 	}

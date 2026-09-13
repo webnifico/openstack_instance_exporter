@@ -1,0 +1,69 @@
+{{ ansible_managed | comment }}
+
+{% if file_content.prometheus_alert_rules is defined and file_content.prometheus_alert_rules | length > 0 %}
+groups:
+{% for group in file_content.prometheus_alert_rules %}
+{% if group.group_enabled_var is defined %}
+{% set group_enabled = lookup(
+  'ansible.builtin.vars',
+  group.group_enabled_var,
+  default=false
+) | bool %}
+{% else %}
+{% set group_enabled = group.group_enabled | default(true) | bool %}
+{% endif %}
+{% if group_enabled and group.group_rules | default([]) | length > 0 %}
+- name: "{{ group.group_name }}"
+  rules:
+{% for recording in group.group_recording_rules | default([]) %}
+    - record: "{{ recording.record }}"
+      expr: "{{ recording.expr }}"
+{% endfor %}
+{% for alert in group.group_rules %}
+{% if alert.enabled | default(true) | bool %}
+    - alert: "{{ alert.alert }}"
+{% if alert.expr.startswith("|") %}
+      expr: {{ alert.expr | replace("\n", "\n          ") }}
+{% else %}
+      expr: "{{ alert.expr }}"
+{% endif %}
+{% if alert.for is defined %}
+      for: "{{ alert.for }}"
+{% endif %}
+      labels:
+        severity: "{{ alert.labels.severity }}"
+{% if alert.labels.oid is defined %}
+        oid: "{{ alert.labels.oid }}"
+{% endif %}
+{% if alert.labels.type is defined %}
+        type: "{{ alert.labels.type }}"
+{% endif %}
+      annotations:
+{% if alert.annotations.description is defined %}
+{% if alert.annotations.description.startswith("|") %}
+        description: {{ alert.annotations.description | replace("\n", "\n          ") }}
+{% else %}
+        description: "{{ alert.annotations.description }}"
+{% endif %}
+{% endif %}
+{% if alert.annotations.summary is defined %}
+        summary: "{{ alert.annotations.summary }}"
+{% endif %}
+{% if alert.annotations.documentation is defined and alert.annotations.dashboard_path is not defined %}
+        documentation: "{{ alert.annotations.documentation }}"
+{% endif %}
+{% if alert.annotations.dashboard_path is defined %}
+{% set oie_grafana_server = grafana_server | default({}) %}
+{% set oie_grafana_protocol = oie_grafana_server.protocol | default('http') %}
+{% set oie_grafana_domain = grafana_domain | default(ansible_fqdn) | default(ansible_host) | default(inventory_hostname) %}
+{% set oie_grafana_port = grafana_port | default(3000) | string %}
+{% set oie_grafana_root = oie_grafana_server.root_url | default(oie_grafana_protocol ~ '://' ~ oie_grafana_domain ~ ':' ~ oie_grafana_port) %}
+{% set oie_grafana_root = oie_grafana_root | replace('%(protocol)s', oie_grafana_protocol) | replace('%(domain)s', oie_grafana_domain) | replace('%(http_port)s', oie_grafana_port) %}
+        dashboard_url: {{ ((oie_grafana_root | regex_replace('/$', '')) ~ alert.annotations.dashboard_path) | to_json }}
+        documentation: {{ ((oie_grafana_root | regex_replace('/$', '')) ~ alert.annotations.dashboard_path) | to_json }}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}

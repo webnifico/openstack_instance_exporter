@@ -1,0 +1,172 @@
+{
+  "source": "https://github.com/grafana/grafana/blob/v12.3.1/packages/grafana-prometheus/src/escaping.ts",
+  "description": "Outputs evaluated from Grafana 12.3.1 interpolateQueryExpr with multi/includeAll enabled; custom All values follow TemplateSrv raw-All handling. Both escaping feature-toggle states are represented.",
+  "cases": [
+    {
+      "name": "dotted_hostname_classic",
+      "inputs": {
+        "name": "dotted_hostname",
+        "host": "compute-a.lab.example",
+        "project": "tenant.prod",
+        "volume": "b572dff2-3d2e-4bed-b740-6faa8d88d104"
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "compute-a\\\\.lab\\\\.example",
+        "$gvar_oie_project_name": "tenant\\\\.prod",
+        "${gvar_oie_volume_uuid}": "b572dff2-3d2e-4bed-b740-6faa8d88d104"
+      }
+    },
+    {
+      "name": "ipv4_classic",
+      "inputs": {
+        "name": "ipv4",
+        "host": "172.29.224.5",
+        "project": "tenant (prod)+test",
+        "volume": "instance-00000001.disk"
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "172\\\\.29\\\\.224\\\\.5",
+        "$gvar_oie_project_name": "tenant \\\\(prod\\\\)\\\\+test",
+        "${gvar_oie_volume_uuid}": "instance-00000001\\\\.disk"
+      }
+    },
+    {
+      "name": "multi_select_classic",
+      "inputs": {
+        "name": "multi_select",
+        "host": [
+          "compute-a.lab.example",
+          "172.29.224.5"
+        ],
+        "project": [
+          "tenant.prod",
+          "tenant (prod)+test"
+        ],
+        "volume": [
+          "instance-00000001.disk",
+          "disk[1]"
+        ]
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "(compute-a\\\\.lab\\\\.example|172\\\\.29\\\\.224\\\\.5)",
+        "$gvar_oie_project_name": "(tenant\\\\.prod|tenant \\\\(prod\\\\)\\\\+test)",
+        "${gvar_oie_volume_uuid}": "(instance-00000001\\\\.disk|disk\\\\[1\\\\])"
+      }
+    },
+    {
+      "name": "all_expanded_classic",
+      "inputs": {
+        "name": "all_expanded",
+        "host": [
+          "compute-a.lab.example",
+          "172.29.224.5"
+        ],
+        "project": ".*",
+        "volume": ".*",
+        "customAll": true
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "(compute-a\\\\.lab\\\\.example|172\\\\.29\\\\.224\\\\.5)",
+        "$gvar_oie_project_name": ".*",
+        "${gvar_oie_volume_uuid}": ".*"
+      }
+    },
+    {
+      "name": "literal_regex_chars_classic",
+      "inputs": {
+        "name": "literal_regex_chars",
+        "host": "compute-a.lab.example",
+        "project": "tenant [prod].*|test\\name",
+        "volume": "disk[1].*\\path"
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "compute-a\\\\.lab\\\\.example",
+        "$gvar_oie_project_name": "tenant \\\\[prod\\\\]\\\\.\\\\*\\\\|test\\\\\\\\name",
+        "${gvar_oie_volume_uuid}": "disk\\\\[1\\\\]\\\\.\\\\*\\\\\\\\path"
+      }
+    },
+    {
+      "name": "dotted_hostname_enhanced",
+      "inputs": {
+        "name": "dotted_hostname",
+        "host": "compute-a.lab.example",
+        "project": "tenant.prod",
+        "volume": "b572dff2-3d2e-4bed-b740-6faa8d88d104"
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "compute-a\\\\.lab\\\\.example",
+        "$gvar_oie_project_name": "tenant\\\\.prod",
+        "${gvar_oie_volume_uuid}": "b572dff2-3d2e-4bed-b740-6faa8d88d104"
+      }
+    },
+    {
+      "name": "ipv4_enhanced",
+      "inputs": {
+        "name": "ipv4",
+        "host": "172.29.224.5",
+        "project": "tenant (prod)+test",
+        "volume": "instance-00000001.disk"
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "172\\\\.29\\\\.224\\\\.5",
+        "$gvar_oie_project_name": "tenant \\\\(prod\\\\)\\\\+test",
+        "${gvar_oie_volume_uuid}": "instance-00000001\\\\.disk"
+      }
+    },
+    {
+      "name": "multi_select_enhanced",
+      "inputs": {
+        "name": "multi_select",
+        "host": [
+          "compute-a.lab.example",
+          "172.29.224.5"
+        ],
+        "project": [
+          "tenant.prod",
+          "tenant (prod)+test"
+        ],
+        "volume": [
+          "instance-00000001.disk",
+          "disk[1]"
+        ]
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "(compute-a\\\\.lab\\\\.example|172\\\\.29\\\\.224\\\\.5)",
+        "$gvar_oie_project_name": "(tenant\\\\.prod|tenant \\\\(prod\\\\)\\\\+test)",
+        "${gvar_oie_volume_uuid}": "(instance-00000001\\\\.disk|disk\\\\[1\\\\])"
+      }
+    },
+    {
+      "name": "all_expanded_enhanced",
+      "inputs": {
+        "name": "all_expanded",
+        "host": [
+          "compute-a.lab.example",
+          "172.29.224.5"
+        ],
+        "project": ".*",
+        "volume": ".*",
+        "customAll": true
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "(compute-a\\\\.lab\\\\.example|172\\\\.29\\\\.224\\\\.5)",
+        "$gvar_oie_project_name": ".*",
+        "${gvar_oie_volume_uuid}": ".*"
+      }
+    },
+    {
+      "name": "literal_regex_chars_enhanced",
+      "inputs": {
+        "name": "literal_regex_chars",
+        "host": "compute-a.lab.example",
+        "project": "tenant [prod].*|test\\name",
+        "volume": "disk[1].*\\path"
+      },
+      "replacements": {
+        "${gvar_oie_hypervisor}": "compute-a\\\\.lab\\\\.example",
+        "$gvar_oie_project_name": "tenant \\\\[prod\\\\]\\\\.\\\\*\\\\|test\\\\\\\\name",
+        "${gvar_oie_volume_uuid}": "disk\\\\[1\\\\]\\\\.\\\\*\\\\\\\\path"
+      }
+    }
+  ]
+}

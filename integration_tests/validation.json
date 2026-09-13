@@ -1,0 +1,99 @@
+{
+  "release_version": "v2.0.0",
+  "previous_published_release": "v1.2.0",
+  "validation_date_utc": "2026-09-13",
+  "required_ci": {
+    "source_commit": "4c0c14414c9939707bbc3f4008af148c1f760d84",
+    "workflow_run": "https://github.com/webnifico/openstack_instance_exporter/actions/runs/34773575764",
+    "status": "completed",
+    "conclusion": "success",
+    "scope": "CI results apply to the recorded source commit."
+  },
+  "go": {
+    "toolchain": "1.27.1",
+    "source_checkout_without_dist": true,
+    "vet": "passed",
+    "module_verification": "passed",
+    "full_suite": "passed",
+    "race": "passed",
+    "shuffled_repetitions": 10,
+    "shuffle": "passed",
+    "fuzzers": [
+      "FuzzParseConntrackMessageLite",
+      "FuzzParseConntrackNetlinkDatagram"
+    ],
+    "fuzz": "passed",
+    "public_contracts": "passed",
+    "replay": "passed",
+    "scale": "passed",
+    "documentation_and_dashboards": "passed",
+    "coverage_percent": 93.2,
+    "coverage_minimum_percent": 85,
+    "vulnerability_scan": {
+      "additional_advisories_in_required_modules": 1,
+      "advisories_in_imported_packages": 0,
+      "database": "https://vuln.go.dev",
+      "database_updated_utc": "2026-09-10T14:48:42Z",
+      "reachable_vulnerabilities": 0,
+      "result": "passed; the additional module advisory is outside imported packages and code paths reported reachable by the scanner",
+      "scanner": "govulncheck v1.7.0"
+    }
+  },
+  "ansible": {
+    "matrix": [
+      "ansible-core 2.12.10 / Python 3.10 / Ubuntu 22.04",
+      "ansible-core 2.21.3 / Python 3.12 / Ubuntu 24.04"
+    ],
+    "syntax_checks": "passed",
+    "release_source_selection": "passed",
+    "service_render_matrix": "passed",
+    "executable_preflight": "passed"
+  },
+  "operator_integration": {
+    "alert_tests": 3,
+    "capacity_and_offset_scenarios": 6,
+    "dashboard_promql_expressions": 346,
+    "dashboard_tests": 7,
+    "deployed_alert_scenarios": 52,
+    "exact_host_matching_cases": 10,
+    "interpolated_expressions": 3580,
+    "inventory_and_coverage_scenarios": 14,
+    "result": "passed on both required-CI Ansible runners",
+    "telemetry_scenarios": 18
+  },
+  "compatibility": {
+    "published_baseline": "v1.2.0",
+    "published_baseline_commit": "4b428db7f0355b74b0251f63123835cc19d10516",
+    "legacy_metric_names_and_ordered_labels_preserved": 126,
+    "current_metric_families": 148,
+    "legacy_cli_flags_types_defaults_and_help_preserved": 48,
+    "current_cli_flags": 51,
+    "legacy_ansible_variables_preserved": 63,
+    "current_ansible_variables": 69,
+    "legacy_ansible_profile_defaults_preserved": true,
+    "legacy_alert_names_preserved": 69,
+    "current_alert_definitions": 82,
+    "default_enabled_alerts": 33,
+    "opt_in_alerts": 49,
+    "recording_rules": 10,
+    "dashboard_uids_preserved": 5,
+    "published_descriptors": "Verified directly against the v1.2.0 collector.",
+    "published_measurements": "Re-executed the v1.2.0 measurement fixture. Current comparisons pass with the documented drop-ratio and GiB precision corrections."
+  },
+  "release_archive": {
+    "path": "dist/openstack_instance_exporter-v2.0.0-linux-amd64.tar.xz",
+    "sha256": "f5275d93087512bf58f6ba590954d5d56aeda089e948b29ac1e171c605d1b2d1",
+    "executable_sha256": "6d8da33e554a8ae461810be6b8fa14261e957d9823a6557be39a1d11ce143384",
+    "source_date_epoch": 1789152971,
+    "target": "linux/amd64, GOAMD64=v1, CGO_ENABLED=0",
+    "independent_rebuild": "Archive and checksum manifest reproduced byte-for-byte from the recorded source commit using Go 1.27.1 and SOURCE_DATE_EPOCH=1789152971.",
+    "validation": "scripts/validate-release.sh passed: checksum, exact one-member inventory, modes, numeric ownership, static stripped amd64 executable, no dynamic interpreter and successful -h probe.",
+    "checksum_alignment": "Archive hash matches dist/sha256sums.txt, testdata/release-archive.sha256, the Ansible default and role README."
+  },
+  "limitations": [
+    "Live OpenStack/Libvirt deployment, management operations and rollback were not exercised.",
+    "Live Grafana rendering and notification delivery were not exercised.",
+    "Public v2.0.0 release-asset download was not exercised.",
+    "Source and fixture checks do not establish behavior for every workload or environment."
+  ]
+}

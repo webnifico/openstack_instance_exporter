@@ -1,0 +1,48 @@
+behavior.ewma_fast_tau|"3m0s"|Behavior EWMA fast tau (time constant)
+behavior.ewma_slow_tau|"2h0m0s"|Behavior EWMA slow tau (time constant)
+behavior.ports_config|""|Path to behavior ports YAML (optional)
+behavior.rules_config|""|Path to optional behavior external rules YAML (loaded once)
+behavior.sensitivity|"1"|Behavior sensitivity (>1 more sensitive)
+collection.interval|"15s"|Background collection interval
+conntrack.ipv4.enable|"true"|Enable IPv4 conntrack reads
+conntrack.ipv6.enable|"true"|Enable IPv6 conntrack reads
+conntrack.raw.rcv_timeout|"15s"|SO_RCVTIMEO timeout for raw conntrack reader
+conntrack.raw.rcvbuf_bytes|"33554432"|SO_RCVBUF bytes for raw conntrack reader
+contacts.direction|"out"|Default direction: out, in, any
+customlist.direction|""|Direction override
+customlist.enable|"false"|Enable custom IP list
+customlist.path|""|Path to custom IP list
+customlist.refresh|"10m0s"|Custom list refresh interval
+emergingthreats.direction|""|Direction override (out, in, any)
+emergingthreats.enable|"false"|Enable emergingthreats detection
+emergingthreats.refresh|"6h0m0s"|Refresh interval
+emergingthreats.url|"https://rules.emergingthreats.net/blockrules/compromised-ips.txt"|emergingthreats list URL/Path
+host.interfaces|""|NIC whitelist
+host.ips.allow-private|"false"|Include private IPs
+host.threats.enable|"false"|Enable host NIC checks
+inbound.behavior.enable|"false"|Enable inbound behavior metrics
+libvirt.uri|"qemu:///system"|Libvirt URI
+log.file.enable|"false"|Enable file logging
+log.file.path|"/var/log/openstack_instance_exporter.log"|Log file path
+log.level|"info"|Log level (debug, info, warn, error; notice is accepted as an alias for warn)
+outbound.behavior.enable|"false"|Enable outbound behavior metrics
+severity.weight.behavior|"0.45"|Weight: Behavior Anomalies
+severity.weight.resource|"0.45"|Weight: Resource Pressure
+severity.weight.threat_list|"0.1"|Weight: Threat List Matches
+spamhaus.direction|""|Direction override (out, in, any)
+spamhaus.enable|"false"|Enable spamhaus detection
+spamhaus.ipv6.url|"https://www.spamhaus.org/drop/dropv6.txt"|Spamhaus IPv6 list
+spamhaus.refresh|"6h0m0s"|Refresh interval
+spamhaus.url|"https://www.spamhaus.org/drop/drop.txt"|spamhaus list URL/Path
+threat.log.min_interval|"5m0s"|Throttle repeated threat/behavior notice logs
+tor.exit.direction|""|Direction override (out, in, any)
+tor.exit.enable|"false"|Enable tor.exit detection
+tor.exit.refresh|"1h0m0s"|Refresh interval
+tor.exit.url|"https://onionoo.torproject.org/details?search=flag:exit&fields=or_addresses"|tor.exit list URL/Path
+tor.relay.direction|""|Direction override (out, in, any)
+tor.relay.enable|"false"|Enable tor.relay detection
+tor.relay.refresh|"1h0m0s"|Refresh interval
+tor.relay.url|"https://onionoo.torproject.org/details?search=flag:running&fields=or_addresses"|tor.relay list URL/Path
+web.listen-address|"0.0.0.0:9120"|Address to listen on
+web.telemetry-path|"/metrics"|Path under which to expose metrics
+worker.count|"0"|Number of concurrent workers (0 = NumCPU)

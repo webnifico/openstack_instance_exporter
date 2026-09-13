@@ -1,0 +1,242 @@
+schema_version: 1
+category: lifecycle
+fixtures:
+  - id: ipv4_conntrack_failure
+    description: IPv4 family collection fails while IPv6 succeeds; the partial snapshot is rejected.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: ipv4_conntrack_failure, failure_cycles: 2}
+    expected_metrics: [oie_host_conntrack_raw_ok, oie_host_conntrack_read_errors_total]
+    forbidden_metrics: [oie_instance_behavior_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, unavailable_retained, rebaseline, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: fresh_complete_snapshot_replaces_retained
+
+  - id: ipv6_conntrack_failure
+    description: IPv6 family collection fails while IPv4 succeeds; the partial snapshot is rejected.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: ipv6_conntrack_failure, failure_cycles: 2}
+    expected_metrics: [oie_host_conntrack_raw_ok, oie_host_conntrack_last_success_timestamp_seconds]
+    forbidden_metrics: [oie_instance_behavior_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, unavailable_retained, rebaseline, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: fresh_complete_snapshot_replaces_retained
+
+  - id: truncated_dump
+    description: Both Netlink family dumps report truncation after an earlier complete snapshot.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: truncated_dump, failure_cycles: 2}
+    expected_metrics: [oie_host_conntrack_raw_ok, oie_host_conntrack_raw_parse_errors_total]
+    forbidden_metrics: [oie_instance_behavior_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, unavailable_retained, rebaseline, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: fresh_complete_snapshot_replaces_retained
+
+  - id: malformed_netlink_message
+    description: Both family dumps report malformed Netlink messages and publish no partial workload state.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: malformed_netlink_message, failure_cycles: 2}
+    expected_metrics: [oie_host_conntrack_raw_ok, oie_host_conntrack_raw_parse_errors_total]
+    forbidden_metrics: [oie_instance_behavior_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, unavailable_retained, rebaseline, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: fresh_complete_snapshot_replaces_retained
+
+  - id: enobufs
+    description: Kernel ENOBUFS loss invalidates both dumps and increments the bounded source-health counter.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: enobufs, failure_cycles: 3}
+    expected_metrics: [oie_host_conntrack_raw_ok, oie_host_conntrack_raw_enobufs_total]
+    forbidden_metrics: [oie_instance_behavior_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, unavailable_retained, rebaseline, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: fresh_complete_snapshot_replaces_retained
+
+  - id: timeout
+    description: Netlink receive timeouts invalidate both family dumps until one complete recovery snapshot.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: timeout, failure_cycles: 3}
+    expected_metrics: [oie_host_conntrack_raw_ok, oie_host_conntrack_read_errors_total]
+    forbidden_metrics: [oie_instance_behavior_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, unavailable_retained, rebaseline, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: fresh_complete_snapshot_replaces_retained
+
+  - id: libvirt_outage
+    description: A complete Libvirt source failure preserves last-good inventory while source health becomes stale.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: libvirt_outage, failure_cycles: 2}
+    expected_metrics: [oie_host_libvirt_ok, oie_host_libvirt_last_success_timestamp_seconds, oie_host_libvirt_stale_seconds]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, source_unavailable, retained, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: fresh_cycle_replaces_retained_inventory
+
+  - id: per_domain_libvirt_failure
+    description: One domain with missing state freezes only that instance and rebaselines once on recovery.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: per_domain_libvirt_failure, failure_cycles: 2}
+    expected_metrics: [oie_host_libvirt_ok, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, instance_frozen, rebaseline, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: one_fresh_sample_rebaselines_instance
+
+  - id: counter_reset
+    description: A decreasing lifetime counter is unavailable for one interval and establishes a new baseline.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: counter_reset}
+    expected_metrics: [oie_instance_resource_axis_available, oie_instance_resource_axis_fresh]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, sample_unavailable, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: next_monotonic_sample_recovers
+
+  - id: live_migration
+    description: A destination QEMU identity creates a new runtime generation without inheriting source baselines.
+    input_observations: {engine: lifecycle, cycles: 3, interval_seconds: 15, event: live_migration}
+    expected_metrics: [oie_instance_info, oie_instance_resource_axis_available]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, identity_reset, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: destination_establishes_new_baseline
+
+  - id: cold_migration
+    description: A stop and new destination runtime reset episode state before new samples become eligible.
+    input_observations: {engine: lifecycle, cycles: 3, interval_seconds: 15, event: cold_migration}
+    expected_metrics: [oie_instance_info, oie_instance_resource_axis_available]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, stopped_reset, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: restart_establishes_new_baseline
+
+  - id: instance_reboot
+    description: A changed process token and rolled-back lifetime CPU counter identify a rebooted runtime.
+    input_observations: {engine: lifecycle, cycles: 3, interval_seconds: 15, event: instance_reboot}
+    expected_metrics: [oie_instance_info, oie_instance_resource_axis_available]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, runtime_reset, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: reboot_establishes_new_baseline
+
+  - id: instance_shutdown
+    description: An authoritative non-running state ends current behavior and mining episodes.
+    input_observations: {engine: lifecycle, cycles: 2, interval_seconds: 15, event: instance_shutdown}
+    expected_metrics: [oie_instance_state_code]
+    forbidden_metrics: [oie_instance_behavior_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, stopped_reset]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: running_state_requires_new_baseline
+
+  - id: instance_deletion
+    description: Removing an instance deletes all UUID-scoped transient evidence and inventory membership.
+    input_observations: {engine: lifecycle, cycles: 2, interval_seconds: 15, event: instance_deletion}
+    expected_metrics: [oie_host_libvirt_active_vms]
+    forbidden_metrics: [oie_instance_state_code]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, deleted]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: all_instance_state_removed
+
+  - id: ip_reuse
+    description: Reassigning one fixed address to a new UUID cannot transfer prior owner evidence.
+    input_observations: {engine: lifecycle, cycles: 3, interval_seconds: 15, event: ip_reuse}
+    expected_metrics: [oie_instance_info, oie_instance_conntrack_ip_flows]
+    forbidden_metrics: [oie_instance_behavior_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, identity_reset, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: new_owner_starts_without_prior_evidence
+
+  - id: duplicate_tenant_ips_separate_ovn_zones
+    description: Two tenants using the same fixed address remain independently attributable through OVN zones.
+    input_observations: {engine: lifecycle, cycles: 2, interval_seconds: 15, event: duplicate_tenant_ips_separate_ovn_zones, zone_a: 41, zone_b: 42}
+    expected_metrics: [oie_instance_conntrack_ip_flows_outbound]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [zone_a_attributed, zone_b_attributed]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: zone_identity_prevents_cross_tenant_carryover
+
+  - id: exporter_restart
+    description: Process restart clears in-memory persistence so one replayed observation cannot borrow old hits.
+    input_observations: {engine: lifecycle, cycles: 3, interval_seconds: 15, event: exporter_restart}
+    expected_metrics: [oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [candidate, restarted, candidate]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: new_process_requires_new_persistence
+
+  - id: threat_feed_outage
+    description: Loss of every usable threat source makes the combined score unavailable instead of healthy zero.
+    input_observations: {engine: lifecycle, cycles: 3, interval_seconds: 15, event: threat_feed_outage, failure_cycles: 2}
+    expected_metrics: [oie_host_threat_feed_fresh]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 0}
+    expected_state_transitions: [fresh, source_unavailable, retained_unavailable]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: score_omitted_until_fresh_source_returns
+
+  - id: threat_feed_recovery
+    description: The first complete usable feed snapshot rebaselines elapsed-time threat scoring.
+    input_observations: {engine: lifecycle, cycles: 3, interval_seconds: 15, event: threat_feed_recovery, failure_cycles: 1}
+    expected_metrics: [oie_host_threat_feed_fresh, oie_instance_threat_list_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 20, max: 20}
+    expected_state_transitions: [source_unavailable, rebaseline, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: first_fresh_source_snapshot_rebaselines_score
+
+  - id: temporary_missing_resource_counters
+    description: Missing counters retain bounded stale severity, expire to unavailable, and recover from fresh data.
+    input_observations: {engine: lifecycle, cycles: 4, interval_seconds: 15, event: temporary_missing_resource_counters, failure_cycles: 2}
+    expected_metrics: [oie_instance_resource_axis_available, oie_instance_resource_axis_fresh, oie_instance_resource_axis_stale_seconds, oie_instance_resource_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 0, max: 100}
+    expected_state_transitions: [fresh, retained_stale, expired_unavailable, fresh]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: fresh_counter_sample_reestablishes_axis

@@ -1,0 +1,2 @@
+oie_host_collection_interval_seconds|type=GAUGE|help=Effective background collection interval on this host (seconds)|labels=
+oie_host_threat_feed_fresh|type=GAUGE|help=Threat feed state: 1 if enabled with a usable snapshot, 0 if enabled without one, and -1 if disabled|labels=list

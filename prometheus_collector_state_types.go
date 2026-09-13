@@ -14,6 +14,7 @@ type SeverityConfig struct {
 }
 type CollectorConfig struct {
 	LibvirtURI                     string
+	VolumeRetypeEnable             bool
 	BehaviorThresholds             BehaviorThresholds
 	BehaviorSensitivity            float64
 	BehaviorPortsConfigPath        string
@@ -21,6 +22,7 @@ type CollectorConfig struct {
 	BehaviorExternalRules          []BehaviorRule
 	BehaviorEWMATauFast            time.Duration
 	BehaviorEWMATauSlow            time.Duration
+	ThreatEWMATau                  time.Duration
 	BehaviorPortsInboundMonitored  map[uint16]string
 	BehaviorPortsOutboundMonitored map[uint16]string
 	Severity                       SeverityConfig
@@ -53,6 +55,14 @@ type metricDescGroup struct {
 	packetsPerFlow     *prometheus.Desc
 	thresholdConfigKey string
 }
+
+type conntrackFamilyDumpFunc func(
+	family int,
+	rcvBufBytes int,
+	rcvTimeout time.Duration,
+	consume func(ConntrackFlowLite),
+) (count uint64, parseErrors uint64, enobufs uint64, err error)
+
 type ConntrackManager struct {
 	outboundBehaviorEnabled bool
 	inboundBehaviorEnabled  bool
@@ -71,6 +81,8 @@ type ConntrackManager struct {
 	conntrackRawRcvBufBytes     int
 	conntrackIPv4Enable         bool
 	conntrackIPv6Enable         bool
+	conntrackDumpFamilyOverride conntrackFamilyDumpFunc
+	conntrackNowOverride        func() time.Time
 
 	ovnMapper *OVNMapper
 
@@ -84,12 +96,14 @@ type ConntrackManager struct {
 	inboundPrevDstPorts [shardCount]map[BehaviorKey]outboundPrevDstPorts
 	inboundPrevLastSeen [shardCount]map[BehaviorKey]int64
 
-	behaviorEWMAMu [shardCount]sync.Mutex
-	behaviorEWMA   [shardCount]map[behaviorIdentityKey]*behaviorEWMAState
+	behaviorEWMAMu       [shardCount]sync.Mutex
+	behaviorEWMA         [shardCount]map[behaviorIdentityKey]*behaviorEWMAState
+	behaviorLastSeverity [shardCount]map[behaviorIdentityKey]float64
 
 	behaviorAlertMu sync.Mutex
 	behaviorPersist map[behaviorAlertKey]*behaviorPersistState
 	behaviorEmit    map[behaviorEmitKey]*behaviorEmitState
+	miningAlerts    map[behaviorIdentityKey]*miningAlertState
 
 	conntrackReadErrors uint64
 
@@ -97,6 +111,15 @@ type ConntrackManager struct {
 	conntrackRawENOBUFSTotal     uint64
 	conntrackRawParseErrorsTotal uint64
 	conntrackLastSuccessUnix     int64
+	lastGoodMu                   sync.RWMutex
+	lastGoodAgg                  *ConntrackAgg
+	lastGoodCount                int
+	behaviorFreezeMu             sync.Mutex
+	behaviorFreezeStartUnix      int64
+	behaviorFreezeActive         bool
+	behaviorRecoveryRebaseline   uint64
+	behaviorLifecycleMu          sync.Mutex
+	behaviorLifecycleFreeze      map[string]*behaviorLifecycleFreezeState
 
 	LogThreat func(tag, event, domain, instanceUUID, projectUUID, projectName, userUUID string, kvpairs ...interface{})
 
@@ -123,24 +146,40 @@ type ConntrackManager struct {
 	instanceInboundMaxFlowsSingleDstPortDesc *prometheus.Desc
 	instanceInboundBytesPerFlowDesc          *prometheus.Desc
 	instanceInboundPacketsPerFlowDesc        *prometheus.Desc
+	instanceMiningSuspectedDesc              *prometheus.Desc
 }
 type MetricsCollector struct {
-	shutdownChan       chan struct{}
-	scoring            SeverityConfig
-	collectionInterval time.Duration
-	backgroundOnce     sync.Once
-	cacheMu            sync.RWMutex
-	cachedMetrics      []prometheus.Metric
+	shutdownChan                 chan struct{}
+	scoring                      SeverityConfig
+	collectionInterval           time.Duration
+	backgroundOnce               sync.Once
+	cacheMu                      sync.RWMutex
+	cachedMetrics                []prometheus.Metric
+	cachedLibvirtAvailable       bool
+	cacheInitialized             bool
+	collectionRunner             func() []prometheus.Metric
+	fetchDomainStatsOverride     func() ([]libvirt.DomainStatsRecord, float64, error)
+	qemuProcessSnapshotOverride  func() (map[string]string, error)
+	hostResourceSnapshotOverride func() hostResourceSnapshot
+	pendingRuntimeTokens         map[string]string
+	pendingDomainMetadata        map[string]*DomainStatic
 
-	collectionMu sync.Mutex
+	collectionMu        sync.Mutex
+	initialCollectionMu sync.Mutex
 
 	// Intel EWMA state
-	intelHistory map[string]*IntelHistory
-	intelMu      sync.Mutex
+	intelHistory  map[string]*IntelHistory
+	intelMu       sync.Mutex
+	threatEWMATau time.Duration
 
 	// Pure Go Libvirt
-	libvirtConn *libvirt.Libvirt
-	libvirtMu   sync.Mutex
+	libvirtConn                *libvirt.Libvirt
+	libvirtDialer              *LocalDialer
+	libvirtMu                  sync.Mutex
+	libvirtRPCTimeout          time.Duration
+	libvirtSafety              *libvirtReadSafety
+	libvirtStatsRPCOverride    func(*libvirt.Libvirt) ([]libvirt.DomainStatsRecord, error)
+	libvirtBlockJobRPCOverride func(*libvirt.Libvirt, libvirt.Domain, string, uint32) (int32, int32, uint64, uint64, uint64, error)
 
 	im *InstanceManager
 	tm *ThreatManager
@@ -149,9 +188,11 @@ type MetricsCollector struct {
 	// Host Stats State
 	hostCpuState HostCpuState
 
-	hostCollectionErrors uint64
-	cycleSeq             uint64
-	lastCycleEndUnixNano int64
+	hostCollectionErrors   uint64
+	cycleSeq               uint64
+	lastCycleEndUnixNano   int64
+	libvirtOK              uint64
+	libvirtLastSuccessUnix int64
 
 	hostMemTotalMBDesc                     *prometheus.Desc
 	hostLibvirtActiveVMsDesc               *prometheus.Desc
@@ -162,8 +203,12 @@ type MetricsCollector struct {
 	hostCpuThreadsDesc                     *prometheus.Desc
 	hostCollectionErrorsTotalDesc          *prometheus.Desc
 	hostCollectionCycleDurationSecondsDesc *prometheus.Desc
+	hostCollectionIntervalSecondsDesc      *prometheus.Desc
 	hostCollectionCycleLagSecondsDesc      *prometheus.Desc
 	hostLibvirtListDurationSecondsDesc     *prometheus.Desc
+	hostLibvirtOkDesc                      *prometheus.Desc
+	hostLibvirtLastSuccessTimestampDesc    *prometheus.Desc
+	hostLibvirtStaleSecondsDesc            *prometheus.Desc
 	hostConntrackReadDurationSecondsDesc   *prometheus.Desc
 	hostConntrackEntriesDesc               *prometheus.Desc
 	hostGoHeapAllocBytesDesc               *prometheus.Desc
@@ -176,6 +221,7 @@ type MetricsCollector struct {
 	hostConntrackMaxDesc                   *prometheus.Desc
 	hostConntrackUtilizationDesc           *prometheus.Desc
 	hostCacheCleanupDurationSecondsDesc    *prometheus.Desc
+	hostVolumeRetypeResultsTotalDesc       *prometheus.Desc
 
 	hostCpuUsagePercentDesc *prometheus.Desc
 	hostMemFreeMBDesc       *prometheus.Desc
@@ -186,11 +232,28 @@ type MetricsCollector struct {
 	instanceAttentionSeverityDesc  *prometheus.Desc
 	instanceBehaviorSeverityDesc   *prometheus.Desc
 
-	instanceResourceCpuSeverityDesc  *prometheus.Desc
-	instanceResourceMemSeverityDesc  *prometheus.Desc
-	instanceResourceDiskSeverityDesc *prometheus.Desc
-	instanceResourceNetSeverityDesc  *prometheus.Desc
+	instanceResourceCpuSeverityDesc              *prometheus.Desc
+	instanceResourceMemSeverityDesc              *prometheus.Desc
+	instanceResourceDiskSeverityDesc             *prometheus.Desc
+	instanceResourceNetSeverityDesc              *prometheus.Desc
+	instanceResourceAxisFreshDesc                *prometheus.Desc
+	instanceResourceAxisAvailableDesc            *prometheus.Desc
+	instanceResourceAxisLastSuccessTimestampDesc *prometheus.Desc
+	instanceResourceAxisStaleSecondsDesc         *prometheus.Desc
 
 	resourceV2Mu sync.Mutex
 	resourceV2   map[string]*resourceV2State
+
+	volumeRetypeEnabled         bool
+	volumeRetypePollMu          sync.Mutex
+	volumeRetypeLibvirtWorkMu   sync.Mutex
+	volumeRetypeRPCMu           sync.Mutex
+	volumeRetypeRPCInflight     map[string]struct{}
+	volumeRetypeRPCCursors      [volumeRetypeCursorClassCount]int
+	volumeRetypeDiskCursors     map[string]int
+	volumeRetypeMu              sync.Mutex
+	volumeRetypeJobs            map[volumeRetypeKey]volumeRetypeJob
+	volumeRetypeCompleted       map[volumeRetypeCompletionKey]volumeRetypeCompletion
+	volumeRetypeDiscoveryCursor int
+	volumeRetypeResults         volumeRetypeResultCounters
 }

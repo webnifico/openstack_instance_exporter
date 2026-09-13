@@ -1,0 +1,182 @@
+schema_version: 1
+category: abusive
+fixtures:
+  - id: horizontal_scan
+    description: Unreplied outbound attempts across many remotes on one destination port.
+    input_observations: {engine: behavior, direction: outbound, cycles: 3, interval_seconds: 15, flows: 80, unique_remotes: 80, new_remotes: 80, unique_dst_ports: 1, new_dst_ports: 1, max_single_remote: 1, max_single_dst_port: 80, top_dst_port: 443, unreplied_ratio: 0.95, tcp_flows: 80, tcp_unreplied_ratio: 0.95, tcp_top_remote_flows: 1, tcp_top_dst_port_flows: 80}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 25, max: 60}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: outbound_horizontal_scan_suspected
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: vertical_scan
+    description: Unreplied outbound attempts across many destination ports on one remote.
+    input_observations: {engine: behavior, direction: outbound, cycles: 3, interval_seconds: 15, flows: 80, unique_remotes: 1, new_remotes: 1, unique_dst_ports: 80, new_dst_ports: 80, max_single_remote: 80, max_single_dst_port: 1, top_dst_port: 22, unreplied_ratio: 0.95, tcp_flows: 80, tcp_unreplied_ratio: 0.95, tcp_top_remote_flows: 80, tcp_top_dst_port_flows: 1}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_dst_ports, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 25, max: 60}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: outbound_vertical_scan_suspected
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: distributed_probe
+    description: Unreplied distributed outbound fanout that sharply deviates from the elapsed-time baseline.
+    input_observations: {engine: behavior, direction: outbound, cycles: 3, interval_seconds: 15, flows: 120, unique_remotes: 80, new_remotes: 80, unique_dst_ports: 20, new_dst_ports: 20, max_single_remote: 2, max_single_dst_port: 6, top_dst_port: 8443, unreplied_ratio: 0.95, tcp_flows: 120, tcp_unreplied_ratio: 0.95, tcp_top_remote_flows: 2, tcp_top_dst_port_flows: 6, anomaly_signal: 0.90}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_new_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 25, max: 65}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: outbound_distributed_fanout_unreplied
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: inbound_service_spray
+    description: Rapid unreplied inbound attempts from many new remotes against one service.
+    input_observations: {engine: behavior, direction: inbound, cycles: 3, interval_seconds: 15, flows: 100, unique_remotes: 50, new_remotes: 50, unique_dst_ports: 1, new_dst_ports: 1, max_single_remote: 2, max_single_dst_port: 100, top_dst_port: 443, unreplied_ratio: 0.90, tcp_flows: 100, tcp_unreplied_ratio: 0.90, tcp_top_remote_flows: 2, tcp_top_dst_port_flows: 100}
+    expected_metrics: [oie_instance_inbound_flows, oie_instance_inbound_new_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 25, max: 60}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: inbound_service_spray_suspected
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: smtp_abuse
+    description: Failed outbound mail delivery attempts across many mail destinations.
+    input_observations: {engine: behavior, direction: outbound, cycles: 3, interval_seconds: 15, flows: 100, unique_remotes: 50, new_remotes: 50, unique_dst_ports: 1, new_dst_ports: 1, max_single_remote: 2, max_single_dst_port: 100, top_dst_port: 25, unreplied_ratio: 0.40, tcp_flows: 100, tcp_unreplied_ratio: 0.40, tcp_top_remote_flows: 2, tcp_top_dst_port_flows: 100, smtp_flows: 100, smtp_unique_remotes: 50, smtp_unreplied_ratio: 0.40}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 20, max: 50}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: smtp_spam_behavior_suspected
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: udp_flood
+    description: High-volume unreplied inbound UDP traffic concentrated on one target service.
+    input_observations: {engine: behavior, direction: inbound, cycles: 3, interval_seconds: 15, flows: 250, unique_remotes: 25, new_remotes: 25, unique_dst_ports: 1, new_dst_ports: 1, max_single_remote: 10, max_single_dst_port: 250, top_dst_port: 53, unreplied_ratio: 0.98, udp_flows: 250, udp_unique_remotes: 25, udp_unreplied_ratio: 0.98, udp_top_remote_flows: 10, udp_top_dst_port_flows: 250}
+    expected_metrics: [oie_instance_inbound_flows, oie_instance_inbound_max_flows_single_dst_port, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 30, max: 70}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: inbound_udp_targeted_flood_suspected
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: single_target_flood
+    description: Unreplied outbound TCP concentration against one remote endpoint.
+    input_observations: {engine: behavior, direction: outbound, cycles: 3, interval_seconds: 15, flows: 250, unique_remotes: 2, new_remotes: 2, unique_dst_ports: 19, new_dst_ports: 19, max_single_remote: 240, max_single_dst_port: 15, top_dst_port: 443, unreplied_ratio: 0.95, tcp_flows: 250, tcp_unreplied_ratio: 0.95, tcp_top_remote_flows: 240, tcp_top_dst_port_flows: 15}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_max_flows_single_remote, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 30, max: 70}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: outbound_single_remote_flood
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: conntrack_exhaustion
+    description: One instance exceeds twice its configured flow threshold on complete snapshots.
+    input_observations: {engine: behavior, direction: outbound, cycles: 3, interval_seconds: 15, flows: 5000, unique_remotes: 200, new_remotes: 0, unique_dst_ports: 20, new_dst_ports: 0, max_single_remote: 25, max_single_dst_port: 400, top_dst_port: 443, unreplied_ratio: 0.05, tcp_flows: 5000, tcp_unreplied_ratio: 0.05, tcp_top_remote_flows: 25, tcp_top_dst_port_flows: 400, threshold_flows: 2000}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_outbound_unique_remotes, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 20, max: 50}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: conntrack_flow_limit_exceeded
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: dedicated_port_mining
+    description: Replied persistent outbound flows to a dedicated mining-pool endpoint.
+    input_observations: {engine: behavior, direction: outbound, cycles: 3, interval_seconds: 15, flows: 2, unique_remotes: 1, new_remotes: 1, unique_dst_ports: 1, new_dst_ports: 1, max_single_remote: 2, max_single_dst_port: 2, top_dst_port: 10128, unreplied_ratio: 0.0, tcp_flows: 2, tcp_unreplied_ratio: 0.0, tcp_top_remote_flows: 2, tcp_top_dst_port_flows: 2, mining_port: 10128, mining_flows: 2, mining_replied_flows: 2, mining_unique_remotes: 1, cpu_percent: 85}
+    expected_metrics: [oie_instance_outbound_flows, oie_instance_mining_suspected, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 25}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: outbound_stratum_mining_suspected
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: shared_port_mining_with_high_cpu
+    description: Persisted replied shared-port pool traffic corroborated by sustained high CPU.
+    input_observations: {engine: behavior, direction: outbound, cycles: 7, interval_seconds: 15, flows: 3, unique_remotes: 1, new_remotes: 1, unique_dst_ports: 1, new_dst_ports: 1, max_single_remote: 3, max_single_dst_port: 3, top_dst_port: 7777, unreplied_ratio: 0.0, tcp_flows: 3, tcp_unreplied_ratio: 0.0, tcp_top_remote_flows: 3, tcp_top_dst_port_flows: 3, mining_port: 7777, mining_flows: 3, mining_replied_flows: 3, mining_unique_remotes: 1, cpu_percent: 80}
+    expected_metrics: [oie_instance_mining_suspected, oie_instance_cpu_vcpu_percent, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 25}
+    expected_state_transitions: [candidate, corroboration_required, prometheus_alerted]
+    expected_alert: OpenStackInstanceMiningSuspected
+    forbidden_alerts: [OpenStackInstanceThreatScoreHigh]
+    maximum_expected_detection_delay_seconds: 90
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: shared_port_traffic_without_mining_corroboration
+    description: Persisted replied shared-port traffic without sufficient CPU corroboration.
+    input_observations: {engine: behavior, direction: outbound, cycles: 5, interval_seconds: 15, flows: 3, unique_remotes: 1, new_remotes: 1, unique_dst_ports: 1, new_dst_ports: 1, max_single_remote: 3, max_single_dst_port: 3, top_dst_port: 7777, unreplied_ratio: 0.0, tcp_flows: 3, tcp_unreplied_ratio: 0.0, tcp_top_remote_flows: 3, tcp_top_dst_port_flows: 3, mining_port: 7777, mining_flows: 3, mining_replied_flows: 3, mining_unique_remotes: 1, cpu_percent: 20}
+    expected_metrics: [oie_instance_mining_suspected, oie_instance_cpu_vcpu_percent, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 25}
+    expected_state_transitions: [candidate, corroboration_required]
+    expected_alert: none
+    forbidden_alerts: [OpenStackInstanceMiningSuspected]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: low_cpu_or_gpu_like_mining
+    description: Dedicated-port mining evidence remains detectable without a high CPU requirement.
+    input_observations: {engine: behavior, direction: outbound, cycles: 3, interval_seconds: 15, flows: 2, unique_remotes: 1, new_remotes: 1, unique_dst_ports: 1, new_dst_ports: 1, max_single_remote: 2, max_single_dst_port: 2, top_dst_port: 10128, unreplied_ratio: 0.0, tcp_flows: 2, tcp_unreplied_ratio: 0.0, tcp_top_remote_flows: 2, tcp_top_dst_port_flows: 2, mining_port: 10128, mining_flows: 2, mining_replied_flows: 2, mining_unique_remotes: 1, cpu_percent: 5}
+    expected_metrics: [oie_instance_mining_suspected, oie_instance_cpu_vcpu_percent, oie_instance_behavior_severity]
+    forbidden_metrics: [oie_instance_threat_list_severity]
+    expected_severity_range: {min: 0, max: 25}
+    expected_state_transitions: [candidate, alerted]
+    expected_alert: outbound_stratum_mining_suspected
+    forbidden_alerts: [unrelated_security_alert]
+    maximum_expected_detection_delay_seconds: 30
+    expected_recovery_behavior: clean_cycle_resets_state
+
+  - id: tor_contact
+    description: One active flow matches the currently usable Tor exit feed.
+    input_observations: {engine: threat, cycles: 1, interval_seconds: 60, threat_sources: [TOREXIT], threat_active_flows: 1}
+    expected_metrics: [oie_instance_threat_tor_exit_active_flows, oie_instance_threat_tor_exit_contacts_total, oie_instance_threat_list_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 10, max: 10}
+    expected_state_transitions: [observed]
+    expected_alert: none
+    forbidden_alerts: [default_warning_security]
+    maximum_expected_detection_delay_seconds: 0
+    expected_recovery_behavior: fresh_zero_replaces_active_hits
+
+  - id: known_bad_remote_contact
+    description: Five persistent active flows match one currently usable known-bad feed.
+    input_observations: {engine: threat, cycles: 6, interval_seconds: 60, threat_sources: [EMERGING], threat_active_flows: 5}
+    expected_metrics: [oie_instance_threat_emergingthreats_active_flows, oie_instance_threat_emergingthreats_contacts_total, oie_instance_threat_list_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 50, max: 50}
+    expected_state_transitions: [observed, alerted]
+    expected_alert: OpenStackInstanceThreatScoreHigh
+    forbidden_alerts: [OpenStackInstanceThreatScoreSevere]
+    maximum_expected_detection_delay_seconds: 300
+    expected_recovery_behavior: fresh_zero_replaces_active_hits
+
+  - id: same_remote_overlapping_threat_lists
+    description: The same five flow identities appear in two usable feeds and remain one combined evidence union.
+    input_observations: {engine: threat, cycles: 6, interval_seconds: 60, threat_sources: [TOREXIT, EMERGING], threat_active_flows: 5, threat_overlap_copies: 2}
+    expected_metrics: [oie_instance_threat_tor_exit_active_flows, oie_instance_threat_emergingthreats_active_flows, oie_instance_threat_list_severity]
+    forbidden_metrics: [oie_instance_mining_suspected]
+    expected_severity_range: {min: 50, max: 50}
+    expected_state_transitions: [observed, alerted]
+    expected_alert: OpenStackInstanceThreatScoreHigh
+    forbidden_alerts: [OpenStackInstanceThreatScoreSevere]
+    maximum_expected_detection_delay_seconds: 300
+    expected_recovery_behavior: fresh_zero_replaces_active_hits

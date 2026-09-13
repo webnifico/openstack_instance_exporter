@@ -1,0 +1,679 @@
+{
+  "schema_version": 1,
+  "envelope": {
+    "required": {
+      "category": "string",
+      "component": "string",
+      "level": "string",
+      "msg": "string",
+      "time": "string"
+    },
+    "notice_required": {
+      "severity_class": "string"
+    }
+  },
+  "plaintext_exceptions": [
+    {
+      "name": "failed_to_open_logfile",
+      "source": "logging_structured_json_events.go",
+      "format": "openstack_instance_exporter failed_to_open_logfile path=%q err=%v\n"
+    }
+  ],
+  "dynamic_sources": [
+    {
+      "kind": "provider_refresh_name",
+      "source": "threat_list_download_and_cache.go",
+      "concrete_messages": [
+        "customlist_refresh",
+        "customlist_refresh_failed",
+        "emergingthreats_refresh",
+        "emergingthreats_refresh_failed",
+        "torexit_refresh",
+        "torexit_refresh_failed",
+        "torrelay_refresh",
+        "torrelay_refresh_failed"
+      ],
+      "open_ended": false
+    },
+    {
+      "kind": "threat_event_callback",
+      "source": "threat_hits_and_metrics.go",
+      "concrete_messages": [
+        "behavior_alert"
+      ],
+      "open_ended": true
+    }
+  ],
+  "messages": [
+    {
+      "message": "background_collector_shutdown",
+      "variants": [
+        {
+          "name": "default",
+          "level": "INFO",
+          "category": "metric",
+          "component": "collector",
+          "required": {},
+          "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "behavior_alert",
+      "variants": [
+        {
+          "name": "fallback_generic",
+          "level": "WARN",
+          "category": "behavior",
+          "component": "behavior",
+          "required": {
+            "behavior_signal": "number",
+            "bytes_per_flow": "number",
+            "confidence_score": "number",
+            "conntrack_acct": "boolean",
+            "detail": "string",
+            "direction": "string",
+            "domain": "string",
+            "dst_ip": "string",
+            "emit_reason": "string",
+            "evidence_mode": "string",
+            "flows_current": "number",
+            "host_impact_percent": "number",
+            "icmp_count": "number",
+            "infra_hits": "number",
+            "infra_max_flows": "number",
+            "instance_uuid": "string",
+            "kind": "string",
+            "local_scan_hits": "number",
+            "max_flows_single_port": "number",
+            "max_flows_single_remote": "number",
+            "multicast_count": "number",
+            "new_ports": "number",
+            "new_remotes": "number",
+            "new_remotes_saturated": "boolean",
+            "packets_per_flow": "number",
+            "persistence_hits": "number",
+            "persistence_required": "number",
+            "priority": "string",
+            "priority_basis": "string",
+            "reason": "string",
+            "remote_map_capped": "boolean",
+            "server_name": "string",
+            "severity_band": "string",
+            "severity_score": "number",
+            "src_ip": "string",
+            "synergy_darkspace_physics": "boolean",
+            "synergy_darkspace_scan": "boolean",
+            "tenant_private_hits": "number",
+            "tenant_private_max_flows": "number",
+            "threshold_flows": "number",
+            "top_dst_port": "number",
+            "top_dst_port_name": "string",
+            "top_port_share": "number",
+            "top_remote_ip": "string",
+            "top_remote_share": "number",
+            "udp_count": "number",
+            "unique_ports": "number",
+            "unique_remotes": "number",
+            "unique_remotes_saturated": "boolean",
+            "unreplied_ratio": "number"
+          },
+          "optional": {}
+        },
+        {
+          "name": "routed_approximate",
+          "level": "WARN",
+          "category": "behavior",
+          "component": "behavior",
+          "required": {
+            "behavior_signal": "number",
+            "bytes_per_flow": "number",
+            "confidence_score": "number",
+            "conntrack_acct": "boolean",
+            "detail": "string",
+            "direction": "string",
+            "domain": "string",
+            "dst_ip": "string",
+            "emit_reason": "string",
+            "evidence_mode": "string",
+            "flows_current": "number",
+            "host_impact_percent": "number",
+            "icmp_count": "number",
+            "infra_hits": "number",
+            "infra_max_flows": "number",
+            "instance_uuid": "string",
+            "kind": "string",
+            "local_scan_hits": "number",
+            "max_flows_single_port": "number",
+            "multicast_count": "number",
+            "new_ports": "number",
+            "new_remotes": "number",
+            "new_remotes_saturated": "boolean",
+            "packets_per_flow": "number",
+            "persistence_hits": "number",
+            "persistence_required": "number",
+            "priority": "string",
+            "priority_basis": "string",
+            "project_name": "string",
+            "project_uuid": "string",
+            "reason": "string",
+            "remote_map_capped": "boolean",
+            "server_name": "string",
+            "severity_band": "string",
+            "severity_score": "number",
+            "src_ip": "string",
+            "synergy_darkspace_physics": "boolean",
+            "synergy_darkspace_scan": "boolean",
+            "tag": "string",
+            "tenant_private_hits": "number",
+            "tenant_private_max_flows": "number",
+            "threshold_flows": "number",
+            "top_dst_port": "number",
+            "top_dst_port_name": "string",
+            "top_port_share": "number",
+            "top_remote_ip": "string",
+            "top_remote_share": "number",
+            "udp_count": "number",
+            "unique_ports": "number",
+            "unique_remotes": "number",
+            "unique_remotes_saturated": "boolean",
+            "unreplied_ratio": "number",
+            "user_uuid": "string"
+          },
+          "optional": {}
+        },
+        {
+          "name": "routed_generic",
+          "level": "WARN",
+          "category": "behavior",
+          "component": "behavior",
+          "required": {
+            "behavior_signal": "number",
+            "bytes_per_flow": "number",
+            "confidence_score": "number",
+            "conntrack_acct": "boolean",
+            "detail": "string",
+            "direction": "string",
+            "domain": "string",
+            "dst_ip": "string",
+            "emit_reason": "string",
+            "evidence_mode": "string",
+            "flows_current": "number",
+            "host_impact_percent": "number",
+            "icmp_count": "number",
+            "infra_hits": "number",
+            "infra_max_flows": "number",
+            "instance_uuid": "string",
+            "kind": "string",
+            "local_scan_hits": "number",
+            "max_flows_single_port": "number",
+            "max_flows_single_remote": "number",
+            "multicast_count": "number",
+            "new_ports": "number",
+            "new_remotes": "number",
+            "new_remotes_saturated": "boolean",
+            "packets_per_flow": "number",
+            "persistence_hits": "number",
+            "persistence_required": "number",
+            "priority": "string",
+            "priority_basis": "string",
+            "project_name": "string",
+            "project_uuid": "string",
+            "reason": "string",
+            "remote_map_capped": "boolean",
+            "server_name": "string",
+            "severity_band": "string",
+            "severity_score": "number",
+            "src_ip": "string",
+            "synergy_darkspace_physics": "boolean",
+            "synergy_darkspace_scan": "boolean",
+            "tag": "string",
+            "tenant_private_hits": "number",
+            "tenant_private_max_flows": "number",
+            "threshold_flows": "number",
+            "top_dst_port": "number",
+            "top_dst_port_name": "string",
+            "top_port_share": "number",
+            "top_remote_ip": "string",
+            "top_remote_share": "number",
+            "udp_count": "number",
+            "unique_ports": "number",
+            "unique_remotes": "number",
+            "unique_remotes_saturated": "boolean",
+            "unreplied_ratio": "number",
+            "user_uuid": "string"
+          },
+          "optional": {}
+        },
+        {
+          "name": "routed_mining",
+          "level": "WARN",
+          "category": "behavior",
+          "component": "behavior",
+          "required": {
+            "behavior_signal": "number",
+            "bytes_per_flow": "number",
+            "confidence_score": "number",
+            "conntrack_acct": "boolean",
+            "detail": "string",
+            "direction": "string",
+            "domain": "string",
+            "dst_ip": "string",
+            "emit_reason": "string",
+            "evidence_mode": "string",
+            "flows_current": "number",
+            "host_impact_percent": "number",
+            "icmp_count": "number",
+            "infra_hits": "number",
+            "infra_max_flows": "number",
+            "instance_uuid": "string",
+            "kind": "string",
+            "local_scan_hits": "number",
+            "max_flows_single_port": "number",
+            "max_flows_single_remote": "number",
+            "mining_flows": "number",
+            "mining_port_confidence": "string",
+            "mining_replied_flows": "number",
+            "mining_unique_ports": "number",
+            "mining_unique_remotes": "number",
+            "multicast_count": "number",
+            "new_ports": "number",
+            "new_remotes": "number",
+            "new_remotes_saturated": "boolean",
+            "packets_per_flow": "number",
+            "persistence_hits": "number",
+            "persistence_required": "number",
+            "priority": "string",
+            "priority_basis": "string",
+            "project_name": "string",
+            "project_uuid": "string",
+            "reason": "string",
+            "remote_map_capped": "boolean",
+            "server_name": "string",
+            "severity_band": "string",
+            "severity_score": "number",
+            "src_ip": "string",
+            "synergy_darkspace_physics": "boolean",
+            "synergy_darkspace_scan": "boolean",
+            "tag": "string",
+            "tenant_private_hits": "number",
+            "tenant_private_max_flows": "number",
+            "threshold_flows": "number",
+            "top_dst_port": "number",
+            "top_dst_port_name": "string",
+            "top_port_share": "number",
+            "top_remote_ip": "string",
+            "top_remote_share": "number",
+            "udp_count": "number",
+            "unique_ports": "number",
+            "unique_remotes": "number",
+            "unique_remotes_saturated": "boolean",
+            "unreplied_ratio": "number",
+            "user_uuid": "string"
+          },
+          "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "behavior_ports_config",
+      "variants": [
+        {
+          "name": "error",
+          "level": "ERROR",
+          "category": "app",
+          "component": "app",
+          "required": {"err": "string", "event": "string", "inbound_ports": "number", "outbound_ports": "number", "path": "string", "status": "string", "using": "string"},
+          "optional": {}
+        },
+        {
+          "name": "success",
+          "level": "INFO",
+          "category": "app",
+          "component": "app",
+          "required": {"err": "string", "event": "string", "inbound_ports": "number", "outbound_ports": "number", "path": "string", "status": "string", "using": "string"},
+          "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "behavior_rule_log_state_evict",
+      "variants": [
+        {
+          "name": "default", "level": "WARN", "category": "behavior", "component": "behavior",
+          "required": {"max": "number", "removed": "number", "size": "number"}, "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "behavior_rule_summary",
+      "variants": [
+        {
+          "name": "default", "level": "WARN", "category": "behavior", "component": "behavior",
+          "required": {"confidence_score": "number", "direction": "string", "emit_reason": "string", "evidence_mode": "string", "instance_uuid": "string", "new_kind": "string", "new_priority": "string", "new_severity_band": "string", "previous_kind": "string", "previous_priority": "string", "previous_severity_band": "string", "project_uuid": "string", "rule_id": "string", "rule_source": "string", "severity_score": "number", "top_port_share": "number", "top_remote_share": "number"},
+          "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "behavior_rule_suppressed",
+      "variants": [
+        {
+          "name": "default", "level": "DEBUG", "category": "behavior", "component": "behavior",
+          "required": {"confidence_score": "number", "direction": "string", "evidence_mode": "string", "instance_uuid": "string", "kind_candidate": "string", "persistence_hits": "number", "persistence_required": "number", "priority": "string", "project_uuid": "string", "rule_id": "string", "rule_source": "string", "severity_score": "number", "suppress_reason": "string", "top_port_share": "number", "top_remote_share": "number"},
+          "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "behavior_rules_config",
+      "variants": [
+        {
+          "name": "error", "level": "ERROR", "category": "app", "component": "app",
+          "required": {"err": "string", "event": "string", "path": "string", "port_sets": "number", "rules": "number", "status": "string"}, "optional": {}
+        },
+        {
+          "name": "success", "level": "INFO", "category": "app", "component": "app",
+          "required": {"err": "string", "event": "string", "path": "string", "port_sets": "number", "rules": "number", "status": "string"}, "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "collection_cycle_summary",
+      "variants": [
+        {
+          "name": "both_errors", "level": "DEBUG", "category": "metric", "component": "collector",
+          "required": {"active_domains": "number", "active_instances": "number", "cache_cleanup_seconds": "number", "conntrack_duration_seconds": "number", "conntrack_entries": "number", "conntrack_err": "string", "conntrack_max": "number", "conntrack_max_available": "boolean", "conntrack_ok": "boolean", "conntrack_utilization": "number", "cycle_id": "number", "degraded": "boolean", "degraded_stages": "string", "duration_seconds": "number", "lag_seconds": "number", "libvirt_duration_seconds": "number", "libvirt_err": "string", "libvirt_ok": "boolean", "vm_ip_identities": "number"},
+          "optional": {}
+        },
+        {
+          "name": "conntrack_error", "level": "DEBUG", "category": "metric", "component": "collector",
+          "required": {"active_domains": "number", "active_instances": "number", "cache_cleanup_seconds": "number", "conntrack_duration_seconds": "number", "conntrack_entries": "number", "conntrack_err": "string", "conntrack_max": "number", "conntrack_max_available": "boolean", "conntrack_ok": "boolean", "conntrack_utilization": "number", "cycle_id": "number", "degraded": "boolean", "degraded_stages": "string", "duration_seconds": "number", "lag_seconds": "number", "libvirt_duration_seconds": "number", "libvirt_ok": "boolean", "vm_ip_identities": "number"},
+          "optional": {}
+        },
+        {
+          "name": "healthy", "level": "DEBUG", "category": "metric", "component": "collector",
+          "required": {"active_domains": "number", "active_instances": "number", "cache_cleanup_seconds": "number", "conntrack_duration_seconds": "number", "conntrack_entries": "number", "conntrack_max": "number", "conntrack_max_available": "boolean", "conntrack_ok": "boolean", "conntrack_utilization": "number", "cycle_id": "number", "degraded": "boolean", "duration_seconds": "number", "lag_seconds": "number", "libvirt_duration_seconds": "number", "libvirt_ok": "boolean", "vm_ip_identities": "number"},
+          "optional": {}
+        },
+        {
+          "name": "libvirt_error", "level": "DEBUG", "category": "metric", "component": "collector",
+          "required": {"active_domains": "number", "active_instances": "number", "cache_cleanup_seconds": "number", "conntrack_duration_seconds": "number", "conntrack_entries": "number", "conntrack_max": "number", "conntrack_max_available": "boolean", "conntrack_ok": "boolean", "conntrack_utilization": "number", "cycle_id": "number", "degraded": "boolean", "degraded_stages": "string", "duration_seconds": "number", "lag_seconds": "number", "libvirt_duration_seconds": "number", "libvirt_err": "string", "libvirt_ok": "boolean", "vm_ip_identities": "number"},
+          "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "collection_degraded",
+      "variants": [
+        {
+          "name": "conntrack_last_good", "level": "WARN", "category": "metric", "component": "conntrack",
+          "required": {"cycle_id": "number", "err": "string", "fallback": "string", "impact": "string", "partial": "boolean", "stage": "string"}, "optional": {}
+        },
+        {
+          "name": "conntrack_unavailable", "level": "WARN", "category": "metric", "component": "conntrack",
+          "required": {"cycle_id": "number", "err": "string", "fallback": "string", "impact": "string", "stage": "string"}, "optional": {}
+        },
+        {
+          "name": "libvirt_cached_active_set", "level": "WARN", "category": "metric", "component": "collector",
+          "required": {"cycle_id": "number", "err": "string", "fallback": "string", "impact": "string", "stage": "string"}, "optional": {}
+        },
+        {
+          "name": "libvirt_last_good", "level": "WARN", "category": "metric", "component": "collector",
+          "required": {"cycle_id": "number", "err": "string", "fallback": "string", "impact": "string", "stage": "string"}, "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "collector_create_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "app", "component": "collector", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "conntrack_acct_status",
+      "variants": [
+        {"name": "disabled", "level": "INFO", "category": "app", "component": "app", "required": {"enabled": "boolean", "value": "string"}, "optional": {}},
+        {"name": "enabled", "level": "INFO", "category": "app", "component": "app", "required": {"enabled": "boolean"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "conntrack_acct_status_read_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "app", "component": "app", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "conntrack_raw_partial_failure",
+      "variants": [
+        {"name": "default", "level": "WARN", "category": "metric", "component": "conntrack", "required": {"err": "string", "family": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "conntrack_read_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "metric", "component": "conntrack", "required": {"ct_entries": "number", "cycle_id": "number", "err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "customlist_refresh",
+      "variants": [
+        {"name": "default", "level": "INFO", "category": "threat", "component": "customlist", "required": {"ips_total": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "customlist_refresh_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "threat", "component": "customlist", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "domain_meta_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "metric", "component": "collector", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "domain_stats_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "metric", "component": "collector", "required": {"cycle_id": "number", "err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "domain_stats_success",
+      "variants": [
+        {"name": "default", "level": "DEBUG", "category": "metric", "component": "collector", "required": {"active_domains": "number", "cycle_id": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "emergingthreats_refresh",
+      "variants": [
+        {"name": "default", "level": "INFO", "category": "threat", "component": "emergingthreats", "required": {"ips_total": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "emergingthreats_refresh_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "threat", "component": "emergingthreats", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "exporter_shutdown",
+      "variants": [
+        {"name": "default", "level": "INFO", "category": "app", "component": "app", "required": {"signal": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "exporter_startup",
+      "variants": [
+        {"name": "default", "level": "INFO", "category": "app", "component": "app", "required": {"log_level_applied": "string", "log_level_requested": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "http_listen_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "app", "component": "http", "required": {"addr": "string", "err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "http_listen_start",
+      "variants": [
+        {"name": "default", "level": "INFO", "category": "app", "component": "http", "required": {"addr": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "http_server_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "app", "component": "http", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "invalid_contact_direction",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "app", "component": "app", "required": {"err": "string", "field": "string", "value": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "invalid_startup_configuration",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "app", "component": "app", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "invalid_telemetry_path",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "app", "component": "http", "required": {"err": "string", "path": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "ovn_mapping_stale",
+      "variants": [
+        {"name": "default", "level": "WARN", "category": "metric", "component": "conntrack", "required": {"last_success": "string", "stale_after": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "ovn_refresh_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "metric", "component": "conntrack", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "ovn_socket_found",
+      "variants": [
+        {"name": "default", "level": "INFO", "category": "metric", "component": "collector", "required": {"path": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "ovn_socket_lookup_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "metric", "component": "collector", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "provider_ip_listed",
+      "variants": [
+        {"name": "default", "level": "WARN", "category": "threat", "component": "threat", "required": {"family": "string", "ip": "string", "kind": "string", "list": "string", "tag": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "refresh_success",
+      "variants": [
+        {"name": "default", "level": "DEBUG", "category": "mapping", "component": "ovn_mapper", "required": {"lines_no_uuid": "number", "lines_no_zone": "number", "lines_parsed": "number", "lines_total": "number", "lines_unknown_port": "number", "zones_found": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "resource_v2_event",
+      "variants": [
+        {
+          "name": "default", "level": "INFO", "category": "severity", "component": "severity",
+          "required": {
+            "axes_ge90": "number", "band": "number", "cap_active": "boolean",
+            "cpu_alpha": "number", "cpu_conf": "number", "cpu_ewma": "number", "cpu_impact": "number", "cpu_p_eff": "number", "cpu_p_raw": "number", "cpu_sev": "number", "cpu_tau": "number",
+            "disk_alpha": "number", "disk_conf": "number", "disk_ewma": "number", "disk_impact": "number", "disk_p_eff": "number", "disk_p_raw": "number", "disk_sev": "number", "disk_tau": "number",
+            "domain": "string", "dt_seconds": "number", "hi95_streak": "number", "instance_uuid": "string",
+            "mem_alpha": "number", "mem_conf": "number", "mem_ewma": "number", "mem_impact": "number", "mem_p_eff": "number", "mem_p_raw": "number", "mem_sev": "number", "mem_tau": "number",
+            "net_alpha": "number", "net_conf": "number", "net_ewma": "number", "net_impact": "number", "net_p_eff": "number", "net_p_raw": "number", "net_sev": "number", "net_tau": "number",
+            "overall": "number", "overall_raw": "number", "project_name": "string", "project_uuid": "string", "server_name": "string", "top_axis": "string", "user_uuid": "string"
+          },
+          "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "scrapetime_collection_end",
+      "variants": [
+        {"name": "default", "level": "DEBUG", "category": "metric", "component": "collector", "required": {"cycle_id": "number", "duration_seconds": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "scrapetime_collection_start",
+      "variants": [
+        {"name": "default", "level": "DEBUG", "category": "metric", "component": "collector", "required": {"cycle_id": "number", "lag_seconds": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "spamhaus_refresh",
+      "variants": [
+        {"name": "default", "level": "INFO", "category": "threat", "component": "spamhaus", "required": {"nets_total": "number", "v4_nets": "number", "v6_nets": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "spamhaus_v4_refresh_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "threat", "component": "spamhaus", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "spamhaus_v6_refresh_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "threat", "component": "spamhaus", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "startup_config",
+      "variants": [
+        {
+          "name": "default", "level": "INFO", "category": "app", "component": "app",
+          "required": {
+            "behavior_ewma_fast_tau": "string", "behavior_ewma_slow_tau": "string", "behavior_ports_config": "string", "behavior_rules_config": "string", "behavior_sensitivity": "number",
+            "collection_interval": "string", "conntrack_ipv4_enabled": "boolean", "conntrack_ipv6_enabled": "boolean", "conntrack_raw_rcv_timeout": "number", "conntrack_raw_rcvbuf_bytes": "number", "contacts_direction": "string",
+            "customlist_enabled": "boolean", "customlist_refresh": "string", "emergingthreats_enabled": "boolean", "emergingthreats_refresh": "string",
+            "host_private_enabled": "boolean", "host_threats_enabled": "boolean", "inbound_behavior_enabled": "boolean", "libvirt_uri": "string", "listen_address": "string", "log_file_enabled": "boolean", "log_file_path": "string", "log_level_applied": "string", "log_level_requested": "string", "metrics_path": "string", "outbound_behavior_enabled": "boolean",
+            "spamhaus_enabled": "boolean", "spamhaus_refresh": "string", "threat_log_min_interval": "string", "tor_exit_enabled": "boolean", "tor_exit_refresh": "string", "tor_relay_enabled": "boolean", "tor_relay_refresh": "string", "worker_count": "number", "worker_count_effective": "number"
+          },
+          "optional": {}
+        }
+      ]
+    },
+    {
+      "message": "threat_list_hit",
+      "variants": [
+        {"name": "default", "level": "WARN", "category": "threat", "component": "threat", "required": {"direction": "string", "domain": "string", "dst": "string", "instance_uuid": "string", "kind": "string", "list": "string", "project_name": "string", "project_uuid": "string", "server_name": "string", "src": "string", "tag": "string", "user_uuid": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "torexit_refresh",
+      "variants": [
+        {"name": "default", "level": "INFO", "category": "threat", "component": "torexit", "required": {"ips_total": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "torexit_refresh_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "threat", "component": "torexit", "required": {"err": "string"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "torrelay_refresh",
+      "variants": [
+        {"name": "default", "level": "INFO", "category": "threat", "component": "torrelay", "required": {"ips_total": "number"}, "optional": {}}
+      ]
+    },
+    {
+      "message": "torrelay_refresh_failed",
+      "variants": [
+        {"name": "default", "level": "ERROR", "category": "threat", "component": "torrelay", "required": {"err": "string"}, "optional": {}}
+      ]
+    }
+  ]
+}

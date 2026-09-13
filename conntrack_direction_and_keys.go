@@ -60,15 +60,18 @@ func flowDirection(ipSet map[IPKey]struct{}, ct ConntrackEntry) string {
 // -----------------------------------------------------------------------------
 
 type ConntrackEntry struct {
-	Src     string
-	Dst     string
-	SrcPort uint16
-	DstPort uint16
-	Proto   uint8
-	Status  uint32
-	Zone    uint16
-	Bytes   uint64
-	Packets uint64
+	Src      string
+	Dst      string
+	SrcPort  uint16
+	DstPort  uint16
+	Proto    uint8
+	Status   uint32
+	Zone     uint16
+	Bytes    uint64
+	Packets  uint64
+	ICMPID   uint16
+	ICMPType uint8
+	ICMPCode uint8
 }
 
 type ConntrackFlowLite struct {
@@ -78,10 +81,16 @@ type ConntrackFlowLite struct {
 	DstPort        uint16
 	Proto          uint8
 	Zone           uint16
+	Status         uint32
+	ICMPID         uint16
+	ICMPType       uint8
+	ICMPCode       uint8
 	ForwardPackets uint64
 	ForwardBytes   uint64
 	ReversePackets uint64
 	ReverseBytes   uint64
+	PacketsPresent bool
+	BytesPresent   bool
 }
 
 type VMIPIdentity struct {
@@ -92,6 +101,11 @@ type VMIPIdentity struct {
 type ConntrackAgg struct {
 	VMIndex            map[VMIPIdentity]uint32
 	InstanceFlowTotals map[string]int
+	// ObservationUnix is captured once for a complete conntrack snapshot so
+	// parallel per-instance analysis shares one persistence clock boundary.
+	// ObservationTimeSet makes Unix epoch zero an explicit valid boundary.
+	ObservationUnix    int64
+	ObservationTimeSet bool
 
 	FlowsIn  []int
 	FlowsOut []int
@@ -103,6 +117,16 @@ type ConntrackAgg struct {
 	SpamhausHitsDropped map[string]uint64
 	ProviderHits        map[string]map[string]map[PairKey]ConntrackEntry
 	ProviderHitsDropped map[string]map[string]uint64
+	// CombinedThreatHits is the bounded, per-instance union of matching
+	// conntrack flows across every included list. It is populated once while a
+	// flow is visited, so overlapping feeds cannot multiply combined severity.
+	// CombinedThreatHitsDropped is an overflow-presence marker (0 or 1), not an
+	// exact tail cardinality, because evicted PairKeys cannot be remembered
+	// without violating the bound.
+	CombinedThreatHits        map[string]map[PairKey]ConntrackEntry
+	CombinedThreatHitsDropped map[string]uint64
+	SpamhausSourceIncluded    bool
+	ProviderSourcesIncluded   map[string]struct{}
 }
 
 // -----------------------------------------------------------------------------

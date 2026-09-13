@@ -2,16 +2,28 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
+)
+
+const (
+	threatLineFeedMaxBytes = int64(8 << 20)
+	threatJSONFeedMaxBytes = int64(32 << 20)
 )
 
 type OnionooSummary struct {
@@ -21,145 +33,416 @@ type OnionooSummary struct {
 }
 
 func (tm *ThreatManager) runProviderRefresher(p *IPThreatProvider) {
-	refreshOnce := func() {
-		start := time.Now()
-		fresh, err := p.Fetcher()
-		if err != nil {
-			atomic.AddUint64(&p.ErrorCount, 1)
-			p.Logger.Error(strings.ToLower(p.Name)+"_refresh_failed", "err", err)
+	tm.runThreatFeedRefresher(p.RefreshInterval, func() bool {
+		return tm.refreshProviderAttempt(p) == nil
+	})
+}
+
+// Failed attempts retry sooner without changing the configured freshness
+// policy or the normal interval after a successful refresh.
+type threatFeedRetry struct {
+	delay time.Duration
+}
+
+func (retry *threatFeedRetry) next(refresh time.Duration, succeeded bool) time.Duration {
+	if succeeded || refresh <= 0 {
+		retry.delay = 0
+		return refresh
+	}
+	if retry.delay == 0 {
+		retry.delay = 30 * time.Second
+	} else {
+		retry.delay = min(2*retry.delay, 5*time.Minute)
+	}
+	return min(retry.delay, refresh)
+}
+
+func (tm *ThreatManager) runThreatFeedRefresher(refresh time.Duration, refreshOnce func() bool) {
+	var retry threatFeedRetry
+	for {
+		delay := retry.next(refresh, refreshOnce())
+		// Preserve explicit startup-only refresh configurations.
+		if refresh <= 0 {
+			<-tm.shutdownChan
 			return
 		}
-		dur := time.Since(start).Seconds()
-		nowUnix := float64(time.Now().Unix())
-		p.Mu.Lock()
-		p.Set = fresh
-		p.SetAtomic.Store(fresh)
-		p.LastSuccess = nowUnix
-		p.LastDuration = dur
-		p.EntryCount = len(fresh)
-		p.Mu.Unlock()
-		p.Logger.Info(strings.ToLower(p.Name)+"_refresh", "ips_total", len(fresh))
-		tm.updateHostThreatsFromIPSet(p.LogTag, fresh)
-	}
-
-	refreshOnce()
-	if p.RefreshInterval <= 0 {
-		<-tm.shutdownChan
-		return
-	}
-
-	for {
-		t := time.NewTimer(p.RefreshInterval)
+		t := time.NewTimer(delay)
 		select {
 		case <-tm.shutdownChan:
 			t.Stop()
 			return
 		case <-t.C:
 		}
-		refreshOnce()
+		select {
+		case <-tm.shutdownChan:
+			return
+		default:
+		}
 	}
 }
-func (tm *ThreatManager) fetchOnionoo(url string) (map[IPKey]struct{}, error) {
-	resp, err := tm.httpClient.Get(url)
+
+func (tm *ThreatManager) refreshProviderAttempt(p *IPThreatProvider) error {
+	err := tm.refreshProviderOnce(p)
+	if err == nil {
+		return nil
+	}
+	if p != nil {
+		atomic.AddUint64(&p.ErrorCount, 1)
+		p.Logger.Error(strings.ToLower(p.Name)+"_refresh_failed", "err", err)
+	}
+	return err
+}
+
+func validateThreatIPSet(fresh map[IPKey]struct{}) error {
+	if len(fresh) == 0 {
+		return fmt.Errorf("threat feed contains no valid addresses")
+	}
+	for address := range fresh {
+		if IPKeyToAddr(address).IsUnspecified() {
+			return fmt.Errorf("threat feed contains an unspecified address")
+		}
+	}
+	return nil
+}
+
+func (tm *ThreatManager) refreshProviderOnce(p *IPThreatProvider) error {
+	if p == nil || p.Fetcher == nil {
+		return fmt.Errorf("threat provider has no fetcher")
+	}
+	start := time.Now()
+	fresh, err := p.Fetcher()
+	if err != nil {
+		return err
+	}
+	if err := validateThreatIPSet(fresh); err != nil {
+		return err
+	}
+	// Publish an owned immutable snapshot. Fetchers are callbacks and must not
+	// be able to mutate a live feed after the refresh has been committed.
+	published := make(map[IPKey]struct{}, len(fresh))
+	for address := range fresh {
+		published[address] = struct{}{}
+	}
+	dur := time.Since(start).Seconds()
+	nowUnix := float64(time.Now().Unix())
+	p.Mu.Lock()
+	p.Set = published
+	p.SetAtomic.Store(published)
+	p.LastSuccess = nowUnix
+	p.LastDuration = dur
+	p.EntryCount = len(published)
+	p.Mu.Unlock()
+	p.Logger.Info(strings.ToLower(p.Name)+"_refresh", "ips_total", len(published))
+	tm.updateHostThreatsFromIPSet(p.LogTag, published)
+	return nil
+}
+
+func threatFeedFresh(lastSuccess float64, refresh time.Duration, now time.Time) bool {
+	if lastSuccess <= 0 {
+		return false
+	}
+	loadedAt := time.Unix(int64(lastSuccess), 0)
+	if loadedAt.After(now.Add(5 * time.Minute)) {
+		return false
+	}
+	if refresh <= 0 {
+		return true
+	}
+	const maxDuration = time.Duration(1<<63 - 1)
+	maxAge := maxDuration
+	if refresh <= maxDuration/2 {
+		maxAge = 2 * refresh
+	}
+	if maxAge < time.Minute {
+		maxAge = time.Minute
+	}
+	return !loadedAt.Before(now.Add(-maxAge))
+}
+
+func (p *IPThreatProvider) feedFresh(now time.Time) bool {
+	if p == nil {
+		return false
+	}
+	p.Mu.RLock()
+	lastSuccess := p.LastSuccess
+	refresh := p.RefreshInterval
+	p.Mu.RUnlock()
+	return threatFeedFresh(lastSuccess, refresh, now)
+}
+
+func (tm *ThreatManager) fetchHTTPBytes(rawURL string, maxBytes int64) ([]byte, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return nil, fmt.Errorf("invalid threat feed URL")
+	}
+	client := tm.httpClient
+	if client == nil {
+		return nil, fmt.Errorf("threat feed HTTP client is unavailable")
+	}
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("User-Agent", "openstack-instance-exporter/2.0.0")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, redactThreatHTTPRequestError(err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d for %s", resp.StatusCode, url)
+		return nil, fmt.Errorf("http %d from threat feed", resp.StatusCode)
+	}
+	if resp.ContentLength > maxBytes {
+		return nil, fmt.Errorf("threat feed exceeds %d bytes", maxBytes)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
+	if err != nil {
+		return nil, redactThreatHTTPRequestError(err)
+	}
+	if int64(len(body)) > maxBytes {
+		return nil, fmt.Errorf("threat feed exceeds %d bytes", maxBytes)
+	}
+	if resp.ContentLength >= 0 && int64(len(body)) != resp.ContentLength {
+		return nil, fmt.Errorf("threat feed response body length mismatch")
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil, fmt.Errorf("threat feed is empty")
+	}
+	return body, nil
+}
+
+func redactThreatHTTPRequestError(err error) error {
+	return threatHTTPRequestError{cause: err}
+}
+
+type threatHTTPRequestError struct {
+	cause error
+}
+
+func (err threatHTTPRequestError) Error() string {
+	// Classify known causes instead of printing wrapped HTTP errors: those can
+	// contain the complete configured URL, proxy credentials or query tokens.
+	if errors.Is(err.cause, context.Canceled) {
+		return "threat feed request canceled"
+	}
+	if errors.Is(err.cause, context.DeadlineExceeded) {
+		return "threat feed request timed out"
+	}
+	for cause := err.cause; cause != nil; cause = errors.Unwrap(cause) {
+		if networkError, ok := cause.(net.Error); ok && networkError.Timeout() {
+			return "threat feed request timed out"
+		}
+	}
+	var dnsError *net.DNSError
+	if errors.As(err.cause, &dnsError) {
+		if dnsError.IsNotFound {
+			return "threat feed DNS name not found"
+		}
+		return "threat feed DNS lookup failed"
+	}
+	var unknownAuthority x509.UnknownAuthorityError
+	var hostnameError x509.HostnameError
+	var certificateError x509.CertificateInvalidError
+	var rootsError x509.SystemRootsError
+	var tlsRecordError tls.RecordHeaderError
+	switch {
+	case errors.As(err.cause, &unknownAuthority):
+		return "threat feed TLS certificate authority is not trusted"
+	case errors.As(err.cause, &hostnameError):
+		return "threat feed TLS certificate hostname mismatch"
+	case errors.As(err.cause, &certificateError):
+		if certificateError.Reason == x509.Expired {
+			return "threat feed TLS certificate expired or not yet valid"
+		}
+		return "threat feed TLS certificate validation failed"
+	case errors.As(err.cause, &rootsError):
+		return "threat feed TLS system trust store unavailable"
+	case errors.As(err.cause, &tlsRecordError):
+		return "threat feed TLS handshake received an invalid response"
+	case errors.Is(err.cause, syscall.ECONNREFUSED):
+		return "threat feed connection refused"
+	case errors.Is(err.cause, syscall.ECONNRESET):
+		return "threat feed connection reset"
+	case errors.Is(err.cause, syscall.ENETUNREACH), errors.Is(err.cause, syscall.EHOSTUNREACH):
+		return "threat feed network or host unreachable"
+	case errors.Is(err.cause, io.ErrUnexpectedEOF), errors.Is(err.cause, io.EOF):
+		return "threat feed connection closed before response completed"
+	default:
+		return "threat feed request failed"
+	}
+}
+
+func (err threatHTTPRequestError) Unwrap() error {
+	return err.cause
+}
+
+func (tm *ThreatManager) fetchOnionoo(url string) (map[IPKey]struct{}, error) {
+	body, err := tm.fetchHTTPBytes(url, threatJSONFeedMaxBytes)
+	if err != nil {
+		return nil, err
 	}
 	var data OnionooSummary
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	if err := decoder.Decode(&data); err != nil {
+		return nil, err
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
 		return nil, err
 	}
 	fresh := make(map[IPKey]struct{})
 	for _, r := range data.Relays {
 		for _, raw := range r.OrAddresses {
-			host := raw
-			if strings.HasPrefix(host, "[") {
-				end := strings.Index(host, "]")
-				if end > 0 {
-					host = host[1:end]
-				}
-			} else {
-				if h, _, err := net.SplitHostPort(host); err == nil {
-					host = h
-				}
-			}
-			if i := strings.IndexByte(host, '%'); i >= 0 {
-				host = host[:i]
-			}
-			addr, err := netip.ParseAddr(host)
+			addr, err := parseOnionooORAddress(raw)
 			if err != nil {
-				continue
+				return nil, fmt.Errorf("malformed Onionoo or_address: %w", err)
 			}
 			fresh[AddrToKey(addr)] = struct{}{}
 		}
 	}
+	if err := validateThreatIPSet(fresh); err != nil {
+		return nil, err
+	}
 	return fresh, nil
 }
+
+func parseOnionooORAddress(raw string) (netip.Addr, error) {
+	if addrPort, err := netip.ParseAddrPort(raw); err == nil {
+		addr := addrPort.Addr()
+		if addr.Zone() != "" {
+			addr = addr.WithZone("")
+		}
+		return addr, nil
+	}
+
+	addr, err := netip.ParseAddr(raw)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	if addr.Zone() != "" {
+		addr = addr.WithZone("")
+	}
+	return addr, nil
+}
+
+func ensureJSONEOF(decoder *json.Decoder) error {
+	var extra interface{}
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("threat feed contains trailing JSON data")
+		}
+		return err
+	}
+	return nil
+}
+
 func (tm *ThreatManager) fetchURLLines(url string) (map[IPKey]struct{}, error) {
-	resp, err := tm.httpClient.Get(url)
+	body, err := tm.fetchHTTPBytes(url, threatLineFeedMaxBytes)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http %d for %s", resp.StatusCode, url)
-	}
-	return scanIPLines(resp.Body)
+	return scanIPLines(bytes.NewReader(body))
 }
 func (tm *ThreatManager) fetchFileLines(path string) (map[IPKey]struct{}, error) {
-	f, err := os.Open(path)
+	// Open nonblocking so a misconfigured FIFO or device cannot stall the
+	// refresher before its file type can be validated. O_NONBLOCK is inert for
+	// regular files, including regular files reached through a symlink.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return scanIPLines(f)
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("threat feed is not a regular file")
+	}
+	if info.Size() > threatLineFeedMaxBytes {
+		return nil, fmt.Errorf("threat feed exceeds %d bytes", threatLineFeedMaxBytes)
+	}
+	body, err := readStableThreatFile(f, info, threatLineFeedMaxBytes)
+	if err != nil {
+		return nil, err
+	}
+	return scanIPLines(bytes.NewReader(body))
+}
+
+// readStableThreatFile is kept separate from parsing so changes to an open
+// regular file can be rejected before any partial contents are accepted.
+func readStableThreatFile(f *os.File, initial os.FileInfo, maxBytes int64) ([]byte, error) {
+	if f == nil || initial == nil {
+		return nil, fmt.Errorf("threat feed file metadata is unavailable")
+	}
+	body, err := readBoundedThreatFile(f, maxBytes)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) != initial.Size() {
+		return nil, fmt.Errorf("threat feed changed while reading")
+	}
+	final, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !os.SameFile(initial, final) || final.Size() != initial.Size() || !final.ModTime().Equal(initial.ModTime()) {
+		return nil, fmt.Errorf("threat feed changed while reading")
+	}
+	return body, nil
+}
+
+func readBoundedThreatFile(r io.Reader, maxBytes int64) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(r, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > maxBytes {
+		return nil, fmt.Errorf("threat feed exceeds %d bytes", maxBytes)
+	}
+	return body, nil
 }
 func scanIPLines(r io.Reader) (map[IPKey]struct{}, error) {
 	scanner := bufio.NewScanner(r)
 	fresh := make(map[IPKey]struct{})
+	lineNumber := 0
 	for scanner.Scan() {
+		lineNumber++
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
 			continue
-		}
-		if i := strings.IndexByte(line, '%'); i >= 0 {
-			line = line[:i]
 		}
 		addr, err := netip.ParseAddr(line)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("malformed threat feed address on line %d", lineNumber)
+		}
+		if addr.Zone() != "" {
+			addr = addr.WithZone("")
+		}
+		if addr.IsUnspecified() {
+			return nil, fmt.Errorf("malformed threat feed address on line %d", lineNumber)
 		}
 		fresh[AddrToKey(addr)] = struct{}{}
 	}
-	return fresh, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	if err := validateThreatIPSet(fresh); err != nil {
+		return nil, err
+	}
+	return fresh, nil
 }
 func (tm *ThreatManager) startSpamhausRefresher() {
-	tm.refreshSpamhausList()
-	if tm.spamRefresh <= 0 {
-		<-tm.shutdownChan
-		return
-	}
-	for {
-		t := time.NewTimer(tm.spamRefresh)
-		select {
-		case <-tm.shutdownChan:
-			t.Stop()
-			return
-		case <-t.C:
-		}
-		tm.refreshSpamhausList()
-	}
+	tm.runThreatFeedRefresher(tm.spamRefresh, tm.refreshSpamhausList)
 }
 func parseSpamhausCIDRs(r io.Reader) ([]*net.IPNet, error) {
 	scanner := bufio.NewScanner(r)
 	nets := make([]*net.IPNet, 0, 4096)
+	lineNumber := 0
 
 	for scanner.Scan() {
+		lineNumber++
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
 			continue
 		}
 
@@ -168,59 +451,86 @@ func parseSpamhausCIDRs(r io.Reader) ([]*net.IPNet, error) {
 
 		_, netIP, err := net.ParseCIDR(cidrStr)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("malformed threat feed CIDR on line %d", lineNumber)
 		}
 		nets = append(nets, netIP)
 	}
-
-	return nets, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	if len(nets) == 0 {
+		return nil, fmt.Errorf("threat feed contains no valid CIDRs")
+	}
+	return nets, nil
 }
-func (tm *ThreatManager) refreshSpamhausList() {
+
+func validateSpamhausCIDRFamily(nets []*net.IPNet, expectedBits int) error {
+	for _, network := range nets {
+		if network == nil {
+			return fmt.Errorf("threat feed contains an invalid CIDR")
+		}
+		ones, bits := network.Mask.Size()
+		if bits != expectedBits {
+			return fmt.Errorf("threat feed contains a CIDR from the wrong address family")
+		}
+		if ones == 0 || (ones == bits && network.IP.IsUnspecified()) {
+			return fmt.Errorf("threat feed contains an unusable catch-all CIDR")
+		}
+	}
+	return nil
+}
+
+func (tm *ThreatManager) refreshSpamhausList() bool {
 	start := time.Now()
 
-	fetchOne := func(url string) ([]*net.IPNet, error) {
-		resp, err := tm.httpClient.Get(url)
+	fetchOne := func(url string, expectedBits int) ([]*net.IPNet, error) {
+		body, err := tm.fetchHTTPBytes(url, threatLineFeedMaxBytes)
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("http %d for %s", resp.StatusCode, url)
-		}
-		nets, err := parseSpamhausCIDRs(resp.Body)
+		nets, err := parseSpamhausCIDRs(bytes.NewReader(body))
 		if err != nil {
 			return nil, err
 		}
 		if len(nets) == 0 {
-			return nil, fmt.Errorf("empty list from %s", url)
+			return nil, fmt.Errorf("threat feed contains no valid CIDRs")
+		}
+		if err := validateSpamhausCIDRFamily(nets, expectedBits); err != nil {
+			return nil, err
 		}
 		return nets, nil
 	}
 
 	var (
-		nets4 []*net.IPNet
-		nets6 []*net.IPNet
-		err4  error
-		err6  error
+		nets4         []*net.IPNet
+		nets6         []*net.IPNet
+		err4          error
+		err6          error
+		configured    int
+		refreshFailed bool
 	)
 
 	if tm.spamURL != "" {
-		nets4, err4 = fetchOne(tm.spamURL)
+		configured++
+		nets4, err4 = fetchOne(tm.spamURL, 32)
 		if err4 != nil {
+			refreshFailed = true
 			atomic.AddUint64(&tm.spamRefreshErrors, 1)
 			logSpamhausThreat.Error("spamhaus_v4_refresh_failed", "err", err4)
 		}
 	}
 	if tm.spamV6URL != "" {
-		nets6, err6 = fetchOne(tm.spamV6URL)
+		configured++
+		nets6, err6 = fetchOne(tm.spamV6URL, 128)
 		if err6 != nil {
+			refreshFailed = true
 			atomic.AddUint64(&tm.spamRefreshErrors, 1)
 			logSpamhausThreat.Error("spamhaus_v6_refresh_failed", "err", err6)
 		}
 	}
 
-	if len(nets4) == 0 && len(nets6) == 0 {
-		return
+	if configured == 0 || refreshFailed {
+		return false
 	}
 
 	bucketsV4 := make(map[uint16][]*net.IPNet)
@@ -267,16 +577,15 @@ func (tm *ThreatManager) refreshSpamhausList() {
 	var combined []*net.IPNet
 
 	tm.spamMu.Lock()
-	if len(nets4) > 0 {
-		tm.spamNetsV4 = nets4
-		tm.spamBucketsV4 = bucketsV4
-		tm.spamWideV4 = wideV4
-	}
-	if len(nets6) > 0 {
-		tm.spamNetsV6 = nets6
-		tm.spamBucketsV6 = bucketsV6
-		tm.spamWideV6 = wideV6
-	}
+	// A successful refresh is one complete dual-family snapshot. Assign every
+	// family unconditionally so an unconfigured family cannot retain stale
+	// state and removals are visible immediately after the atomic swap.
+	tm.spamNetsV4 = nets4
+	tm.spamBucketsV4 = bucketsV4
+	tm.spamWideV4 = wideV4
+	tm.spamNetsV6 = nets6
+	tm.spamBucketsV6 = bucketsV6
+	tm.spamWideV6 = wideV6
 	tm.spamLastSuccessUnix = nowUnix
 	tm.spamLastRefreshSeconds = dur
 	tm.spamEntries = len(tm.spamNetsV4) + len(tm.spamNetsV6)
@@ -288,4 +597,5 @@ func (tm *ThreatManager) refreshSpamhausList() {
 
 	tm.updateHostThreatsFromCIDRs("spamhaus", combined)
 	logSpamhausThreat.Info("spamhaus_refresh", "v4_nets", len(nets4), "v6_nets", len(nets6), "nets_total", len(combined))
+	return true
 }

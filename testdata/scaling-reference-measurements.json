@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "measurement_date": "2026-08-31",
+  "environment": {
+    "go_version": "go1.24.4",
+    "goos": "linux",
+    "goarch": "amd64",
+    "kernel": "Linux 6.18.35",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "logical_cpus": 9,
+    "memory_bytes": 23109910528
+  },
+  "benchmark": {
+    "runs": 5,
+    "benchtime_iterations": 1,
+    "collection_interval_seconds": 5,
+    "max_rss_bytes": 980877312,
+    "user_cpu_seconds": 170.938823,
+    "system_cpu_seconds": 4.590147
+  },
+  "workloads": [
+    {
+      "conntrack_entries": 100000,
+      "active_domains": 100,
+      "raw_netlink_parse_p95_ms": 16.883184,
+      "conntrack_aggregation_p95_ms": 180.361254,
+      "libvirt_collection_p95_ms": 4.099381,
+      "total_collection_p95_ms": 257.979302,
+      "conservative_pipeline_p95_ms": 274.862486,
+      "heap_bytes_per_collection": 48737512,
+      "allocations_per_collection": 230360,
+      "exported_series": 6734,
+      "behavior_state_entries": 800,
+      "mining_state_entries": 0,
+      "threat_state_entries": 0
+    },
+    {
+      "conntrack_entries": 500000,
+      "active_domains": 500,
+      "raw_netlink_parse_p95_ms": 147.773113,
+      "conntrack_aggregation_p95_ms": 1463.977149,
+      "libvirt_collection_p95_ms": 17.305324,
+      "total_collection_p95_ms": 1430.617785,
+      "conservative_pipeline_p95_ms": 1578.390898,
+      "heap_bytes_per_collection": 244388968,
+      "allocations_per_collection": 1151561,
+      "exported_series": 33534,
+      "behavior_state_entries": 4000,
+      "mining_state_entries": 0,
+      "threat_state_entries": 0
+    },
+    {
+      "conntrack_entries": 1000000,
+      "active_domains": 1000,
+      "raw_netlink_parse_p95_ms": 170.218078,
+      "conntrack_aggregation_p95_ms": 3382.50643,
+      "libvirt_collection_p95_ms": 150.683706,
+      "total_collection_p95_ms": 3529.678128,
+      "conservative_pipeline_p95_ms": 3699.896206,
+      "heap_bytes_per_collection": 490243488,
+      "allocations_per_collection": 2304493,
+      "exported_series": 67034,
+      "behavior_state_entries": 8000,
+      "mining_state_entries": 0,
+      "threat_state_entries": 0
+    },
+    {
+      "conntrack_entries": 2000000,
+      "active_domains": 1000,
+      "raw_netlink_parse_p95_ms": 325.134466,
+      "conntrack_aggregation_p95_ms": 6178.666568,
+      "libvirt_collection_p95_ms": 150.683706,
+      "total_collection_p95_ms": 6077.493462,
+      "conservative_pipeline_p95_ms": 6402.627928,
+      "heap_bytes_per_collection": 489836216,
+      "allocations_per_collection": 2296982,
+      "exported_series": 67034,
+      "behavior_state_entries": 8000,
+      "mining_state_entries": 0,
+      "threat_state_entries": 0
+    }
+  ],
+  "cleanup": [
+    {
+      "instances": 100,
+      "p95_ms": 0.524153,
+      "heap_bytes": 129136,
+      "allocations": 2128
+    },
+    {
+      "instances": 500,
+      "p95_ms": 1.464156,
+      "heap_bytes": 141936,
+      "allocations": 2528
+    },
+    {
+      "instances": 1000,
+      "p95_ms": 2.038463,
+      "heap_bytes": 157936,
+      "allocations": 3028
+    }
+  ],
+  "remote_cardinality_saturation": [
+    {
+      "unique_remotes": 100000,
+      "p95_ms": 354.082593,
+      "retained_state": 32768
+    },
+    {
+      "unique_remotes": 500000,
+      "p95_ms": 1722.111623,
+      "retained_state": 32768
+    },
+    {
+      "unique_remotes": 1000000,
+      "p95_ms": 3325.198335,
+      "retained_state": 32768
+    },
+    {
+      "unique_remotes": 2000000,
+      "p95_ms": 6284.177351,
+      "retained_state": 32768
+    }
+  ],
+  "supported_envelope": {
+    "max_conntrack_entries": 500000,
+    "max_active_domains": 500,
+    "minimum_collection_interval_seconds": 5,
+    "p95_budget_fraction": 0.5
+  }
+}

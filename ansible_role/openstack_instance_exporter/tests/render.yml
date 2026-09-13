@@ -1,0 +1,158 @@
+---
+- name: Validate openstack_instance_exporter service rendering
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../defaults/main.yml
+  vars:
+    ansible_br_monitoring:
+      ipv4:
+        address: 192.0.2.50
+  tasks:
+    - name: Render disabled profile
+      ansible.builtin.set_fact:
+        oie_render_disabled: "{{ lookup('ansible.builtin.template', '../templates/openstack_instance_exporter.service.j2') }}"
+      vars:
+        openstack_instance_exporter_profile: disabled
+
+    - name: Validate disabled profile and interface-derived binding
+      ansible.builtin.assert:
+        that:
+          - "'ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter' in oie_render_disabled"
+          - "'-web.listen-address=192.0.2.50:9120' in oie_render_disabled"
+          - "'-outbound.behavior.enable' not in oie_render_disabled"
+          - "'-inbound.behavior.enable' not in oie_render_disabled"
+          - "'-spamhaus.enable' not in oie_render_disabled"
+          - "'-tor.exit.enable' not in oie_render_disabled"
+
+    - name: Render outbound max profile
+      ansible.builtin.set_fact:
+        oie_render_outbound_max: "{{ lookup('ansible.builtin.template', '../templates/openstack_instance_exporter.service.j2') }}"
+      vars:
+        openstack_instance_exporter_profile: outbound-max
+
+    - name: Validate outbound max profile
+      ansible.builtin.assert:
+        that:
+          - "'-outbound.behavior.enable' in oie_render_outbound_max"
+          - "'-inbound.behavior.enable' not in oie_render_outbound_max"
+          - "'-behavior.sensitivity=1.5' in oie_render_outbound_max"
+          - "'-spamhaus.enable' in oie_render_outbound_max"
+          - "'-emergingthreats.enable' in oie_render_outbound_max"
+          - "'-tor.exit.enable' in oie_render_outbound_max"
+          - "'-tor.relay.enable' in oie_render_outbound_max"
+
+    - name: Render resource-only profile
+      ansible.builtin.set_fact:
+        oie_render_resource: "{{ lookup('ansible.builtin.template', '../templates/openstack_instance_exporter.service.j2') }}"
+      vars:
+        openstack_instance_exporter_profile: resource-only
+
+    - name: Validate resource-only profile
+      ansible.builtin.assert:
+        that:
+          - "'-severity.weight.resource=1.0' in oie_render_resource"
+          - "'-severity.weight.behavior=0.0' in oie_render_resource"
+          - "'-severity.weight.threat_list=0.0' in oie_render_resource"
+          - "'-outbound.behavior.enable' not in oie_render_resource"
+          - "'-inbound.behavior.enable' not in oie_render_resource"
+
+    - name: Render explicit override matrix
+      ansible.builtin.set_fact:
+        oie_render_explicit: "{{ lookup('ansible.builtin.template', '../templates/openstack_instance_exporter.service.j2') }}"
+      vars:
+        openstack_instance_exporter_profile: bidir-max
+        openstack_instance_exporter_behavior_sensitivity: 2.25
+        openstack_instance_exporter_inbound_behavior_enable: false
+        openstack_instance_exporter_outbound_behavior_enable: false
+        openstack_instance_exporter_behavior_ewma_fast_tau: 1m
+        openstack_instance_exporter_behavior_ewma_slow_tau: 1h
+        openstack_instance_exporter_behavior_ports_config_path: /etc/oie/ports.yml
+        openstack_instance_exporter_behavior_ports_config_yaml: "behavior: {ports: {inbound_monitored: {22: ssh}}}"
+        openstack_instance_exporter_behavior_rules_config_path: /etc/oie/rules.yml
+        openstack_instance_exporter_behavior_rules_config_yaml: "rules: [{id: ssh, ports: [22], kind: ssh}]"
+        openstack_instance_exporter_conntrack_raw_rcvbuf_bytes: 67108864
+        openstack_instance_exporter_conntrack_raw_rcv_timeout: 9s
+        openstack_instance_exporter_conntrack_ipv4_enable: true
+        openstack_instance_exporter_conntrack_ipv6_enable: false
+        openstack_instance_exporter_web_listen_address: 127.0.0.1:19120
+        openstack_instance_exporter_web_telemetry_path: /oie-metrics
+        openstack_instance_exporter_collection_interval: 30s
+        openstack_instance_exporter_worker_count: 4
+        openstack_instance_exporter_libvirt_uri: qemu:///system
+        openstack_instance_exporter_contacts_direction: any
+        openstack_instance_exporter_host_threats_enable: true
+        openstack_instance_exporter_host_interfaces: [bgp-nic, br-monitoring]
+        openstack_instance_exporter_host_ips_allow_private: true
+        openstack_instance_exporter_log_file_enable: true
+        openstack_instance_exporter_log_file_path: /var/log/oie.log
+        openstack_instance_exporter_log_level: debug
+        openstack_instance_exporter_threat_log_min_interval: 1m
+
+    - name: Validate explicit override matrix
+      ansible.builtin.assert:
+        that:
+          - "'-behavior.sensitivity=2.25' in oie_render_explicit"
+          - "'-outbound.behavior.enable' not in oie_render_explicit"
+          - "'-inbound.behavior.enable' not in oie_render_explicit"
+          - "'-behavior.ewma_fast_tau=1m' in oie_render_explicit"
+          - "'-behavior.ewma_slow_tau=1h' in oie_render_explicit"
+          - "'-behavior.ports_config=/etc/oie/ports.yml' in oie_render_explicit"
+          - "'-behavior.rules_config=/etc/oie/rules.yml' in oie_render_explicit"
+          - "'-conntrack.raw.rcvbuf_bytes=67108864' in oie_render_explicit"
+          - "'-conntrack.raw.rcv_timeout=9s' in oie_render_explicit"
+          - "'-conntrack.ipv4.enable=true' in oie_render_explicit"
+          - "'-conntrack.ipv6.enable=false' in oie_render_explicit"
+          - "'-web.listen-address=127.0.0.1:19120' in oie_render_explicit"
+          - "'-web.telemetry-path=/oie-metrics' in oie_render_explicit"
+          - "'-collection.interval=30s' in oie_render_explicit"
+          - "'-worker.count=4' in oie_render_explicit"
+          - "'-libvirt.uri=qemu:///system' in oie_render_explicit"
+          - "'-contacts.direction=any' in oie_render_explicit"
+          - "'-host.threats.enable' in oie_render_explicit"
+          - "'-host.interfaces=bgp-nic,br-monitoring' in oie_render_explicit"
+          - "'-host.ips.allow-private' in oie_render_explicit"
+          - "'-log.file.enable' in oie_render_explicit"
+          - "'-log.file.path=/var/log/oie.log' in oie_render_explicit"
+          - "'-log.level=debug' in oie_render_explicit"
+          - "'-threat.log.min_interval=1m' in oie_render_explicit"
+          - "'StandardOutput=null' in oie_render_explicit"
+          - "'StandardError=null' in oie_render_explicit"
+
+    - name: Render explicit override matrix again
+      ansible.builtin.set_fact:
+        oie_render_explicit_repeat: "{{ lookup('ansible.builtin.template', '../templates/openstack_instance_exporter.service.j2') }}"
+      vars:
+        openstack_instance_exporter_profile: bidir-max
+        openstack_instance_exporter_behavior_sensitivity: 2.25
+        openstack_instance_exporter_inbound_behavior_enable: false
+        openstack_instance_exporter_outbound_behavior_enable: false
+        openstack_instance_exporter_behavior_ewma_fast_tau: 1m
+        openstack_instance_exporter_behavior_ewma_slow_tau: 1h
+        openstack_instance_exporter_behavior_ports_config_path: /etc/oie/ports.yml
+        openstack_instance_exporter_behavior_ports_config_yaml: "behavior: {ports: {inbound_monitored: {22: ssh}}}"
+        openstack_instance_exporter_behavior_rules_config_path: /etc/oie/rules.yml
+        openstack_instance_exporter_behavior_rules_config_yaml: "rules: [{id: ssh, ports: [22], kind: ssh}]"
+        openstack_instance_exporter_conntrack_raw_rcvbuf_bytes: 67108864
+        openstack_instance_exporter_conntrack_raw_rcv_timeout: 9s
+        openstack_instance_exporter_conntrack_ipv4_enable: true
+        openstack_instance_exporter_conntrack_ipv6_enable: false
+        openstack_instance_exporter_web_listen_address: 127.0.0.1:19120
+        openstack_instance_exporter_web_telemetry_path: /oie-metrics
+        openstack_instance_exporter_collection_interval: 30s
+        openstack_instance_exporter_worker_count: 4
+        openstack_instance_exporter_libvirt_uri: qemu:///system
+        openstack_instance_exporter_contacts_direction: any
+        openstack_instance_exporter_host_threats_enable: true
+        openstack_instance_exporter_host_interfaces: [bgp-nic, br-monitoring]
+        openstack_instance_exporter_host_ips_allow_private: true
+        openstack_instance_exporter_log_file_enable: true
+        openstack_instance_exporter_log_file_path: /var/log/oie.log
+        openstack_instance_exporter_log_level: debug
+        openstack_instance_exporter_threat_log_min_interval: 1m
+
+    - name: Validate deterministic repeated rendering
+      ansible.builtin.assert:
+        that:
+          - oie_render_explicit_repeat == oie_render_explicit

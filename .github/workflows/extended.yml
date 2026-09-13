@@ -1,0 +1,46 @@
+name: Extended verification
+
+on:
+  schedule:
+    - cron: "23 6 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extended-verification
+  cancel-in-progress: false
+
+env:
+  GOFLAGS: -mod=readonly
+  GOTOOLCHAIN: local
+
+jobs:
+  extended:
+    name: Fuzz, repetition, cleanup, and benchmarks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the declared Go toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install the checksum-verified PromQL validation baseline
+        run: sh ./scripts/install-promtool-ci.sh "$RUNNER_TEMP/oie-promtool"
+
+      - name: Check current Go vulnerability advisories
+        run: make vuln
+      - name: Run a larger shuffled repetition set
+        run: PROMTOOL="$PROMTOOL" go test -timeout=75m -shuffle=on -count=25 ./...
+      - name: Fuzz both conntrack parsers
+        run: make fuzz FUZZTIME=2m
+      - name: Stress lifecycle and cleanup cases
+        run: go test -timeout=45m -count=100 -run='(?i)(cleanup|lifecycle|retained|state)' .
+      - name: Repeat production-scale measurements
+        run: make scale SCALE_COUNT=5

@@ -2,7 +2,6 @@ package main
 
 import (
 	"math"
-	"time"
 )
 
 func ewmaAlpha(dtSeconds, tauSeconds float64) float64 {
@@ -40,10 +39,87 @@ func featureAnomaly(x float64, a *axisEWMA, minSpread float64) float64 {
 	z := math.Abs(x-a.Slow) / spread
 	return clamp01(z / 6.0)
 }
-func (cm *ConntrackManager) updateBehaviorEWMA(ident behaviorIdentityKey, feature BehaviorFeature) (float64, behaviorAnomalies) {
+
+func (cm *ConntrackManager) behaviorSeveritySnapshot(ident behaviorIdentityKey) float64 {
+	severity, _ := cm.behaviorSeveritySnapshotAvailable(ident)
+	return severity
+}
+
+func (cm *ConntrackManager) behaviorSeveritySnapshotAvailable(ident behaviorIdentityKey) (float64, bool) {
 	idx := shardIndexBehavior(ident)
 	cm.behaviorEWMAMu[idx].Lock()
-	now := time.Now().Unix()
+	severity, available := cm.behaviorLastSeverity[idx][ident]
+	cm.behaviorEWMAMu[idx].Unlock()
+	return severity, available
+}
+
+func (cm *ConntrackManager) instanceBehaviorSeverityAvailable(instanceUUID string, fixedIPs []IP, direction string) bool {
+	for _, ip := range fixedIPs {
+		key := IPStrToKey(ip.Address)
+		if key == (IPKey{}) {
+			continue
+		}
+		if _, available := cm.behaviorSeveritySnapshotAvailable(behaviorIdentityKey{
+			InstanceUUID: instanceUUID,
+			IP:           key,
+			Direction:    direction,
+		}); available {
+			return true
+		}
+	}
+	return false
+}
+
+func (cm *ConntrackManager) storeBehaviorSeverity(ident behaviorIdentityKey, severity float64) {
+	idx := shardIndexBehavior(ident)
+	cm.behaviorEWMAMu[idx].Lock()
+	if cm.behaviorLastSeverity[idx] == nil {
+		cm.behaviorLastSeverity[idx] = make(map[behaviorIdentityKey]float64)
+	}
+	cm.behaviorLastSeverity[idx][ident] = clamp01(severity)
+	cm.behaviorEWMAMu[idx].Unlock()
+}
+
+// rebaselineBehaviorObservation accepts the first complete observation after a
+// source outage as a new statistical baseline. It deliberately leaves alert,
+// mining, and persistence state untouched: those state machines resume on the
+// next complete interval, so changes accumulated while the source was absent
+// cannot be compressed into one recovery anomaly.
+func (cm *ConntrackManager) rebaselineBehaviorObservation(ident behaviorIdentityKey, feature BehaviorFeature, now int64) {
+	idx := shardIndexBehavior(ident)
+	cm.behaviorEWMAMu[idx].Lock()
+	state := &behaviorEWMAState{
+		LastSeenUnix: now,
+		LastInterval: behaviorIntervalSnapshot{
+			NewRemotes:          0,
+			NewDstPorts:         0,
+			NewRemotesSaturated: false,
+			Initialized:         true,
+		},
+	}
+	updateAxisEWMA(&state.Flows, float64(feature.Flows), 1, 1)
+	updateAxisEWMA(&state.UniqueRemotes, float64(feature.UniqueRemotes), 1, 1)
+	updateAxisEWMA(&state.UniquePorts, float64(feature.UniqueDstPorts), 1, 1)
+	updateAxisEWMA(&state.Unreplied, feature.UnrepliedRatio, 1, 1)
+	if feature.BytesPerFlowAvailable {
+		updateAxisEWMA(&state.BytesPerFlow, feature.BytesPerFlow, 1, 1)
+	}
+	if feature.PacketsPerFlowAvailable {
+		updateAxisEWMA(&state.PktsPerFlow, feature.PacketsPerFlow, 1, 1)
+	}
+	if cm.behaviorEWMA[idx] == nil {
+		cm.behaviorEWMA[idx] = make(map[behaviorIdentityKey]*behaviorEWMAState)
+	}
+	cm.behaviorEWMA[idx][ident] = state
+	if cm.behaviorLastSeverity[idx] != nil {
+		delete(cm.behaviorLastSeverity[idx], ident)
+	}
+	cm.behaviorEWMAMu[idx].Unlock()
+}
+
+func (cm *ConntrackManager) updateBehaviorEWMA(ident behaviorIdentityKey, feature BehaviorFeature, now int64) (float64, behaviorAnomalies) {
+	idx := shardIndexBehavior(ident)
+	cm.behaviorEWMAMu[idx].Lock()
 
 	ew, ok := cm.behaviorEWMA[idx][ident]
 	if !ok {
@@ -68,6 +144,21 @@ func (cm *ConntrackManager) updateBehaviorEWMA(ident behaviorIdentityKey, featur
 	if tauSlow <= 0 {
 		tauSlow = behaviorEWMATauSlowDefaultSeconds
 	}
+	if prevSeen > 0 && dtSeconds > float64(behaviorIdentityTTLSeconds) {
+		*ew = behaviorEWMAState{LastSeenUnix: now}
+		updateAxisEWMA(&ew.Flows, float64(feature.Flows), 1, 1)
+		updateAxisEWMA(&ew.UniqueRemotes, float64(feature.UniqueRemotes), 1, 1)
+		updateAxisEWMA(&ew.UniquePorts, float64(feature.UniqueDstPorts), 1, 1)
+		updateAxisEWMA(&ew.Unreplied, feature.UnrepliedRatio, 1, 1)
+		if feature.BytesPerFlowAvailable {
+			updateAxisEWMA(&ew.BytesPerFlow, feature.BytesPerFlow, 1, 1)
+		}
+		if feature.PacketsPerFlowAvailable {
+			updateAxisEWMA(&ew.PktsPerFlow, feature.PacketsPerFlow, 1, 1)
+		}
+		cm.behaviorEWMAMu[idx].Unlock()
+		return 0, behaviorAnomalies{}
+	}
 	alphaFast := ewmaAlpha(dtSeconds, tauFast)
 	alphaSlow := ewmaAlpha(dtSeconds, tauSlow)
 
@@ -76,10 +167,6 @@ func (cm *ConntrackManager) updateBehaviorEWMA(ident behaviorIdentityKey, featur
 		updateAxisEWMA(&ew.UniqueRemotes, 0, alphaFast, alphaSlow)
 		updateAxisEWMA(&ew.UniquePorts, 0, alphaFast, alphaSlow)
 		updateAxisEWMA(&ew.Unreplied, 0, alphaFast, alphaSlow)
-		if feature.ConntrackAcct {
-			updateAxisEWMA(&ew.BytesPerFlow, 0, alphaFast, alphaSlow)
-			updateAxisEWMA(&ew.PktsPerFlow, 0, alphaFast, alphaSlow)
-		}
 		cm.behaviorEWMAMu[idx].Unlock()
 		return 0, behaviorAnomalies{}
 	}
@@ -89,13 +176,11 @@ func (cm *ConntrackManager) updateBehaviorEWMA(ident behaviorIdentityKey, featur
 	updateAxisEWMA(&ew.UniquePorts, float64(feature.UniqueDstPorts), alphaFast, alphaSlow)
 	updateAxisEWMA(&ew.Unreplied, feature.UnrepliedRatio, alphaFast, alphaSlow)
 
-	if feature.ConntrackAcct {
-		if feature.BytesPerFlow > 0 {
-			updateAxisEWMA(&ew.BytesPerFlow, feature.BytesPerFlow, alphaFast, alphaSlow)
-		}
-		if feature.PacketsPerFlow > 0 {
-			updateAxisEWMA(&ew.PktsPerFlow, feature.PacketsPerFlow, alphaFast, alphaSlow)
-		}
+	if feature.BytesPerFlowAvailable {
+		updateAxisEWMA(&ew.BytesPerFlow, feature.BytesPerFlow, alphaFast, alphaSlow)
+	}
+	if feature.PacketsPerFlowAvailable {
+		updateAxisEWMA(&ew.PktsPerFlow, feature.PacketsPerFlow, alphaFast, alphaSlow)
 	}
 
 	sens := cm.behaviorSensitivity
@@ -134,13 +219,11 @@ func (cm *ConntrackManager) updateBehaviorEWMA(ident behaviorIdentityKey, featur
 
 	bytesAnom := 0.0
 	pktsAnom := 0.0
-	if feature.ConntrackAcct {
-		if feature.BytesPerFlow > 0 {
-			bytesAnom = featureAnomaly(feature.BytesPerFlow, &ew.BytesPerFlow, bytesMin)
-		}
-		if feature.PacketsPerFlow > 0 {
-			pktsAnom = featureAnomaly(feature.PacketsPerFlow, &ew.PktsPerFlow, pktsMin)
-		}
+	if feature.BytesPerFlowAvailable {
+		bytesAnom = featureAnomaly(feature.BytesPerFlow, &ew.BytesPerFlow, bytesMin)
+	}
+	if feature.PacketsPerFlowAvailable {
+		pktsAnom = featureAnomaly(feature.PacketsPerFlow, &ew.PktsPerFlow, pktsMin)
 	}
 
 	behaviorSignal := clamp01(

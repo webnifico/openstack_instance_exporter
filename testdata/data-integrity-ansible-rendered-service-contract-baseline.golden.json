@@ -1,0 +1,358 @@
+{
+  "bidir-max": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -behavior.sensitivity=1.5 -inbound.behavior.enable -outbound.behavior.enable -tor.exit.enable -tor.exit.direction=any -tor.relay.enable -tor.relay.direction=any -spamhaus.enable -spamhaus.direction=any -emergingthreats.enable -emergingthreats.direction=any -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-behavior.sensitivity=1.5",
+      "-inbound.behavior.enable",
+      "-outbound.behavior.enable",
+      "-tor.exit.enable",
+      "-tor.exit.direction=any",
+      "-tor.relay.enable",
+      "-tor.relay.direction=any",
+      "-spamhaus.enable",
+      "-spamhaus.direction=any",
+      "-emergingthreats.enable",
+      "-emergingthreats.direction=any",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "bidir-observant": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -behavior.sensitivity=1.25 -inbound.behavior.enable -outbound.behavior.enable -tor.exit.enable -tor.exit.direction=any -tor.relay.enable -tor.relay.direction=any -spamhaus.enable -spamhaus.direction=any -emergingthreats.enable -emergingthreats.direction=any -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-behavior.sensitivity=1.25",
+      "-inbound.behavior.enable",
+      "-outbound.behavior.enable",
+      "-tor.exit.enable",
+      "-tor.exit.direction=any",
+      "-tor.relay.enable",
+      "-tor.relay.direction=any",
+      "-spamhaus.enable",
+      "-spamhaus.direction=any",
+      "-emergingthreats.enable",
+      "-emergingthreats.direction=any",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "bidir-standard": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -behavior.sensitivity=1.0 -inbound.behavior.enable -outbound.behavior.enable -spamhaus.enable -spamhaus.direction=any -emergingthreats.enable -emergingthreats.direction=any -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-behavior.sensitivity=1.0",
+      "-inbound.behavior.enable",
+      "-outbound.behavior.enable",
+      "-spamhaus.enable",
+      "-spamhaus.direction=any",
+      "-emergingthreats.enable",
+      "-emergingthreats.direction=any",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "config-content-without-path": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "config-path-without-content": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "disabled": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "explicit-override-matrix": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -behavior.sensitivity=2.25 -behavior.ewma_fast_tau=1m -behavior.ewma_slow_tau=1h -behavior.ports_config=/etc/oie/ports.yml -behavior.rules_config=/etc/oie/rules.yml -severity.weight.resource=0.4 -severity.weight.threat_list=0.25 -severity.weight.behavior=0.35 -tor.exit.enable -tor.exit.direction=any -tor.exit.url=https://example.invalid/tor-exit.json -tor.exit.refresh=11m -tor.relay.enable -tor.relay.direction=any -tor.relay.url=https://example.invalid/tor-relay.json -tor.relay.refresh=12m -spamhaus.enable -spamhaus.direction=any -spamhaus.url=https://example.invalid/drop.txt -spamhaus.ipv6.url=https://example.invalid/dropv6.txt -spamhaus.refresh=13m -emergingthreats.enable -emergingthreats.direction=any -emergingthreats.url=https://example.invalid/emerging.txt -emergingthreats.refresh=14m -customlist.enable -customlist.direction=any -customlist.path=/etc/oie/custom.txt -customlist.refresh=15m -contacts.direction=any -worker.count=4 -libvirt.uri=qemu:///system -host.threats.enable -host.interfaces=bgp-nic,br-monitoring -host.ips.allow-private -conntrack.raw.rcvbuf_bytes=67108864 -conntrack.raw.rcv_timeout=9s -conntrack.ipv4.enable=true -conntrack.ipv6.enable=false -web.listen-address=127.0.0.1:19120 -web.telemetry-path=/oie-metrics -log.file.enable -log.file.path=/var/log/oie.log -log.level=debug -threat.log.min_interval=1m -collection.interval=30s",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=null",
+      "StandardError=null",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-behavior.sensitivity=2.25",
+      "-behavior.ewma_fast_tau=1m",
+      "-behavior.ewma_slow_tau=1h",
+      "-behavior.ports_config=/etc/oie/ports.yml",
+      "-behavior.rules_config=/etc/oie/rules.yml",
+      "-severity.weight.resource=0.4",
+      "-severity.weight.threat_list=0.25",
+      "-severity.weight.behavior=0.35",
+      "-tor.exit.enable",
+      "-tor.exit.direction=any",
+      "-tor.exit.url=https://example.invalid/tor-exit.json",
+      "-tor.exit.refresh=11m",
+      "-tor.relay.enable",
+      "-tor.relay.direction=any",
+      "-tor.relay.url=https://example.invalid/tor-relay.json",
+      "-tor.relay.refresh=12m",
+      "-spamhaus.enable",
+      "-spamhaus.direction=any",
+      "-spamhaus.url=https://example.invalid/drop.txt",
+      "-spamhaus.ipv6.url=https://example.invalid/dropv6.txt",
+      "-spamhaus.refresh=13m",
+      "-emergingthreats.enable",
+      "-emergingthreats.direction=any",
+      "-emergingthreats.url=https://example.invalid/emerging.txt",
+      "-emergingthreats.refresh=14m",
+      "-customlist.enable",
+      "-customlist.direction=any",
+      "-customlist.path=/etc/oie/custom.txt",
+      "-customlist.refresh=15m",
+      "-contacts.direction=any",
+      "-worker.count=4",
+      "-libvirt.uri=qemu:///system",
+      "-host.threats.enable",
+      "-host.interfaces=bgp-nic,br-monitoring",
+      "-host.ips.allow-private",
+      "-conntrack.raw.rcvbuf_bytes=67108864",
+      "-conntrack.raw.rcv_timeout=9s",
+      "-conntrack.ipv4.enable=true",
+      "-conntrack.ipv6.enable=false",
+      "-web.listen-address=127.0.0.1:19120",
+      "-web.telemetry-path=/oie-metrics",
+      "-log.file.enable",
+      "-log.file.path=/var/log/oie.log",
+      "-log.level=debug",
+      "-threat.log.min_interval=1m",
+      "-collection.interval=30s"
+    ]
+  },
+  "interface-bind-override": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -web.listen-address=192.0.2.50:19120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-web.listen-address=192.0.2.50:19120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "outbound-max": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -behavior.sensitivity=1.5 -outbound.behavior.enable -tor.exit.enable -tor.relay.enable -spamhaus.enable -emergingthreats.enable -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-behavior.sensitivity=1.5",
+      "-outbound.behavior.enable",
+      "-tor.exit.enable",
+      "-tor.relay.enable",
+      "-spamhaus.enable",
+      "-emergingthreats.enable",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "outbound-observant": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -behavior.sensitivity=1.25 -outbound.behavior.enable -tor.exit.enable -tor.relay.enable -spamhaus.enable -emergingthreats.enable -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-behavior.sensitivity=1.25",
+      "-outbound.behavior.enable",
+      "-tor.exit.enable",
+      "-tor.relay.enable",
+      "-spamhaus.enable",
+      "-emergingthreats.enable",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "outbound-standard": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -behavior.sensitivity=1.0 -outbound.behavior.enable -spamhaus.enable -emergingthreats.enable -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-behavior.sensitivity=1.0",
+      "-outbound.behavior.enable",
+      "-spamhaus.enable",
+      "-emergingthreats.enable",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  },
+  "resource-only": {
+    "unit": [
+      "[Unit]",
+      "Description=OpenStack Instance Exporter",
+      "After=network.target",
+      "[Service]",
+      "User=root",
+      "Group=root",
+      "ExecStart=/opt/openstack_instance_exporter/openstack_instance_exporter -severity.weight.resource=1.0 -severity.weight.threat_list=0.0 -severity.weight.behavior=0.0 -web.listen-address=192.0.2.50:9120 -log.file.path=/var/log/openstack_instance_exporter.log",
+      "Restart=always",
+      "RestartSec=3s",
+      "StandardOutput=journal",
+      "StandardError=journal",
+      "[Install]",
+      "WantedBy=multi-user.target"
+    ],
+    "exec_start": [
+      "/opt/openstack_instance_exporter/openstack_instance_exporter",
+      "-severity.weight.resource=1.0",
+      "-severity.weight.threat_list=0.0",
+      "-severity.weight.behavior=0.0",
+      "-web.listen-address=192.0.2.50:9120",
+      "-log.file.path=/var/log/openstack_instance_exporter.log"
+    ]
+  }
+}

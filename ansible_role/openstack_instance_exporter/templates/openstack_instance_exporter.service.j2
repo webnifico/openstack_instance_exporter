@@ -3,10 +3,14 @@ Description=OpenStack Instance Exporter
 After=network.target
 
 [Service]
+Type=simple
 User=root
 Group=root
 
 {% set flags = [] -%}
+{%- if openstack_instance_exporter_volume_retype_enable | default(false) | bool -%}
+{%- set _ = flags.append('-volume.retype.enable') -%}
+{%- endif -%}
 {%- set profile_name = openstack_instance_exporter_profile | default('outbound-standard') -%}
 {%- set profile_active = (profile_name != 'disabled') -%}
 {%- set profile = openstack_instance_exporter_profile_defaults.get(profile_name, {}) -%}
@@ -28,10 +32,13 @@ Group=root
 {%- if openstack_instance_exporter_behavior_ewma_slow_tau is defined -%}
 {%- set _ = flags.append('-behavior.ewma_slow_tau=' ~ openstack_instance_exporter_behavior_ewma_slow_tau) -%}
 {%- endif -%}
-{%- if openstack_instance_exporter_behavior_ports_config_path is defined and openstack_instance_exporter_behavior_ports_config_path|length > 0 -%}
+{%- if openstack_instance_exporter_threat_ewma_tau is defined -%}
+{%- set _ = flags.append('-threat.ewma_tau=' ~ openstack_instance_exporter_threat_ewma_tau) -%}
+{%- endif -%}
+{%- if openstack_instance_exporter_behavior_ports_config_path is defined and openstack_instance_exporter_behavior_ports_config_path|length > 0 and openstack_instance_exporter_behavior_ports_config_yaml is defined and openstack_instance_exporter_behavior_ports_config_yaml|trim|length > 0 -%}
 {%- set _ = flags.append('-behavior.ports_config=' ~ openstack_instance_exporter_behavior_ports_config_path) -%}
 {%- endif -%}
-{%- if openstack_instance_exporter_behavior_rules_config_path is defined and openstack_instance_exporter_behavior_rules_config_path|length > 0 -%}
+{%- if openstack_instance_exporter_behavior_rules_config_path is defined and openstack_instance_exporter_behavior_rules_config_path|length > 0 and openstack_instance_exporter_behavior_rules_config_yaml is defined and openstack_instance_exporter_behavior_rules_config_yaml|trim|length > 0 -%}
 {%- set _ = flags.append('-behavior.rules_config=' ~ openstack_instance_exporter_behavior_rules_config_path) -%}
 {%- endif -%}
 
@@ -220,13 +227,8 @@ Group=root
 {%- if openstack_instance_exporter_web_listen_address is defined and openstack_instance_exporter_web_listen_address|length > 0 -%}
 {%- set _ = flags.append('-web.listen-address=' ~ openstack_instance_exporter_web_listen_address) -%}
 {%- else -%}
-{%- set bind_ip = '0.0.0.0' -%}
-{%- if openstack_instance_exporter_network_interface is defined -%}
 {%- set iface_key = 'ansible_' + openstack_instance_exporter_network_interface.replace('-', '_') -%}
-{%- if hostvars[inventory_hostname][iface_key] is defined -%}
 {%- set bind_ip = hostvars[inventory_hostname][iface_key]['ipv4']['address'] -%}
-{%- endif -%}
-{%- endif -%}
 {%- set _ = flags.append('-web.listen-address=' ~ bind_ip ~ ':' ~ (openstack_instance_exporter_bind_port|default('9120'))) -%}
 {%- endif -%}
 {%- if openstack_instance_exporter_web_telemetry_path is defined -%}
@@ -251,10 +253,14 @@ Group=root
 {%- set _ = flags.append('-collection.interval=' ~ (openstack_instance_exporter_collection_interval|default('15s'))) -%}
 {%- endif -%}
 
-ExecStart={{ openstack_instance_exporter_install_dir }}/openstack_instance_exporter {{ flags|join(' ') }}
+ExecStart={{ (openstack_instance_exporter_install_dir ~ '/openstack_instance_exporter ' ~ (flags|join(' '))) | replace('%', '%%') }}
 
 Restart=always
 RestartSec=3s
+TimeoutStopSec=15s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
 {% if openstack_instance_exporter_log_file_enable|default(false)|bool %}
 StandardOutput=null
 StandardError=null

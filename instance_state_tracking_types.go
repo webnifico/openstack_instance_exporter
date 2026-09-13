@@ -1,6 +1,7 @@
 package main
 
 import (
+	libvirt "github.com/digitalocean/go-libvirt"
 	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 	"sync/atomic"
@@ -8,76 +9,132 @@ import (
 )
 
 type ParsedStats struct {
-	State      int
-	CpuTime    uint64
-	CpuUser    uint64
-	CpuSystem  uint64
-	Vcpus      map[int]*VcpuStat
-	MemMax     uint64
-	MemCur     uint64
-	MemUsable  uint64 // Available RAM (Total - Used)
-	MemRss     uint64 // Actual Host RAM
-	MajorFault uint64
-	MinorFault uint64
-	SwapIn     uint64
-	SwapOut    uint64
-	Disks      map[int]*DiskStat
-	Nets       map[int]*NetStat
+	State                 int
+	StatePresent          bool
+	CpuTime               uint64
+	CpuUser               uint64
+	CpuSystem             uint64
+	CpuTimePresent        bool
+	CpuUserPresent        bool
+	CpuSystemPresent      bool
+	VcpuCurrent           uint64
+	VcpuCurrentPresent    bool
+	Vcpus                 map[int]*VcpuStat
+	MemMax                uint64
+	MemCur                uint64
+	MemUsable             uint64 // Available RAM (Total - Used)
+	MemRss                uint64 // Actual Host RAM
+	MajorFault            uint64
+	MinorFault            uint64
+	SwapIn                uint64
+	SwapOut               uint64
+	HugetlbPgAlloc        uint64
+	HugetlbPgFail         uint64
+	MemMaxPresent         bool
+	MemCurPresent         bool
+	MemUsablePresent      bool
+	MemRssPresent         bool
+	MajorFaultPresent     bool
+	MinorFaultPresent     bool
+	SwapInPresent         bool
+	SwapOutPresent        bool
+	HugetlbPgAllocPresent bool
+	HugetlbPgFailPresent  bool
+	BlockCount            uint64
+	BlockCountPresent     bool
+	Disks                 map[int]*DiskStat
+	NetCount              uint64
+	NetCountPresent       bool
+	Nets                  map[int]*NetStat
 }
 type VcpuStat struct {
-	State uint64
-	Time  uint64
-	Wait  uint64
-	Delay uint64
+	State        uint64
+	Time         uint64
+	Wait         uint64
+	Delay        uint64
+	StatePresent bool
+	TimePresent  bool
+	WaitPresent  bool
+	DelayPresent bool
 }
 type DiskStat struct {
-	Name       string
-	RdReqs     uint64
-	RdBytes    uint64
-	RdTime     uint64
-	WrReqs     uint64
-	WrBytes    uint64
-	WrTime     uint64
-	FlReqs     uint64
-	FlTime     uint64
-	Physical   uint64
-	Capacity   uint64
-	Allocation uint64
+	Name              string
+	RdReqs            uint64
+	RdBytes           uint64
+	RdTime            uint64
+	WrReqs            uint64
+	WrBytes           uint64
+	WrTime            uint64
+	FlReqs            uint64
+	FlTime            uint64
+	Physical          uint64
+	Capacity          uint64
+	Allocation        uint64
+	NamePresent       bool
+	RdReqsPresent     bool
+	RdBytesPresent    bool
+	RdTimePresent     bool
+	WrReqsPresent     bool
+	WrBytesPresent    bool
+	WrTimePresent     bool
+	FlReqsPresent     bool
+	FlTimePresent     bool
+	PhysicalPresent   bool
+	CapacityPresent   bool
+	AllocationPresent bool
 }
 type NetStat struct {
-	Name    string
-	RxBytes uint64
-	RxPkts  uint64
-	RxErrs  uint64
-	RxDrop  uint64
-	TxBytes uint64
-	TxPkts  uint64
-	TxErrs  uint64
-	TxDrop  uint64
+	Name           string
+	RxBytes        uint64
+	RxPkts         uint64
+	RxErrs         uint64
+	RxDrop         uint64
+	TxBytes        uint64
+	TxPkts         uint64
+	TxErrs         uint64
+	TxDrop         uint64
+	NamePresent    bool
+	RxBytesPresent bool
+	RxPktsPresent  bool
+	RxErrsPresent  bool
+	RxDropPresent  bool
+	TxBytesPresent bool
+	TxPktsPresent  bool
+	TxErrsPresent  bool
+	TxDropPresent  bool
 }
 type DomainStatic struct {
-	Name            string
-	InstanceUUID    string
-	UserUUID        string
-	UserName        string
-	ProjectUUID     string
-	ProjectName     string
-	FlavorName      string
-	VCPUCount       int
-	MemMB           int
-	RootType        string
-	CreatedAt       string
-	MetadataVersion string
-	FixedIPs        []IP
-	PortUUIDs       []string // Added missing field
-	PortIPsByUUID   map[string][]IP
-	Disks           []DomainDisk
-	Interfaces      []string
-	LastUpdated     time.Time
+	ConfiguredVCPUs      int
+	ConfiguredMemMB      float64
+	ConfiguredInterfaces []Interface
+	Name                 string
+	InstanceUUID         string
+	UserUUID             string
+	UserName             string
+	ProjectUUID          string
+	ProjectName          string
+	FlavorName           string
+	VCPUCount            int
+	MemMB                int
+	RootType             string
+	CreatedAt            string
+	MetadataVersion      string
+	FixedIPs             []IP
+	PortUUIDs            []string // Added missing field
+	PortIPsByUUID        map[string][]IP
+	Disks                []DomainDisk
+	Interfaces           []string
+	LastUpdated          time.Time
 }
 type DomainXML struct {
-	UUID     string `xml:"uuid"`
-	Metadata struct {
+	VCPU struct {
+		Count   int `xml:",chardata"`
+		Current int `xml:"current,attr"`
+	} `xml:"vcpu"`
+	Memory        XMLConfiguredMemory `xml:"memory"`
+	CurrentMemory XMLConfiguredMemory `xml:"currentMemory"`
+	UUID          string              `xml:"uuid"`
+	Metadata      struct {
 		NovaInstance struct {
 			NovaPackage struct {
 				Version string `xml:"version,attr"`
@@ -120,18 +177,45 @@ type DomainXML struct {
 	} `xml:"devices"`
 }
 type Disk struct {
-	Device string `xml:"device,attr"`
-	Type   string `xml:"type,attr"`
-	Source struct {
-		Protocol string `xml:"protocol,attr"`
-		File     string `xml:"file,attr"`
-		Name     string `xml:"name,attr"`
-	} `xml:"source"`
+	Device string     `xml:"device,attr"`
+	Type   string     `xml:"type,attr"`
+	Source DiskSource `xml:"source"`
+	Mirror struct {
+		Type   string     `xml:"type,attr"`
+		Job    string     `xml:"job,attr"`
+		Ready  string     `xml:"ready,attr"`
+		Source DiskSource `xml:"source"`
+	} `xml:"mirror"`
 	Target struct {
 		Dev string `xml:"dev,attr"`
 	} `xml:"target"`
 }
+type DiskSource struct {
+	Protocol string `xml:"protocol,attr"`
+	File     string `xml:"file,attr"`
+	Name     string `xml:"name,attr"`
+	Dev      string `xml:"dev,attr"`
+	Pool     string `xml:"pool,attr"`
+	Volume   string `xml:"volume,attr"`
+}
 type Interface struct {
+	Type string `xml:"type,attr"`
+	MAC  struct {
+		Address string `xml:"address,attr"`
+	} `xml:"mac"`
+	Model struct {
+		Type string `xml:"type,attr"`
+	} `xml:"model"`
+	Source struct {
+		Bridge  string `xml:"bridge,attr"`
+		Network string `xml:"network,attr"`
+		Dev     string `xml:"dev,attr"`
+	} `xml:"source"`
+	VirtualPort struct {
+		Parameters struct {
+			InterfaceID string `xml:"interfaceid,attr"`
+		} `xml:"parameters"`
+	} `xml:"virtualport"`
 	Target struct {
 		Dev string `xml:"dev,attr"`
 	} `xml:"target"`
@@ -143,46 +227,76 @@ type IP struct {
 	Prefix  string `xml:"prefix,attr"`
 }
 type DomainDisk struct {
-	Device     string
-	Type       string
-	SourceName string
-	SourceFile string
-	TargetDev  string
+	Device       string
+	Type         string
+	SourceName   string
+	SourceFile   string
+	SourceDev    string
+	SourcePool   string
+	SourceVolume string
+	TargetDev    string
 }
 
 // -----------------------------------------------------------------------------
 // Sample Structures
 // -----------------------------------------------------------------------------
 type cpuSample struct {
-	total uint64
-	steal uint64
-	wait  uint64
-	ts    time.Time
+	total        uint64
+	steal        uint64
+	wait         uint64
+	vcpuCount    int
+	stealPresent bool
+	waitPresent  bool
+	ts           time.Time
 }
 type diskSample struct {
-	rdReq   int64
-	wrReq   int64
-	rdBytes int64
-	wrBytes int64
-	rdTime  int64
-	wrTime  int64
-	flReq   int64
-	flTime  int64
-	ts      time.Time
+	rdReq        uint64
+	wrReq        uint64
+	rdBytes      uint64
+	wrBytes      uint64
+	rdTime       uint64
+	wrTime       uint64
+	flReq        uint64
+	flTime       uint64
+	rwPresent    bool
+	flushPresent bool
+	ts           time.Time
 }
 type memSample struct {
-	swapIn     uint64
-	swapOut    uint64
-	majorFault uint64
-	minorFault uint64
-	ts         time.Time
+	swapIn            uint64
+	swapOut           uint64
+	majorFault        uint64
+	minorFault        uint64
+	swapInPresent     bool
+	swapOutPresent    bool
+	majorFaultPresent bool
+	minorFaultPresent bool
+	ts                time.Time
 }
 type netSample struct {
+	rxPkts       uint64
+	txPkts       uint64
+	rxDrop       uint64
+	txDrop       uint64
+	interfaceSet string
+	interfaces   map[string]netDeviceCounters
+	ts           time.Time
+}
+
+type netDeviceCounters struct {
 	rxPkts uint64
 	txPkts uint64
 	rxDrop uint64
 	txDrop uint64
-	ts     time.Time
+}
+
+type resourceDimensions struct {
+	vcpuCount        int
+	memMB            int
+	vcpuKnown        bool
+	memKnown         bool
+	vcpuLiveObserved bool
+	memLiveObserved  bool
 }
 
 // -----------------------------------------------------------------------------
@@ -200,20 +314,28 @@ type domainXMLInflight struct {
 	err  error
 }
 type InstanceManager struct {
-	libvirtURI        string
-	workerCount       int
-	xmlInflightMu     sync.Mutex
-	xmlInflight       map[string]*domainXMLInflight
-	xmlRPCSem         chan struct{}
-	domainMetaMu      sync.RWMutex
-	domainMeta        map[string]*DomainStatic
-	activeInstancesMu sync.RWMutex
-	activeInstances   map[string]struct{}
+	libvirtURI            string
+	workerCount           int
+	resourceSampleMaxAge  time.Duration
+	xmlInflightMu         sync.Mutex
+	xmlInflight           map[string]*domainXMLInflight
+	domainXMLRPCMu        sync.Mutex
+	domainXMLRPCInflight  map[string]struct{}
+	xmlRPCSem             chan struct{}
+	domainXMLDescOverride func(libvirt.Domain) (string, error)
+	libvirtRPCTimeout     time.Duration
+	libvirtSafety         *libvirtReadSafety
+	domainMetaMu          sync.RWMutex
+	domainMeta            map[string]*DomainStatic
+	inactiveDomainMeta    map[string]*DomainStatic // guarded by domainMetaMu; never used for runtime ownership
+	activeInstancesMu     sync.RWMutex
+	activeInstances       map[string]struct{}
 
 	vmIPIndexMu        sync.RWMutex
 	vmIPSet            map[IPKey]struct{}
 	SetAtomic          atomic.Value
 	vmIPToInstance     map[IPKey]string
+	vmIPOwners         map[IPKey]map[string]struct{}
 	vmIPKeysByInstance map[string][]IPKey
 
 	// Sharded locks for high concurrency
@@ -227,26 +349,44 @@ type InstanceManager struct {
 	netMu      [shardCount]sync.Mutex
 	netSamples [shardCount]map[string]netSample
 
-	instanceInfoDesc  *prometheus.Desc
-	instanceStateDesc *prometheus.Desc
+	resourceGenerationMu      sync.Mutex
+	resourceGeneration        map[string]int32
+	resourceGenerationCPUTime map[string]uint64
+	resourceGenerationToken   map[string]string
+	resourceDimensionsMu      sync.Mutex
+	resourceDimensions        map[string]resourceDimensions
 
-	instanceDiskReadGbytesTotalDesc     *prometheus.Desc
-	instanceDiskWriteGbytesTotalDesc    *prometheus.Desc
-	instanceDiskReadRequestsTotalDesc   *prometheus.Desc
-	instanceDiskWriteRequestsTotalDesc  *prometheus.Desc
-	instanceDiskReadSecondsTotalDesc    *prometheus.Desc
-	instanceDiskWriteSecondsTotalDesc   *prometheus.Desc
-	instanceDiskFlushRequestsTotalDesc  *prometheus.Desc
-	instanceDiskFlushSecondsTotalDesc   *prometheus.Desc
-	instanceDiskCapacityBytesDesc       *prometheus.Desc
-	instanceDiskAllocationBytesDesc     *prometheus.Desc
-	instanceDiskInfoDesc                *prometheus.Desc
-	instanceDiskReadIopsDesc            *prometheus.Desc
-	instanceDiskWriteIopsDesc           *prometheus.Desc
-	instanceDiskFlushIopsDesc           *prometheus.Desc
-	instanceDiskReadLatencySecondsDesc  *prometheus.Desc
-	instanceDiskWriteLatencySecondsDesc *prometheus.Desc
-	instanceDiskFlushLatencySecondsDesc *prometheus.Desc
+	instanceInfoDesc                   *prometheus.Desc
+	instanceInventoryInfoDesc          *prometheus.Desc
+	instanceInventoryDiskInfoDesc      *prometheus.Desc
+	instanceInventoryInterfaceInfoDesc *prometheus.Desc
+	instanceInventoryAddressInfoDesc   *prometheus.Desc
+	instanceStateDesc                  *prometheus.Desc
+
+	instanceDiskReadGbytesTotalDesc          *prometheus.Desc
+	instanceDiskWriteGbytesTotalDesc         *prometheus.Desc
+	instanceDiskReadRequestsTotalDesc        *prometheus.Desc
+	instanceDiskWriteRequestsTotalDesc       *prometheus.Desc
+	instanceDiskReadSecondsTotalDesc         *prometheus.Desc
+	instanceDiskWriteSecondsTotalDesc        *prometheus.Desc
+	instanceDiskFlushRequestsTotalDesc       *prometheus.Desc
+	instanceDiskFlushSecondsTotalDesc        *prometheus.Desc
+	instanceDiskCapacityBytesDesc            *prometheus.Desc
+	instanceDiskAllocationBytesDesc          *prometheus.Desc
+	instanceDiskInfoDesc                     *prometheus.Desc
+	instanceDiskReadIopsDesc                 *prometheus.Desc
+	instanceDiskWriteIopsDesc                *prometheus.Desc
+	instanceDiskFlushIopsDesc                *prometheus.Desc
+	instanceDiskReadLatencySecondsDesc       *prometheus.Desc
+	instanceDiskWriteLatencySecondsDesc      *prometheus.Desc
+	instanceDiskFlushLatencySecondsDesc      *prometheus.Desc
+	instanceDiskRetypeActiveDesc             *prometheus.Desc
+	instanceDiskRetypeProgressDesc           *prometheus.Desc
+	instanceDiskRetypeStatusCodeDesc         *prometheus.Desc
+	instanceDiskRetypeObservationHealthyDesc *prometheus.Desc
+	instanceDiskRetypeStartTimestampDesc     *prometheus.Desc
+	instanceDiskRetypeReadyTimestampDesc     *prometheus.Desc
+	instanceDiskRetypeEndTimestampDesc       *prometheus.Desc
 
 	instanceCpuVcpuPercentDesc       *prometheus.Desc
 	instanceCpuVcpuCountDesc         *prometheus.Desc

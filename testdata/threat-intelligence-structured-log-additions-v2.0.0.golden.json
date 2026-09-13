@@ -1,0 +1,53 @@
+{
+  "version": "v2.0.0-threat-intelligence",
+  "additive_fields": {
+    "startup_config": {
+      "threat_ewma_tau": "string"
+    }
+  },
+  "array_item_fields": {
+    "representative_evidence": {
+      "direction": "string",
+      "dst": "string",
+      "dst_port": "number",
+      "icmp_code": "number",
+      "icmp_id": "number",
+      "icmp_type": "number",
+      "protocol": "number",
+      "src": "string",
+      "src_port": "number"
+    }
+  },
+  "messages": [
+    {
+      "message": "threat_list_summary",
+      "variants": [
+        {
+          "name": "default",
+          "level": "WARN",
+          "category": "threat",
+          "component": "threat",
+          "required": {
+            "active_flows": "number",
+            "direction": "string",
+            "domain": "string",
+            "dropped_hits": "number",
+            "evidence_capped": "boolean",
+            "evidence_count": "number",
+            "instance_uuid": "string",
+            "kind": "string",
+            "list": "string",
+            "project_name": "string",
+            "project_uuid": "string",
+            "representative_evidence": "array",
+            "retained_hits": "number",
+            "server_name": "string",
+            "tag": "string",
+            "user_uuid": "string"
+          },
+          "optional": {}
+        }
+      ]
+    }
+  ]
+}

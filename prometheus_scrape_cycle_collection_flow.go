@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	libvirt "github.com/digitalocean/go-libvirt"
 	"github.com/prometheus/client_golang/prometheus"
 	"runtime"
@@ -26,28 +27,73 @@ func (mc *MetricsCollector) collectHeavy(ch chan<- prometheus.Metric) {
 	cycleStart := time.Now()
 	cycleID := atomic.AddUint64(&mc.cycleSeq, 1)
 	lagSeconds := mc.collectionLagSeconds()
+	conntrackConfigured := mc.cm.conntrackIPv4Enable || mc.cm.conntrackIPv6Enable
 
 	logCollectorMetric.Debug("scrapetime_collection_start", "cycle_id", cycleID, "lag_seconds", lagSeconds)
 
-	domainStats, libvirtSeconds, errLibvirt := mc.fetchDomainStats()
+	// The fast retype poller shares this Libvirt connection. Keep the complete
+	// stats, metadata, and retype RPC phase exclusive so a bounded retype
+	// timeout cannot close the connection underneath unrelated collection work.
+	mc.volumeRetypeLibvirtWorkMu.Lock()
+	domainStats, libvirtSeconds, errLibvirt := mc.fetchDomainStatsForCycle()
+	var prepared *preparedLibvirtCycle
+	if errLibvirt == nil {
+		prepared, errLibvirt = mc.prepareLibvirtCycle(domainStats)
+		if errLibvirt != nil {
+			errLibvirt = fmt.Errorf("complete Libvirt cycle preflight: %w", errLibvirt)
+			mc.discardLibvirtConnection()
+		}
+	}
+	if errLibvirt == nil {
+		mc.applyPreparedRuntimeGenerations(domainStats, prepared)
+		mc.commitPreparedLibvirtCycle(prepared)
+		mc.refreshVolumeRetypes(activeDomainRecords(domainStats), prepared.metadata)
+	}
+	mc.volumeRetypeLibvirtWorkMu.Unlock()
 
 	if errLibvirt != nil {
 		atomic.AddUint64(&mc.hostCollectionErrors, 1)
 		logCollectorMetric.Error("domain_stats_failed", "cycle_id", cycleID, "err", errLibvirt)
-		logCollectorMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "libvirt", "fallback", "use_cached_active_set", "impact", "per-instance metrics may be missing or stale", "err", errLibvirt)
-	} else {
-		logCollectorMetric.Debug("domain_stats_success", "cycle_id", cycleID, "active_domains", len(domainStats))
+		if conntrackConfigured {
+			mc.cm.beginBehaviorStateFreeze(cycleStart)
+		}
+		cycleEnd := time.Now()
+		if mc.emitCachedMetricsWithLiveHealth(ch, cycleEnd.Sub(cycleStart).Seconds(), lagSeconds, libvirtSeconds) {
+			atomic.StoreInt64(&mc.lastCycleEndUnixNano, cycleEnd.UnixNano())
+			logCollectorMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "libvirt", "fallback", "last_good_metric_cycle", "impact", "all previously valid metrics preserved", "err", errLibvirt)
+			logCollectorMetric.Debug("scrapetime_collection_end", "cycle_id", cycleID, "duration_seconds", cycleEnd.Sub(cycleStart).Seconds())
+			return
+		}
+		mc.emitHostAndAggMetrics(
+			ch,
+			nil,
+			&hostAgg{projects: make(map[string]struct{})},
+			lagSeconds,
+			libvirtSeconds,
+			0,
+			0,
+			0,
+			0,
+			0,
+			cycleEnd.Sub(cycleStart).Seconds(),
+			false,
+			false,
+			false,
+		)
+		atomic.StoreInt64(&mc.lastCycleEndUnixNano, cycleEnd.UnixNano())
+		logCollectorMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "libvirt", "fallback", "unavailable", "impact", "Libvirt-dependent metrics omitted", "err", errLibvirt)
+		logCollectorMetric.Debug("scrapetime_collection_end", "cycle_id", cycleID, "duration_seconds", cycleEnd.Sub(cycleStart).Seconds())
+		return
 	}
+	inventoryMetrics := mc.inventoryMetricBatch(domainStats, prepared.metadata)
+	domainStats = activeDomainRecords(domainStats)
+	logCollectorMetric.Debug("domain_stats_success", "cycle_id", cycleID, "active_domains", len(domainStats))
 
-	var activeSet map[string]struct{}
-	if errLibvirt == nil {
-		activeSet, _, _ = mc.buildActiveAndVMIPSets(domainStats)
-		mc.im.setActiveInstances(activeSet)
-	} else {
-		activeSet = mc.im.snapshotActiveInstances()
-	}
+	activeSet := prepared.activeSet
+	mc.cm.beginBehaviorLifecycleFreezesForMissingStates(domainStats, cycleStart)
 
 	vmIPs := mc.im.snapshotVMIPIdentities(activeSet)
+	mc.cm.pruneBehaviorStateToVMIPIdentities(activeSet, vmIPs)
 	ovnPortToInstance := mc.im.snapshotOVNPortToInstance(activeSet)
 	ovnPortToIPs := mc.im.snapshotOVNPortToIPKeys(activeSet)
 
@@ -61,22 +107,20 @@ func (mc *MetricsCollector) collectHeavy(ch chan<- prometheus.Metric) {
 		connAgg             *ConntrackAgg
 		wg                  sync.WaitGroup
 	)
-
 	wg.Add(1)
-	if errLibvirt == nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cacheCleanupSeconds = mc.cleanupCaches(activeSet)
-		}()
-	}
-
 	go func() {
 		defer wg.Done()
 		cStart := time.Now()
-		if mc.cm.ovnMapper != nil && len(ovnPortToInstance) > 0 {
+		if conntrackConfigured && mc.cm.ovnMapper != nil && len(ovnPortToInstance) > 0 {
 			if err := mc.cm.ovnMapper.Refresh(ovnPortToInstance, ovnPortToIPs); err != nil {
 				logConntrackMetric.Error("ovn_refresh_failed", "err", err)
+			}
+			staleAfter := 2 * mc.collectionInterval
+			if staleAfter < time.Minute {
+				staleAfter = time.Minute
+			}
+			if mc.cm.ovnMapper.IsStale(time.Now(), staleAfter) {
+				logConntrackMetric.Notice("ovn_mapping_stale", "last_success", mc.cm.ovnMapper.LastRefresh(), "stale_after", staleAfter)
 			}
 		}
 		connAgg, ctCount, errConntrack = mc.cm.readAndAggregateConntrack(vmIPs, mc.tm)
@@ -84,27 +128,47 @@ func (mc *MetricsCollector) collectHeavy(ch chan<- prometheus.Metric) {
 	}()
 	wg.Wait()
 
-	if errConntrack != nil {
+	conntrackDisabled := errors.Is(errConntrack, errConntrackFamiliesDisabled)
+	if errConntrack != nil && !conntrackDisabled {
 		atomic.AddUint64(&mc.hostCollectionErrors, 1)
 		atomic.AddUint64(&mc.cm.conntrackReadErrors, 1)
 		logConntrackMetric.Error("conntrack_read_failed", "cycle_id", cycleID, "ct_entries", ctCount, "err", errConntrack)
 
 		var aggErr *conntrackAggregateError
-		if errors.As(errConntrack, &aggErr) && aggErr.Partial && connAgg != nil {
-			logConntrackMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "conntrack", "fallback", "partial_conntrack_agg", "impact", "per-vm network attribution incomplete; host conntrack totals may be partial", "err", errConntrack)
+		if lastGood, lastCount, ok := mc.cm.snapshotLastGoodConntrack(); ok {
+			connAgg = lastGood
+			ctCount = lastCount
+			logConntrackMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "conntrack", "fallback", "last_good_conntrack_agg", "impact", "conntrack metrics retained from the last complete dump", "partial", errors.As(errConntrack, &aggErr) && aggErr.Partial, "err", errConntrack)
 		} else {
-			logConntrackMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "conntrack", "fallback", "skip_conntrack_agg", "impact", "per-vm network attribution missing", "err", errConntrack)
+			logConntrackMetric.Notice("collection_degraded", "cycle_id", cycleID, "stage", "conntrack", "fallback", "unavailable", "impact", "per-vm network attribution unavailable", "err", errConntrack)
 			connAgg = nil
+			ctCount = 0
 		}
 	}
+	conntrackFresh := errConntrack == nil && !conntrackDisabled
+	conntrackAvailable := conntrackFresh || connAgg != nil
+	freezeConntrackAging := conntrackConfigured && !conntrackFresh
+	if conntrackConfigured {
+		if conntrackFresh {
+			recoveryNow := conntrackObservationTime(connAgg, time.Now())
+			outageDelta := mc.cm.resumeBehaviorStateClock(recoveryNow)
+			mc.tm.shiftThreatEventClock(outageDelta)
+			mc.shiftIntelHistoryClock(outageDelta)
+		} else {
+			mc.cm.beginBehaviorStateFreeze(cycleStart)
+		}
+	}
+	cacheCleanupSeconds = mc.cleanupCachesWithConntrackAging(activeSet, freezeConntrackAging)
 
-	ctMax := hostConntrackMax()
+	ctMax, ctMaxAvailable := hostConntrackMaxWithAvailability()
 	var ctUtil float64
-	if ctMax > 0 {
+	if ctMaxAvailable {
 		ctUtil = float64(ctCount) / float64(ctMax)
 	}
 
-	agg := mc.collectDomainStatsParallel(domainStats, connAgg, hostIPMap, ctMax)
+	agg := mc.collectDomainStatsParallelPrepared(domainStats, prepared.metadata, connAgg, hostIPMap, ctMax, ctMaxAvailable, conntrackFresh)
+	agg.metrics = append(agg.metrics, inventoryMetrics...)
+	mc.cm.finishBehaviorRecoveryRebaseline()
 
 	cycleEnd := time.Now()
 	cycleSeconds := cycleEnd.Sub(cycleStart).Seconds()
@@ -121,31 +185,31 @@ func (mc *MetricsCollector) collectHeavy(ch chan<- prometheus.Metric) {
 		ctMax,
 		ctUtil,
 		cycleSeconds,
+		true,
+		conntrackAvailable,
+		ctMaxAvailable,
 	)
 
 	summaryArgs := []interface{}{
 		"cycle_id", cycleID,
 		"duration_seconds", cycleSeconds,
 		"lag_seconds", lagSeconds,
-		"libvirt_ok", errLibvirt == nil,
+		"libvirt_ok", true,
 		"libvirt_duration_seconds", libvirtSeconds,
 		"active_domains", len(domainStats),
 		"active_instances", len(activeSet),
 		"vm_ip_identities", len(vmIPs),
-		"conntrack_ok", errConntrack == nil,
+		"conntrack_ok", conntrackFresh,
 		"conntrack_duration_seconds", conntrackSeconds,
 		"conntrack_entries", ctCount,
 		"conntrack_max", ctMax,
+		"conntrack_max_available", ctMaxAvailable,
 		"conntrack_utilization", ctUtil,
 		"cache_cleanup_seconds", cacheCleanupSeconds,
-		"degraded", errLibvirt != nil || errConntrack != nil,
+		"degraded", errConntrack != nil && !conntrackDisabled,
 	}
-	degradedStages := make([]string, 0, 2)
-	if errLibvirt != nil {
-		degradedStages = append(degradedStages, "libvirt")
-		summaryArgs = append(summaryArgs, "libvirt_err", errLibvirt)
-	}
-	if errConntrack != nil {
+	degradedStages := make([]string, 0, 1)
+	if errConntrack != nil && !conntrackDisabled {
 		degradedStages = append(degradedStages, "conntrack")
 		summaryArgs = append(summaryArgs, "conntrack_err", errConntrack)
 	}
@@ -172,27 +236,95 @@ func (mc *MetricsCollector) collectionLagSeconds() float64 {
 
 func (mc *MetricsCollector) fetchDomainStats() ([]libvirt.DomainStatsRecord, float64, error) {
 	lStart := time.Now()
+	mc.pendingRuntimeTokens = nil
+	mc.pendingDomainMetadata = nil
 
 	conn, err := mc.getLibvirtConn()
 	if err != nil {
-		return nil, 0, err
+		return nil, time.Since(lStart).Seconds(), err
+	}
+	// Synthetic RPC overrides intentionally bypass host-process validation.
+	// Production collection brackets the complete Libvirt stats+metadata
+	// snapshot with a collision-resistant local QEMU process incarnation map.
+	if mc.libvirtStatsRPCOverride == nil || mc.qemuProcessSnapshotOverride != nil {
+		before, snapshotErr := mc.snapshotQEMUProcessIncarnations()
+		if snapshotErr != nil {
+			return nil, time.Since(lStart).Seconds(), fmt.Errorf("QEMU process incarnation preflight: %w", snapshotErr)
+		}
+		mc.pendingRuntimeTokens = before
 	}
 
-	statsFlags := uint32(_domainStatsState | _domainStatsCpuTotal | _domainStatsBalloon | _domainStatsVcpu | _domainStatsInterface | _domainStatsBlock)
-	fetchFlags := uint32(_connectGetAllDomainStatsActiveOnly)
-	domainStats, errLibvirt := conn.ConnectGetAllDomainStats(nil, statsFlags, fetchFlags)
+	type statsResult struct {
+		records  []libvirt.DomainStatsRecord
+		metadata map[string]*DomainStatic
+		err      error
+	}
+	resultCh := make(chan statsResult, 1)
+	go func() {
+		if mc.libvirtStatsRPCOverride != nil {
+			records, rpcErr := mc.libvirtStatsRPCOverride(conn)
+			resultCh <- statsResult{records: records, err: rpcErr}
+			return
+		}
+		records, metadata, rpcErr := collectCooperativeDomainStats(conn, mc.libvirtSafety, time.Now().Add(mc.effectiveLibvirtRPCTimeout()))
+		resultCh <- statsResult{records: records, metadata: metadata, err: rpcErr}
+	}()
+	timeout := mc.effectiveLibvirtRPCTimeout()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	var result statsResult
+	select {
+	case result = <-resultCh:
+	case <-timer.C:
+		mc.libvirtSafety.pause(time.Now())
+		mc.abortLibvirtConnection(conn)
+		return nil, time.Since(lStart).Seconds(), fmt.Errorf("Libvirt domain stats RPC timed out after %s", timeout)
+	}
+	domainStats, errLibvirt := result.records, result.err
+	if errLibvirt == nil {
+		mc.pendingDomainMetadata = result.metadata
+	}
 
 	if errLibvirt != nil {
-		mc.libvirtMu.Lock()
-		if mc.libvirtConn == conn {
-			mc.libvirtConn.Disconnect()
-			mc.libvirtConn = nil
-		}
-		mc.libvirtMu.Unlock()
+		mc.abortLibvirtConnection(conn)
 	}
 
 	libvirtSeconds := time.Since(lStart).Seconds()
 	return domainStats, libvirtSeconds, errLibvirt
+}
+
+func (mc *MetricsCollector) fetchDomainStatsForCycle() ([]libvirt.DomainStatsRecord, float64, error) {
+	mc.pendingRuntimeTokens = nil
+	mc.pendingDomainMetadata = nil
+	if mc.fetchDomainStatsOverride != nil {
+		return mc.fetchDomainStatsOverride()
+	}
+	return mc.fetchDomainStats()
+}
+
+func (mc *MetricsCollector) discardLibvirtConnection() {
+	mc.libvirtMu.Lock()
+	conn := mc.libvirtConn
+	mc.libvirtMu.Unlock()
+	mc.abortLibvirtConnection(conn)
+}
+
+func (mc *MetricsCollector) abortLibvirtConnection(conn *libvirt.Libvirt) {
+	if mc == nil || conn == nil {
+		return
+	}
+	mc.libvirtMu.Lock()
+	if mc.libvirtConn != conn {
+		mc.libvirtMu.Unlock()
+		return
+	}
+	dialer := mc.libvirtDialer
+	mc.libvirtConn = nil
+	mc.libvirtDialer = nil
+	mc.libvirtMu.Unlock()
+	if dialer != nil {
+		_ = dialer.Close()
+	}
 }
 
 func (mc *MetricsCollector) buildActiveAndVMIPSets(domainStats []libvirt.DomainStatsRecord) (map[string]struct{}, map[IPKey]struct{}, map[IPKey]string) {
@@ -203,13 +335,7 @@ func (mc *MetricsCollector) buildActiveAndVMIPSets(domainStats []libvirt.DomainS
 	mc.libvirtMu.Unlock()
 
 	if preScanConn != nil && len(domainStats) > 0 {
-		numWorkers := mc.im.workerCount
-		if numWorkers <= 0 {
-			numWorkers = runtime.NumCPU()
-		}
-		if numWorkers > 64 {
-			numWorkers = 64
-		}
+		numWorkers := effectiveDomainWorkerCount(mc.im.workerCount)
 
 		jobs := make(chan libvirt.Domain, len(domainStats))
 		var wg sync.WaitGroup
@@ -253,7 +379,10 @@ func (mc *MetricsCollector) buildActiveAndVMIPSets(domainStats []libvirt.DomainS
 }
 
 func (mc *MetricsCollector) buildHostIPMap() map[string]struct{} {
-	hostIPs := mc.tm.getHostIPs()
+	if mc.tm == nil {
+		return map[string]struct{}{}
+	}
+	hostIPs := mc.tm.getBehaviorHostIPs()
 	hostIPMap := make(map[string]struct{}, len(hostIPs))
 	for _, hip := range hostIPs {
 		hostIPMap[hip.Address] = struct{}{}
@@ -262,14 +391,18 @@ func (mc *MetricsCollector) buildHostIPMap() map[string]struct{} {
 }
 
 func (mc *MetricsCollector) cleanupCaches(activeSet map[string]struct{}) float64 {
+	return mc.cleanupCachesWithConntrackAging(activeSet, false)
+}
+
+func (mc *MetricsCollector) cleanupCachesWithConntrackAging(activeSet map[string]struct{}, freezeConntrackAging bool) float64 {
 	cleanupStart := time.Now()
 	mc.im.cleanupDomainMeta()
 	mc.im.cleanupResourceSamples()
 	mc.cleanupResourceV2(activeSet)
-	mc.cm.cleanupBehaviorMaps(activeSet)
-	mc.cm.cleanupBehaviorState(activeSet)
+	mc.cm.cleanupBehaviorMapsWithAging(activeSet, freezeConntrackAging)
+	mc.cm.cleanupBehaviorStateWithAging(activeSet, freezeConntrackAging)
 	mc.tm.cleanupThreatCounts(activeSet)
-	mc.tm.cleanupThreatLastHit()
+	mc.tm.cleanupThreatLastHitWithFrozenInstances(freezeConntrackAging, mc.cm.snapshotBehaviorFrozenInstances())
 	mc.cleanupIntelHistory(activeSet)
 	return time.Since(cleanupStart).Seconds()
 }
@@ -284,20 +417,22 @@ func (mc *MetricsCollector) cleanupIntelHistory(activeSet map[string]struct{}) {
 	mc.intelMu.Unlock()
 }
 
-func (mc *MetricsCollector) collectDomainStatsParallel(domainStats []libvirt.DomainStatsRecord, connAgg *ConntrackAgg, hostIPMap map[string]struct{}, ctMax uint64) *hostAgg {
+func (mc *MetricsCollector) collectDomainStatsParallel(domainStats []libvirt.DomainStatsRecord, connAgg *ConntrackAgg, hostIPMap map[string]struct{}, ctMax uint64, ctMaxAvailable bool, conntrackFresh bool, libvirtFresh bool) *hostAgg {
+	return mc.collectDomainStatsParallelInternal(domainStats, nil, connAgg, hostIPMap, ctMax, ctMaxAvailable, conntrackFresh, libvirtFresh)
+}
+
+func (mc *MetricsCollector) collectDomainStatsParallelPrepared(domainStats []libvirt.DomainStatsRecord, metadata map[string]*DomainStatic, connAgg *ConntrackAgg, hostIPMap map[string]struct{}, ctMax uint64, ctMaxAvailable bool, conntrackFresh bool) *hostAgg {
+	return mc.collectDomainStatsParallelInternal(domainStats, metadata, connAgg, hostIPMap, ctMax, ctMaxAvailable, conntrackFresh, true)
+}
+
+func (mc *MetricsCollector) collectDomainStatsParallelInternal(domainStats []libvirt.DomainStatsRecord, metadata map[string]*DomainStatic, connAgg *ConntrackAgg, hostIPMap map[string]struct{}, ctMax uint64, ctMaxAvailable bool, conntrackFresh bool, libvirtFresh bool) *hostAgg {
 	agg := &hostAgg{projects: make(map[string]struct{})}
 
 	if len(domainStats) == 0 {
 		return agg
 	}
 
-	numWorkers := mc.im.workerCount
-	if numWorkers <= 0 {
-		numWorkers = runtime.NumCPU()
-	}
-	if numWorkers > 64 {
-		numWorkers = 64
-	}
+	numWorkers := effectiveDomainWorkerCount(mc.im.workerCount)
 
 	jobs := make(chan libvirt.DomainStatsRecord, len(domainStats))
 	aggCh := make(chan *hostAgg, numWorkers)
@@ -309,7 +444,13 @@ func (mc *MetricsCollector) collectDomainStatsParallel(domainStats []libvirt.Dom
 			defer wgWorkers.Done()
 			localAgg := &hostAgg{projects: make(map[string]struct{})}
 			for stat := range jobs {
-				mc.collectDomainMetrics(stat, connAgg, hostIPMap, localAgg, ctMax)
+				if metadata == nil {
+					mc.collectDomainMetrics(stat, connAgg, hostIPMap, localAgg, ctMax, ctMaxAvailable, conntrackFresh, libvirtFresh)
+					continue
+				}
+				uuidBytes := stat.Dom.UUID
+				instanceUUID := uuidBytesToString(uuidBytes[:])
+				mc.collectDomainMetricsWithMetadata(stat, metadata[instanceUUID], connAgg, hostIPMap, localAgg, ctMax, ctMaxAvailable, conntrackFresh)
 			}
 			aggCh <- localAgg
 		}()
@@ -344,6 +485,202 @@ func (mc *MetricsCollector) collectDomainStatsParallel(domainStats []libvirt.Dom
 	return agg
 }
 
+func (mc *MetricsCollector) emitCachedMetrics(ch chan<- prometheus.Metric) bool {
+	mc.cacheMu.RLock()
+	cached := append([]prometheus.Metric(nil), mc.cachedMetrics...)
+	mc.cacheMu.RUnlock()
+	if len(cached) == 0 {
+		return false
+	}
+	for _, metric := range cached {
+		ch <- metric
+	}
+	return true
+}
+
+func (mc *MetricsCollector) emitCachedMetricsWithLiveHealth(ch chan<- prometheus.Metric, cycleSeconds, lagSeconds, libvirtSeconds float64) bool {
+	healthNow := time.Now()
+	mc.recordLibvirtCollectionResult(false, healthNow)
+	if atomic.LoadInt64(&mc.libvirtLastSuccessUnix) <= 0 {
+		return false
+	}
+
+	mc.cacheMu.RLock()
+	cached := append([]prometheus.Metric(nil), mc.cachedMetrics...)
+	mc.cacheMu.RUnlock()
+	if len(cached) == 0 {
+		return false
+	}
+	cached, resourceOverlay := mc.overlayCachedResourceMetrics(cached, healthNow)
+
+	liveMetrics := make([]prometheus.Metric, 0, 32)
+	liveDescs := make(map[*prometheus.Desc]struct{}, 32)
+	appendLive := func(metric prometheus.Metric) {
+		liveMetrics = append(liveMetrics, metric)
+		liveDescs[metric.Desc()] = struct{}{}
+	}
+	markLive := func(desc *prometheus.Desc) {
+		if desc != nil {
+			liveDescs[desc] = struct{}{}
+		}
+	}
+	for _, metric := range resourceOverlay {
+		appendLive(metric)
+	}
+
+	appendLive(prometheus.MustNewConstMetric(
+		mc.hostCollectionErrorsTotalDesc,
+		prometheus.CounterValue,
+		float64(atomic.LoadUint64(&mc.hostCollectionErrors)),
+	))
+	appendLive(prometheus.MustNewConstMetric(
+		mc.hostCollectionCycleDurationSecondsDesc,
+		prometheus.GaugeValue,
+		cycleSeconds,
+	))
+	appendLive(prometheus.MustNewConstMetric(
+		mc.hostCollectionIntervalSecondsDesc,
+		prometheus.GaugeValue,
+		mc.effectiveCollectionInterval().Seconds(),
+	))
+	appendLive(prometheus.MustNewConstMetric(
+		mc.hostCollectionCycleLagSecondsDesc,
+		prometheus.GaugeValue,
+		lagSeconds,
+	))
+	appendLive(prometheus.MustNewConstMetric(
+		mc.hostLibvirtListDurationSecondsDesc,
+		prometheus.GaugeValue,
+		libvirtSeconds,
+	))
+	for _, metric := range mc.libvirtSourceHealthMetrics(healthNow) {
+		appendLive(metric)
+	}
+	if mc.im != nil {
+		// Active retype state has a shorter validity window than general last-good
+		// inventory. Never replay a stale progress cursor during a Libvirt outage.
+		markLive(mc.im.instanceDiskRetypeActiveDesc)
+		markLive(mc.im.instanceDiskRetypeProgressDesc)
+		markLive(mc.im.instanceDiskRetypeStatusCodeDesc)
+		markLive(mc.im.instanceDiskRetypeObservationHealthyDesc)
+		markLive(mc.im.instanceDiskRetypeStartTimestampDesc)
+		markLive(mc.im.instanceDiskRetypeReadyTimestampDesc)
+		markLive(mc.im.instanceDiskRetypeEndTimestampDesc)
+	}
+	for _, metric := range mc.volumeRetypeMetricBatch(healthNow, false) {
+		appendLive(metric)
+	}
+	appendLive(prometheus.MustNewConstMetric(
+		mc.hostCacheCleanupDurationSecondsDesc,
+		prometheus.GaugeValue,
+		0,
+	))
+	conntrackHealthDescs := []*prometheus.Desc{
+		mc.hostConntrackReadDurationSecondsDesc,
+		mc.hostConntrackRawOkDesc,
+		mc.hostConntrackRawENOBUFSTotalDesc,
+		mc.hostConntrackRawParseErrorsTotalDesc,
+		mc.hostConntrackReadErrorsTotalDesc,
+		mc.hostConntrackLastSuccessTimestampDesc,
+		mc.hostConntrackStaleSecondsDesc,
+	}
+	// A Libvirt failure ends the cycle before a new conntrack snapshot is read.
+	// Never re-expose prior conntrack data gauges as if they belonged to this
+	// degraded cycle; the independently maintained health metrics below remain
+	// available to explain the source state.
+	for _, desc := range []*prometheus.Desc{
+		mc.hostConntrackEntriesDesc,
+		mc.hostConntrackMaxDesc,
+		mc.hostConntrackUtilizationDesc,
+	} {
+		markLive(desc)
+	}
+	if mc.cm.conntrackIPv4Enable || mc.cm.conntrackIPv6Enable {
+		appendLive(prometheus.MustNewConstMetric(mc.hostConntrackReadDurationSecondsDesc, prometheus.GaugeValue, 0))
+		appendLive(prometheus.MustNewConstMetric(mc.hostConntrackRawOkDesc, prometheus.GaugeValue, float64(atomic.LoadUint64(&mc.cm.conntrackRawOK))))
+		appendLive(prometheus.MustNewConstMetric(mc.hostConntrackRawENOBUFSTotalDesc, prometheus.CounterValue, float64(atomic.LoadUint64(&mc.cm.conntrackRawENOBUFSTotal))))
+		appendLive(prometheus.MustNewConstMetric(mc.hostConntrackRawParseErrorsTotalDesc, prometheus.CounterValue, float64(atomic.LoadUint64(&mc.cm.conntrackRawParseErrorsTotal))))
+		appendLive(prometheus.MustNewConstMetric(mc.hostConntrackReadErrorsTotalDesc, prometheus.CounterValue, float64(atomic.LoadUint64(&mc.cm.conntrackReadErrors))))
+		appendLive(prometheus.MustNewConstMetric(mc.hostConntrackLastSuccessTimestampDesc, prometheus.GaugeValue, float64(atomic.LoadInt64(&mc.cm.conntrackLastSuccessUnix))))
+		appendLive(prometheus.MustNewConstMetric(mc.hostConntrackStaleSecondsDesc, prometheus.GaugeValue, mc.cm.conntrackStaleSeconds()))
+	} else {
+		for _, desc := range conntrackHealthDescs {
+			markLive(desc)
+		}
+	}
+
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	appendLive(prometheus.MustNewConstMetric(
+		mc.hostGoHeapAllocBytesDesc,
+		prometheus.GaugeValue,
+		float64(memStats.HeapAlloc),
+	))
+	hostResources := mc.readHostResourceSnapshot()
+	// These optional /proc and sysinfo probes are live overlay data. Mark every
+	// descriptor even when its current probe is unavailable so an old cached
+	// value cannot acquire a new scrape timestamp and drive a host alert.
+	for _, desc := range []*prometheus.Desc{
+		mc.hostMemTotalMBDesc,
+		mc.hostCpuUsagePercentDesc,
+		mc.hostMemFreeMBDesc,
+		mc.hostMemAvailableMBDesc,
+	} {
+		markLive(desc)
+	}
+	if hostResources.totalMemAvailable {
+		appendLive(prometheus.MustNewConstMetric(
+			mc.hostMemTotalMBDesc,
+			prometheus.GaugeValue,
+			float64(hostResources.totalMemBytes)*bytesToMegabytes,
+		))
+	}
+	if hostResources.cpuAvailable {
+		appendLive(prometheus.MustNewConstMetric(mc.hostCpuUsagePercentDesc, prometheus.GaugeValue, hostResources.cpuPercent))
+	}
+	if hostResources.memFreeAvailable {
+		appendLive(prometheus.MustNewConstMetric(mc.hostMemFreeMBDesc, prometheus.GaugeValue, hostResources.memFreeMB))
+	}
+	if hostResources.memAvailAvailable {
+		appendLive(prometheus.MustNewConstMetric(mc.hostMemAvailableMBDesc, prometheus.GaugeValue, hostResources.memAvailableMB))
+	}
+
+	if mc.tm != nil {
+		for _, provider := range mc.tm.Providers {
+			if provider == nil {
+				continue
+			}
+			markLive(provider.HostRefreshLastSuccessDesc)
+			markLive(provider.HostRefreshDurationDesc)
+			markLive(provider.HostRefreshErrorsDesc)
+			markLive(provider.HostEntriesDesc)
+		}
+		markLive(mc.tm.hostSpamhausRefreshLastSuccessTimestampDesc)
+		markLive(mc.tm.hostSpamhausRefreshDurationSecondsDesc)
+		markLive(mc.tm.hostSpamhausRefreshErrorsTotalDesc)
+		markLive(mc.tm.hostSpamhausEntriesDesc)
+		markLive(mc.tm.hostThreatFeedFreshDesc)
+		markLive(mc.tm.hostThreatListedDesc)
+
+		threatMetrics := make([]prometheus.Metric, 0, 24)
+		mc.tm.collectHostThreatMetrics(&threatMetrics)
+		for _, metric := range threatMetrics {
+			appendLive(metric)
+		}
+	}
+
+	for _, metric := range cached {
+		if _, replace := liveDescs[metric.Desc()]; replace {
+			continue
+		}
+		ch <- metric
+	}
+	for _, metric := range liveMetrics {
+		ch <- metric
+	}
+	return true
+}
+
 func (mc *MetricsCollector) emitHostAndAggMetrics(
 	ch chan<- prometheus.Metric,
 	domainStats []libvirt.DomainStatsRecord,
@@ -356,9 +693,15 @@ func (mc *MetricsCollector) emitHostAndAggMetrics(
 	ctMax uint64,
 	ctUtil float64,
 	cycleSeconds float64,
+	libvirtAvailable bool,
+	conntrackAvailable bool,
+	conntrackMaxAvailable bool,
 ) {
-	totalMemBytes := hostTotalMemBytes()
-	totalMemMB := float64(totalMemBytes) * bytesToMegabytes
+	healthNow := time.Now()
+	mc.recordLibvirtCollectionResult(libvirtAvailable, healthNow)
+
+	hostResources := mc.readHostResourceSnapshot()
+	totalMemMB := float64(hostResources.totalMemBytes) * bytesToMegabytes
 
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
@@ -367,36 +710,59 @@ func (mc *MetricsCollector) emitHostAndAggMetrics(
 	errorsTotal := atomic.LoadUint64(&mc.hostCollectionErrors)
 	conntrackErrors := atomic.LoadUint64(&mc.cm.conntrackReadErrors)
 
-	cpuPercent := mc.getHostCPUPercent()
-	memFreeMB, memAvailMB := mc.getHostMemInfo()
-
 	hostMetrics := []prometheus.Metric{
-		prometheus.MustNewConstMetric(mc.hostLibvirtActiveVMsDesc, prometheus.GaugeValue, float64(len(domainStats))),
-		prometheus.MustNewConstMetric(mc.hostCpuActiveVcpusDesc, prometheus.GaugeValue, float64(agg.vcpus)),
-		prometheus.MustNewConstMetric(mc.hostActiveDisksDesc, prometheus.GaugeValue, float64(agg.disks)),
-		prometheus.MustNewConstMetric(mc.hostActiveFixedIPsDesc, prometheus.GaugeValue, float64(agg.fixedIPs)),
-		prometheus.MustNewConstMetric(mc.hostActiveProjectsDesc, prometheus.GaugeValue, float64(len(agg.projects))),
 		prometheus.MustNewConstMetric(mc.hostCpuThreadsDesc, prometheus.GaugeValue, float64(runtime.NumCPU())),
-		prometheus.MustNewConstMetric(mc.hostMemTotalMBDesc, prometheus.GaugeValue, totalMemMB),
 		prometheus.MustNewConstMetric(mc.hostCollectionErrorsTotalDesc, prometheus.CounterValue, float64(errorsTotal)),
 		prometheus.MustNewConstMetric(mc.hostCollectionCycleDurationSecondsDesc, prometheus.GaugeValue, cycleSeconds),
+		prometheus.MustNewConstMetric(mc.hostCollectionIntervalSecondsDesc, prometheus.GaugeValue, mc.effectiveCollectionInterval().Seconds()),
 		prometheus.MustNewConstMetric(mc.hostCollectionCycleLagSecondsDesc, prometheus.GaugeValue, lagSeconds),
 		prometheus.MustNewConstMetric(mc.hostLibvirtListDurationSecondsDesc, prometheus.GaugeValue, libvirtSeconds),
-		prometheus.MustNewConstMetric(mc.hostConntrackReadDurationSecondsDesc, prometheus.GaugeValue, conntrackSeconds),
-		prometheus.MustNewConstMetric(mc.hostConntrackRawOkDesc, prometheus.GaugeValue, float64(atomic.LoadUint64(&mc.cm.conntrackRawOK))),
-		prometheus.MustNewConstMetric(mc.hostConntrackRawENOBUFSTotalDesc, prometheus.CounterValue, float64(atomic.LoadUint64(&mc.cm.conntrackRawENOBUFSTotal))),
-		prometheus.MustNewConstMetric(mc.hostConntrackRawParseErrorsTotalDesc, prometheus.CounterValue, float64(atomic.LoadUint64(&mc.cm.conntrackRawParseErrorsTotal))),
-		prometheus.MustNewConstMetric(mc.hostConntrackLastSuccessTimestampDesc, prometheus.GaugeValue, float64(atomic.LoadInt64(&mc.cm.conntrackLastSuccessUnix))),
-		prometheus.MustNewConstMetric(mc.hostConntrackStaleSecondsDesc, prometheus.GaugeValue, mc.cm.conntrackStaleSeconds()),
-		prometheus.MustNewConstMetric(mc.hostConntrackEntriesDesc, prometheus.GaugeValue, float64(ctCount)),
-		prometheus.MustNewConstMetric(mc.hostConntrackReadErrorsTotalDesc, prometheus.CounterValue, float64(conntrackErrors)),
-		prometheus.MustNewConstMetric(mc.hostConntrackMaxDesc, prometheus.GaugeValue, float64(ctMax)),
-		prometheus.MustNewConstMetric(mc.hostConntrackUtilizationDesc, prometheus.GaugeValue, ctUtil),
 		prometheus.MustNewConstMetric(mc.hostGoHeapAllocBytesDesc, prometheus.GaugeValue, heapAllocBytes),
 		prometheus.MustNewConstMetric(mc.hostCacheCleanupDurationSecondsDesc, prometheus.GaugeValue, cacheCleanupSeconds),
-		prometheus.MustNewConstMetric(mc.hostCpuUsagePercentDesc, prometheus.GaugeValue, cpuPercent),
-		prometheus.MustNewConstMetric(mc.hostMemFreeMBDesc, prometheus.GaugeValue, memFreeMB),
-		prometheus.MustNewConstMetric(mc.hostMemAvailableMBDesc, prometheus.GaugeValue, memAvailMB),
+	}
+	hostMetrics = append(hostMetrics, mc.libvirtSourceHealthMetrics(healthNow)...)
+	if mc.cm.conntrackIPv4Enable || mc.cm.conntrackIPv6Enable {
+		hostMetrics = append(hostMetrics,
+			prometheus.MustNewConstMetric(mc.hostConntrackReadDurationSecondsDesc, prometheus.GaugeValue, conntrackSeconds),
+			prometheus.MustNewConstMetric(mc.hostConntrackRawOkDesc, prometheus.GaugeValue, float64(atomic.LoadUint64(&mc.cm.conntrackRawOK))),
+			prometheus.MustNewConstMetric(mc.hostConntrackRawENOBUFSTotalDesc, prometheus.CounterValue, float64(atomic.LoadUint64(&mc.cm.conntrackRawENOBUFSTotal))),
+			prometheus.MustNewConstMetric(mc.hostConntrackRawParseErrorsTotalDesc, prometheus.CounterValue, float64(atomic.LoadUint64(&mc.cm.conntrackRawParseErrorsTotal))),
+			prometheus.MustNewConstMetric(mc.hostConntrackLastSuccessTimestampDesc, prometheus.GaugeValue, float64(atomic.LoadInt64(&mc.cm.conntrackLastSuccessUnix))),
+			prometheus.MustNewConstMetric(mc.hostConntrackStaleSecondsDesc, prometheus.GaugeValue, mc.cm.conntrackStaleSeconds()),
+			prometheus.MustNewConstMetric(mc.hostConntrackReadErrorsTotalDesc, prometheus.CounterValue, float64(conntrackErrors)),
+		)
+	}
+	if hostResources.totalMemAvailable {
+		hostMetrics = append(hostMetrics, prometheus.MustNewConstMetric(mc.hostMemTotalMBDesc, prometheus.GaugeValue, totalMemMB))
+	}
+	if hostResources.cpuAvailable {
+		hostMetrics = append(hostMetrics, prometheus.MustNewConstMetric(mc.hostCpuUsagePercentDesc, prometheus.GaugeValue, hostResources.cpuPercent))
+	}
+	if hostResources.memFreeAvailable {
+		hostMetrics = append(hostMetrics, prometheus.MustNewConstMetric(mc.hostMemFreeMBDesc, prometheus.GaugeValue, hostResources.memFreeMB))
+	}
+	if hostResources.memAvailAvailable {
+		hostMetrics = append(hostMetrics, prometheus.MustNewConstMetric(mc.hostMemAvailableMBDesc, prometheus.GaugeValue, hostResources.memAvailableMB))
+	}
+	if conntrackMaxAvailable {
+		hostMetrics = append(hostMetrics, prometheus.MustNewConstMetric(mc.hostConntrackMaxDesc, prometheus.GaugeValue, float64(ctMax)))
+	}
+	if libvirtAvailable {
+		hostMetrics = append(hostMetrics,
+			prometheus.MustNewConstMetric(mc.hostLibvirtActiveVMsDesc, prometheus.GaugeValue, float64(len(domainStats))),
+			prometheus.MustNewConstMetric(mc.hostCpuActiveVcpusDesc, prometheus.GaugeValue, float64(agg.vcpus)),
+			prometheus.MustNewConstMetric(mc.hostActiveDisksDesc, prometheus.GaugeValue, float64(agg.disks)),
+			prometheus.MustNewConstMetric(mc.hostActiveFixedIPsDesc, prometheus.GaugeValue, float64(agg.fixedIPs)),
+			prometheus.MustNewConstMetric(mc.hostActiveProjectsDesc, prometheus.GaugeValue, float64(len(agg.projects))),
+		)
+	}
+	if conntrackAvailable {
+		hostMetrics = append(hostMetrics,
+			prometheus.MustNewConstMetric(mc.hostConntrackEntriesDesc, prometheus.GaugeValue, float64(ctCount)),
+		)
+	}
+	if conntrackAvailable && conntrackMaxAvailable {
+		hostMetrics = append(hostMetrics, prometheus.MustNewConstMetric(mc.hostConntrackUtilizationDesc, prometheus.GaugeValue, ctUtil))
 	}
 
 	mc.tm.collectHostThreatMetrics(&hostMetrics)
@@ -406,6 +772,9 @@ func (mc *MetricsCollector) emitHostAndAggMetrics(
 	}
 
 	for _, metric := range agg.metrics {
+		ch <- metric
+	}
+	for _, metric := range mc.volumeRetypeMetricBatch(healthNow, libvirtAvailable) {
 		ch <- metric
 	}
 }

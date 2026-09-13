@@ -59,7 +59,7 @@ func TestUpdateBehaviorEWMAUsesDefaultTauFallbacks(t *testing.T) {
 		UnrepliedRatio: 0.25,
 	}
 
-	_, _ = cm.updateBehaviorEWMA(ident, feature)
+	_, _ = cm.updateBehaviorEWMA(ident, feature, 100)
 	ew := cm.behaviorEWMA[idx][ident]
 	if ew == nil {
 		t.Fatalf("expected ewma state to be created")
@@ -76,18 +76,91 @@ func TestUpdateBehaviorEWMAUsesDefaultTauFallbacks(t *testing.T) {
 
 	cm.behaviorEWMATauFast = 0
 	cm.behaviorEWMATauSlow = 0
-	prevSeen := time.Now().Unix() - 60
+	prevSeen := int64(100)
 	ew.LastSeenUnix = prevSeen
 	_, _ = cm.updateBehaviorEWMA(ident, BehaviorFeature{
 		Flows:          40,
 		UniqueRemotes:  10,
 		UniqueDstPorts: 8,
 		UnrepliedRatio: 0.5,
-	})
-	if ew.LastSeenUnix <= prevSeen {
-		t.Fatalf("expected second update to advance last-seen timestamp")
+	}, 160)
+	if ew.LastSeenUnix != 160 {
+		t.Fatalf("second update last-seen=%d, want supplied timestamp 160", ew.LastSeenUnix)
 	}
 	if ew.Flows.Fast <= ew.Flows.Slow {
 		t.Fatalf("expected fast EWMA to react faster than slow under fallback taus, got fast=%v slow=%v", ew.Flows.Fast, ew.Flows.Slow)
+	}
+}
+
+func TestBehaviorEWMATracksKnownZeroAccountingPerAxis(t *testing.T) {
+	cm := newBehaviorStateTestManager()
+	ident := behaviorIdentityKey{InstanceUUID: "vm-zero-accounting", IP: IPStrToKey("10.0.0.10"), Direction: "outbound"}
+	stats := newBehaviorStats(false)
+	stats.updateDetailedWithCoverage(
+		IPStrToKey("198.51.100.10"),
+		443,
+		6,
+		IPS_SEEN_REPLY,
+		1,
+		0,
+		0,
+		true,
+		false,
+	)
+
+	cm.analyzeBehavior(
+		stats,
+		ident.IP,
+		"10.0.0.10", "ipv4", "domain", "server", ident.InstanceUUID, "project", "project-name", "user",
+		nil,
+		metricDescGroup{thresholdConfigKey: "outbound"},
+		BehaviorContext{},
+	)
+
+	ew := cm.behaviorEWMA[shardIndexBehavior(ident)][ident]
+	if ew == nil || !ew.BytesPerFlow.Initialized || ew.BytesPerFlow.Fast != 0 || ew.BytesPerFlow.Slow != 0 {
+		t.Fatalf("known zero byte accounting was not retained as a valid sample: %+v", ew)
+	}
+	if ew.PktsPerFlow.Initialized {
+		t.Fatalf("unavailable packet accounting was initialized as a healthy zero: %+v", ew.PktsPerFlow)
+	}
+}
+
+func TestLongGapBehaviorEWMAKeepsUnavailableAccountingAxisUnknown(t *testing.T) {
+	cm := newBehaviorStateTestManager()
+	ident := behaviorIdentityKey{InstanceUUID: "vm-partial-accounting", IP: IPStrToKey("10.0.0.11"), Direction: "outbound"}
+	idx := shardIndexBehavior(ident)
+	cm.behaviorEWMA[idx][ident] = &behaviorEWMAState{
+		LastSeenUnix: time.Now().Unix() - behaviorIdentityTTLSeconds - 1,
+		Flows:        axisEWMA{Fast: 10, Slow: 10, Initialized: true},
+	}
+
+	stats := newBehaviorStats(false)
+	stats.updateDetailedWithCoverage(
+		IPStrToKey("198.51.100.11"),
+		443,
+		6,
+		IPS_SEEN_REPLY,
+		1,
+		128,
+		0,
+		true,
+		false,
+	)
+	cm.analyzeBehavior(
+		stats,
+		ident.IP,
+		"10.0.0.11", "ipv4", "domain", "server", ident.InstanceUUID, "project", "project-name", "user",
+		nil,
+		metricDescGroup{thresholdConfigKey: "outbound"},
+		BehaviorContext{},
+	)
+
+	ew := cm.behaviorEWMA[idx][ident]
+	if !ew.BytesPerFlow.Initialized || ew.BytesPerFlow.Fast != 128 {
+		t.Fatalf("available byte accounting was not used to reset the long-gap baseline: %+v", ew.BytesPerFlow)
+	}
+	if ew.PktsPerFlow.Initialized {
+		t.Fatalf("unavailable packet accounting was initialized during long-gap reset: %+v", ew.PktsPerFlow)
 	}
 }

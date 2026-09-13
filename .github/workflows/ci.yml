@@ -1,0 +1,148 @@
+name: Required CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "required-ci-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GOFLAGS: -mod=readonly
+  GOTOOLCHAIN: local
+
+jobs:
+  go_verification:
+    name: Go, assets, and compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the declared Go toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install the checksum-verified PromQL validation baseline
+        run: sh ./scripts/install-promtool-ci.sh "$RUNNER_TEMP/oie-promtool"
+
+      - name: Vet every package
+        run: go vet ./...
+      - name: Verify dependency checksums
+        run: go mod verify
+      - name: Check reachable Go vulnerabilities
+        run: make vuln
+      - name: Run the complete test suite
+        run: PROMTOOL="$PROMTOOL" go test -count=1 ./...
+      - name: Run the race detector
+        run: PROMTOOL="$PROMTOOL" go test -race -count=1 ./...
+      - name: Repeat tests in shuffled order
+        run: PROMTOOL="$PROMTOOL" go test -shuffle=on -count=10 ./...
+      - name: Fuzz both conntrack parsers
+        run: make fuzz
+      - name: Enforce statement coverage
+        run: make coverage PROMTOOL="$PROMTOOL"
+      - name: Re-run public contract gates explicitly
+        run: make contracts PROMTOOL="$PROMTOOL"
+      - name: Run anonymized replay calibration
+        run: make replay PROMTOOL="$PROMTOOL"
+      - name: Enforce measured production-scale boundaries
+        run: make scale
+      - name: Audit final dashboards and documentation
+        run: make docs PROMTOOL="$PROMTOOL"
+
+  ansible_verification:
+    name: Ansible ${{ matrix.ansible_core }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            python: "3.10"
+            ansible_core: "2.12.10"
+          - os: ubuntu-24.04
+            python: "3.12"
+            ansible_core: "2.21.3"
+    steps:
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the matrix Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install the exact Ansible core
+        run: python -m pip install --disable-pip-version-check "ansible-core==${{ matrix.ansible_core }}"
+      - name: Install declared Ansible collections
+        run: ansible-galaxy collection install -r ansible_role/openstack_instance_exporter/requirements.yml
+      - name: Install the checksum-verified PromQL validation baseline
+        run: sh ./scripts/install-promtool-ci.sh "$RUNNER_TEMP/oie-promtool"
+
+      - name: Validate syntax and rendered deployment contracts
+        run: make ansible-test
+      - name: Execute fail-closed preflight cases
+        run: make ansible-preflight
+      - name: Evaluate shipped operator dashboards and alert policy
+        run: make operator-test PROMTOOL="$PROMTOOL"
+
+  release_verification:
+    name: Release archive and reproducibility
+    needs:
+      - go_verification
+      - ansible_verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the declared Go toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build the release artifact
+        run: make release VERSION=v2.0.0
+      - name: Validate archive contents and binary hardening
+        run: make release-validate VERSION=v2.0.0
+      - name: Compare independent deterministic builds
+        run: make release-reproducible VERSION=v2.0.0
+
+  required:
+    name: Required CI gate
+    if: ${{ always() }}
+    needs:
+      - go_verification
+      - ansible_verification
+      - release_verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every mandatory job to pass
+        env:
+          GO_RESULT: ${{ needs.go_verification.result }}
+          ANSIBLE_RESULT: ${{ needs.ansible_verification.result }}
+          RELEASE_RESULT: ${{ needs.release_verification.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GO_RESULT" = success
+          test "$ANSIBLE_RESULT" = success
+          test "$RELEASE_RESULT" = success

@@ -8,15 +8,48 @@ import (
 	"net/url"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
+const defaultLibvirtRPCTimeout = 10 * time.Second
+
 type LocalDialer struct {
 	SocketPath string
+	mu         sync.Mutex
+	conn       net.Conn
+	closed     bool
 }
 
 func (d *LocalDialer) Dial() (net.Conn, error) {
-	return net.DialTimeout("unix", d.SocketPath, 2*time.Second)
+	conn, err := net.DialTimeout("unix", d.SocketPath, 2*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	d.mu.Lock()
+	if d.closed {
+		d.mu.Unlock()
+		_ = conn.Close()
+		return nil, net.ErrClosed
+	}
+	d.conn = conn
+	d.mu.Unlock()
+	return conn, nil
+}
+
+func (d *LocalDialer) Close() error {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	conn := d.conn
+	d.conn = nil
+	d.closed = true
+	d.mu.Unlock()
+	if conn == nil {
+		return nil
+	}
+	return conn.Close()
 }
 
 // -----------------------------------------------------------------------------
@@ -27,22 +60,50 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 	if cfg.LibvirtURI == "" {
 		return nil, fmt.Errorf("LibvirtURI is required")
 	}
-
-	mc := &MetricsCollector{
-		shutdownChan:       make(chan struct{}),
-		scoring:            cfg.Severity,
-		collectionInterval: cfg.CollectionInterval,
-		intelHistory:       make(map[string]*IntelHistory),
+	if _, err := libvirtSocketPathFromURI(cfg.LibvirtURI); err != nil {
+		return nil, err
 	}
 
-	mc.im = &InstanceManager{
-		libvirtURI:         cfg.LibvirtURI,
-		workerCount:        cfg.WorkerCount,
-		domainMeta:         make(map[string]*DomainStatic),
-		activeInstances:    make(map[string]struct{}),
-		vmIPSet:            make(map[IPKey]struct{}),
-		vmIPToInstance:     make(map[IPKey]string),
-		vmIPKeysByInstance: make(map[string][]IPKey),
+	mc := &MetricsCollector{
+		shutdownChan:        make(chan struct{}),
+		scoring:             cfg.Severity,
+		collectionInterval:  cfg.CollectionInterval,
+		intelHistory:        make(map[string]*IntelHistory),
+		threatEWMATau:       cfg.ThreatEWMATau,
+		libvirtRPCTimeout:   defaultLibvirtRPCTimeout,
+		volumeRetypeEnabled: cfg.VolumeRetypeEnable,
+	}
+	if cfg.VolumeRetypeEnable {
+		mc.volumeRetypeJobs = make(map[volumeRetypeKey]volumeRetypeJob)
+		mc.volumeRetypeCompleted = make(map[volumeRetypeCompletionKey]volumeRetypeCompletion)
+		mc.volumeRetypeRPCInflight = make(map[string]struct{})
+	}
+
+	mc.im = newInstanceManager(cfg)
+	mc.libvirtSafety = &libvirtReadSafety{runtimeStateDir: "/run/libvirt/qemu"}
+	mc.im.libvirtSafety = mc.libvirtSafety
+	mc.tm = newThreatManager(cfg, mc.shutdownChan)
+	mc.cm = newConntrackManager(cfg)
+	mc.cm.LogThreat = mc.tm.logThreatEvent
+
+	initializeCollectorMetricDescriptors(mc)
+	startThreatRefreshers(mc.tm)
+
+	return mc, nil
+}
+
+func newInstanceManager(cfg CollectorConfig) *InstanceManager {
+	im := &InstanceManager{
+		libvirtURI:           cfg.LibvirtURI,
+		workerCount:          cfg.WorkerCount,
+		resourceSampleMaxAge: resourceAxisMaxRetainedAge(cfg.CollectionInterval),
+		domainMeta:           make(map[string]*DomainStatic),
+		activeInstances:      make(map[string]struct{}),
+		vmIPSet:              make(map[IPKey]struct{}),
+		vmIPToInstance:       make(map[IPKey]string),
+		vmIPOwners:           make(map[IPKey]map[string]struct{}),
+		vmIPKeysByInstance:   make(map[string][]IPKey),
+		libvirtRPCTimeout:    defaultLibvirtRPCTimeout,
 	}
 
 	xmlMaxConcurrent := cfg.WorkerCount
@@ -55,18 +116,38 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 	if xmlMaxConcurrent > 8 {
 		xmlMaxConcurrent = 8
 	}
-	mc.im.xmlInflight = make(map[string]*domainXMLInflight, 256)
-	mc.im.xmlRPCSem = make(chan struct{}, xmlMaxConcurrent)
+	im.xmlInflight = make(map[string]*domainXMLInflight, 256)
+	im.domainXMLRPCInflight = make(map[string]struct{}, 256)
+	im.xmlRPCSem = make(chan struct{}, xmlMaxConcurrent)
+	initializeInstanceSampleState(im)
 
-	for i := 0; i < shardCount; i++ {
-		mc.im.cpuSamples[i] = make(map[string]cpuSample)
-		mc.im.diskSamples[i] = make(map[string]diskSample)
-		mc.im.memSamples[i] = make(map[string]memSample)
-		mc.im.netSamples[i] = make(map[string]netSample)
+	return im
+}
+
+func initializeInstanceSampleState(im *InstanceManager) {
+	if im.resourceGeneration == nil {
+		im.resourceGeneration = make(map[string]int32)
 	}
+	if im.resourceGenerationCPUTime == nil {
+		im.resourceGenerationCPUTime = make(map[string]uint64)
+	}
+	if im.resourceGenerationToken == nil {
+		im.resourceGenerationToken = make(map[string]string)
+	}
+	if im.resourceDimensions == nil {
+		im.resourceDimensions = make(map[string]resourceDimensions)
+	}
+	for i := 0; i < shardCount; i++ {
+		im.cpuSamples[i] = make(map[string]cpuSample)
+		im.diskSamples[i] = make(map[string]diskSample)
+		im.memSamples[i] = make(map[string]memSample)
+		im.netSamples[i] = make(map[string]netSample)
+	}
+}
 
-	mc.tm = &ThreatManager{
-		shutdownChan: mc.shutdownChan,
+func newThreatManager(cfg CollectorConfig, shutdownChan chan struct{}) *ThreatManager {
+	tm := &ThreatManager{
+		shutdownChan: shutdownChan,
 		httpClient:   &http.Client{Timeout: 15 * time.Second},
 
 		hostThreatsEnabled:  cfg.HostThreats.Enable,
@@ -93,7 +174,16 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 		threatLastHit:        make(map[string]time.Time),
 	}
 
-	mc.tm.Providers = []*IPThreatProvider{
+	tm.Providers = newThreatProviders(tm, cfg)
+	for _, p := range tm.Providers {
+		p.SetAtomic.Store(p.Set)
+	}
+
+	return tm
+}
+
+func newThreatProviders(tm *ThreatManager, cfg CollectorConfig) []*IPThreatProvider {
+	return []*IPThreatProvider{
 		{
 			Name:                          "TorExit",
 			Enabled:                       cfg.TorExit.Enable,
@@ -111,7 +201,7 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 			HostRefreshDurationMetricName: "oie_host_threat_tor_exit_refresh_duration_seconds",
 			HostRefreshErrorsMetricName:   "oie_host_threat_tor_exit_refresh_errors_total",
 			HostEntriesMetricName:         "oie_host_threat_tor_exit_entries",
-			Fetcher:                       func() (map[IPKey]struct{}, error) { return mc.tm.fetchOnionoo(cfg.TorExit.URL) },
+			Fetcher:                       func() (map[IPKey]struct{}, error) { return tm.fetchOnionoo(cfg.TorExit.URL) },
 		},
 		{
 			Name:                          "TorRelay",
@@ -130,7 +220,7 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 			HostRefreshDurationMetricName: "oie_host_threat_tor_relay_refresh_duration_seconds",
 			HostRefreshErrorsMetricName:   "oie_host_threat_tor_relay_refresh_errors_total",
 			HostEntriesMetricName:         "oie_host_threat_tor_relay_entries",
-			Fetcher:                       func() (map[IPKey]struct{}, error) { return mc.tm.fetchOnionoo(cfg.TorRelay.URL) },
+			Fetcher:                       func() (map[IPKey]struct{}, error) { return tm.fetchOnionoo(cfg.TorRelay.URL) },
 		},
 		{
 			Name:                          "EmergingThreats",
@@ -149,7 +239,7 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 			HostRefreshDurationMetricName: "oie_host_threat_emergingthreats_refresh_duration_seconds",
 			HostRefreshErrorsMetricName:   "oie_host_threat_emergingthreats_refresh_errors_total",
 			HostEntriesMetricName:         "oie_host_threat_emergingthreats_entries",
-			Fetcher:                       func() (map[IPKey]struct{}, error) { return mc.tm.fetchURLLines(cfg.Emerging.URL) },
+			Fetcher:                       func() (map[IPKey]struct{}, error) { return tm.fetchURLLines(cfg.Emerging.URL) },
 		},
 		{
 			Name:                          "CustomList",
@@ -168,15 +258,13 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 			HostRefreshDurationMetricName: "oie_host_threat_customlist_refresh_duration_seconds",
 			HostRefreshErrorsMetricName:   "oie_host_threat_customlist_refresh_errors_total",
 			HostEntriesMetricName:         "oie_host_threat_customlist_entries",
-			Fetcher:                       func() (map[IPKey]struct{}, error) { return mc.tm.fetchFileLines(cfg.Custom.Path) },
+			Fetcher:                       func() (map[IPKey]struct{}, error) { return tm.fetchFileLines(cfg.Custom.Path) },
 		},
 	}
+}
 
-	for _, p := range mc.tm.Providers {
-		p.SetAtomic.Store(p.Set)
-	}
-
-	mc.cm = &ConntrackManager{
+func newConntrackManager(cfg CollectorConfig) *ConntrackManager {
+	cm := &ConntrackManager{
 		outboundBehaviorEnabled:     cfg.OutboundBehaviorEnable,
 		inboundBehaviorEnabled:      cfg.InboundBehaviorEnable,
 		behaviorThresholds:          cfg.BehaviorThresholds,
@@ -193,49 +281,60 @@ func NewMetricsCollector(cfg CollectorConfig) (*MetricsCollector, error) {
 		conntrackIPv6Enable:         cfg.ConntrackIPv6Enable,
 		ovnMapper:                   NewOVNMapper(),
 	}
-	if mc.cm.behaviorInboundPortNames == nil {
-		mc.cm.behaviorInboundPortNames = builtinBehaviorInboundMonitoredPorts()
+	if cm.behaviorInboundPortNames == nil {
+		cm.behaviorInboundPortNames = builtinBehaviorInboundMonitoredPorts()
 	}
-	if mc.cm.behaviorOutboundPortNames == nil {
-		mc.cm.behaviorOutboundPortNames = builtinBehaviorOutboundMonitoredPorts()
+	if cm.behaviorOutboundPortNames == nil {
+		cm.behaviorOutboundPortNames = builtinBehaviorOutboundMonitoredPorts()
 	}
+	initializeConntrackState(cm)
 
+	return cm
+}
+
+func initializeConntrackState(cm *ConntrackManager) {
 	for i := 0; i < shardCount; i++ {
-		mc.cm.outboundPrev[i] = make(map[BehaviorKey]outboundPrev)
-		mc.cm.outboundPrevDstPorts[i] = make(map[BehaviorKey]outboundPrevDstPorts)
-		mc.cm.outboundPrevLastSeen[i] = make(map[BehaviorKey]int64)
-		mc.cm.inboundPrev[i] = make(map[BehaviorKey]outboundPrev)
-		mc.cm.inboundPrevDstPorts[i] = make(map[BehaviorKey]outboundPrevDstPorts)
-		mc.cm.inboundPrevLastSeen[i] = make(map[BehaviorKey]int64)
-		mc.cm.behaviorEWMA[i] = make(map[behaviorIdentityKey]*behaviorEWMAState)
+		cm.outboundPrev[i] = make(map[BehaviorKey]outboundPrev)
+		cm.outboundPrevDstPorts[i] = make(map[BehaviorKey]outboundPrevDstPorts)
+		cm.outboundPrevLastSeen[i] = make(map[BehaviorKey]int64)
+		cm.inboundPrev[i] = make(map[BehaviorKey]outboundPrev)
+		cm.inboundPrevDstPorts[i] = make(map[BehaviorKey]outboundPrevDstPorts)
+		cm.inboundPrevLastSeen[i] = make(map[BehaviorKey]int64)
+		cm.behaviorEWMA[i] = make(map[behaviorIdentityKey]*behaviorEWMAState)
+		cm.behaviorLastSeverity[i] = make(map[behaviorIdentityKey]float64)
 	}
 
-	mc.cm.behaviorPersist = make(map[behaviorAlertKey]*behaviorPersistState)
-	mc.cm.behaviorEmit = make(map[behaviorEmitKey]*behaviorEmitState)
+	cm.behaviorPersist = make(map[behaviorAlertKey]*behaviorPersistState)
+	cm.behaviorEmit = make(map[behaviorEmitKey]*behaviorEmitState)
+	cm.miningAlerts = make(map[behaviorIdentityKey]*miningAlertState)
+	cm.behaviorLifecycleFreeze = make(map[string]*behaviorLifecycleFreezeState)
+}
 
-	mc.cm.LogThreat = mc.tm.logThreatEvent
-
+func initializeCollectorMetricDescriptors(mc *MetricsCollector) {
 	initHostMetrics(mc)
 	initInstanceMetrics(mc.im)
 	initInstanceSeverityMetrics(mc)
 	initThreatMetrics(mc.tm)
 	initConntrackMetrics(mc.cm)
+}
 
-	for _, p := range mc.tm.Providers {
+func startThreatRefreshers(tm *ThreatManager) {
+	for _, p := range tm.Providers {
 		if p.Enabled {
 			provider := p
-			go mc.tm.runProviderRefresher(provider)
+			go tm.runProviderRefresher(provider)
 		}
 	}
 
-	if mc.tm.spamEnabled {
-		go mc.tm.startSpamhausRefresher()
+	if tm.spamEnabled {
+		go tm.startSpamhausRefresher()
 	}
-
-	return mc, nil
 }
 
 func (mc *MetricsCollector) getLibvirtConn() (*libvirt.Libvirt, error) {
+	if err := mc.libvirtSafety.available(time.Now()); err != nil {
+		return nil, err
+	}
 	mc.libvirtMu.Lock()
 	defer mc.libvirtMu.Unlock()
 
@@ -250,20 +349,47 @@ func (mc *MetricsCollector) getLibvirtConn() (*libvirt.Libvirt, error) {
 	dialer := &LocalDialer{SocketPath: sockPath}
 	l := libvirt.NewWithDialer(dialer)
 
-	if err := l.Connect(); err != nil {
-		l.Disconnect() // Ensure clean state
-		return nil, fmt.Errorf("failed to connect to libvirt rpc: %v", err)
+	connectResult := make(chan error, 1)
+	go func() { connectResult <- l.Connect() }()
+	timeout := mc.effectiveLibvirtRPCTimeout()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	var connectErr error
+	select {
+	case connectErr = <-connectResult:
+	case <-timer.C:
+		mc.libvirtSafety.pause(time.Now())
+		_ = dialer.Close()
+		return nil, fmt.Errorf("timed out connecting to libvirt rpc after %s", timeout)
+	}
+	if connectErr != nil {
+		_ = dialer.Close()
+		return nil, fmt.Errorf("failed to connect to libvirt rpc: %v", connectErr)
 	}
 
 	mc.libvirtConn = l
+	mc.libvirtDialer = dialer
 	return mc.libvirtConn, nil
 }
 
+func (mc *MetricsCollector) effectiveLibvirtRPCTimeout() time.Duration {
+	if mc != nil && mc.libvirtRPCTimeout > 0 {
+		return mc.libvirtRPCTimeout
+	}
+	return defaultLibvirtRPCTimeout
+}
+
 func libvirtSocketPathFromURI(uri string) (string, error) {
-	defaultSock := "/var/run/libvirt/libvirt-sock"
-	uri = strings.TrimSpace(uri)
-	if uri == "" {
-		return defaultSock, nil
+	const defaultSock = "/var/run/libvirt/libvirt-sock"
+	invalid := func() (string, error) {
+		return "", fmt.Errorf(
+			"unsupported libvirt.uri for go-libvirt dialer: %s (use qemu:///system, an absolute socket path, or a local qemu+unix URI)",
+			uri,
+		)
+	}
+
+	if uri == "" || uri != strings.TrimSpace(uri) || strings.IndexByte(uri, 0) >= 0 {
+		return invalid()
 	}
 	if strings.HasPrefix(uri, "/") {
 		return uri, nil
@@ -273,21 +399,34 @@ func libvirtSocketPathFromURI(uri string) (string, error) {
 	}
 
 	u, err := url.Parse(uri)
-	if err != nil {
-		return "", fmt.Errorf("unsupported libvirt.uri for go-libvirt dialer: %s (use qemu:///system or a unix socket URI with ?socket=/path)", uri)
+	if err != nil || u.User != nil || u.Host != "" || u.Fragment != "" || u.Opaque != "" {
+		return invalid()
+	}
+	if u.Scheme != "qemu+unix" && u.Scheme != "unix" {
+		return invalid()
 	}
 
-	if sock := u.Query().Get("socket"); sock != "" {
-		return sock, nil
+	query, queryErr := url.ParseQuery(u.RawQuery)
+	if queryErr != nil {
+		return invalid()
 	}
-
-	if strings.Contains(u.Scheme, "unix") && u.Path != "" {
-		return u.Path, nil
+	if len(query) != 0 {
+		values, ok := query["socket"]
+		if !ok || len(query) != 1 || len(values) != 1 || values[0] == "" ||
+			!strings.HasPrefix(values[0], "/") || strings.IndexByte(values[0], 0) >= 0 ||
+			(u.Path != "" && u.Path != "/system") {
+			return invalid()
+		}
+		return values[0], nil
 	}
-
-	if strings.Contains(u.Scheme, "unix") {
+	if u.RawQuery != "" {
+		return invalid()
+	}
+	if u.Path == "/system" {
 		return defaultSock, nil
 	}
-
-	return "", fmt.Errorf("unsupported libvirt.uri for go-libvirt dialer: %s (use qemu:///system or a unix socket URI with ?socket=/path)", uri)
+	if u.Path == "" || !strings.HasPrefix(u.Path, "/") || strings.IndexByte(u.Path, 0) >= 0 {
+		return invalid()
+	}
+	return u.Path, nil
 }

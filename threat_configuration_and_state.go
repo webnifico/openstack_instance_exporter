@@ -10,8 +10,13 @@ import (
 )
 
 type IntelHistory struct {
-	EWMA        float64
-	Initialized bool
+	EWMA             float64
+	LastInstant      float64
+	LastUpdateUnix   int64
+	SourceSet        string
+	SourcesAvailable bool
+	SourceSetKnown   bool
+	Initialized      bool
 }
 type HostThreatsConfig struct {
 	Enable          bool
@@ -115,11 +120,13 @@ type ThreatManager struct {
 	threatLogMinInterval time.Duration
 	threatLastHitMu      sync.Mutex
 	threatLastHit        map[string]time.Time
+	threatLogNowOverride func() time.Time
 
-	hostThreatsEnabled   bool
-	hostThreatHitsMu     sync.RWMutex
-	hostThreatHits       map[string]map[string]string
-	hostIPsAllowPrivate  bool
-	hostInterfaces       map[string]struct{}
-	hostThreatListedDesc *prometheus.Desc
+	hostThreatsEnabled      bool
+	hostThreatHitsMu        sync.RWMutex
+	hostThreatHits          map[string]map[string]string
+	hostIPsAllowPrivate     bool
+	hostInterfaces          map[string]struct{}
+	hostThreatListedDesc    *prometheus.Desc
+	hostThreatFeedFreshDesc *prometheus.Desc
 }

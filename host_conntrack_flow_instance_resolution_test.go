@@ -71,3 +71,26 @@ func TestResolveFlowVMIndicesReturnsNoMatch(t *testing.T) {
 		t.Fatalf("vmSrc=%v vmDst=%v want false,false", vmSrc, vmDst)
 	}
 }
+
+func TestResolveFlowVMIndicesResolvesBothVMEndpoints(t *testing.T) {
+	src := IPStrToKey("10.0.0.10")
+	dst := IPStrToKey("10.0.0.20")
+	vmIndex := map[VMIPIdentity]uint32{
+		{InstanceUUID: "vm-src", IP: src}: 0,
+		{InstanceUUID: "vm-dst", IP: dst}: 1,
+	}
+	ipToSingle := map[IPKey]string{src: "vm-src", dst: "vm-dst"}
+	zoneInfo := func(zone uint16) (string, map[IPKey]struct{}) {
+		return "vm-src", map[IPKey]struct{}{src: {}}
+	}
+
+	idxSrc, idxDst, vmSrc, vmDst, instSrc, instDst := resolveFlowVMIndices(
+		ConntrackFlowLite{SrcIP: src, DstIP: dst, Zone: 9},
+		vmIndex,
+		ipToSingle,
+		zoneInfo,
+	)
+	if !vmSrc || !vmDst || idxSrc != 0 || idxDst != 1 || instSrc != "vm-src" || instDst != "vm-dst" {
+		t.Fatalf("both endpoints were not resolved: src=(%d,%v,%q) dst=(%d,%v,%q)", idxSrc, vmSrc, instSrc, idxDst, vmDst, instDst)
+	}
+}
