@@ -2,36 +2,143 @@ package main
 
 import (
 	"bytes"
+	"container/heap"
 )
+
+const maxBehaviorRemotePortPairs = 65536
 
 func newBehaviorStats(trackAcct bool) *behaviorStats {
 	return &behaviorStats{
-		trackAcct:          trackAcct,
-		remotes:            make(map[IPKey]struct{}),
-		remoteZones:        make(map[IPKey]uint16),
-		remoteIsPrivate:    make(map[IPKey]bool),
-		perRemote:          make(map[IPKey]int),
-		perRemoteUnreplied: make(map[IPKey]int),
-		dstPorts:           make(map[uint16]struct{}),
-		perDstPort:         make(map[uint16]int),
+		trackAcct:               trackAcct,
+		remotes:                 make(map[IPKey]struct{}),
+		remoteZones:             make(map[IPKey]uint16),
+		remoteIsPrivate:         make(map[IPKey]bool),
+		perRemote:               make(map[IPKey]int),
+		perRemoteUnreplied:      make(map[IPKey]int),
+		dstPorts:                make(map[uint16]struct{}),
+		perDstPort:              make(map[uint16]int),
+		perDstPortReplied:       make(map[uint16]int),
+		perRemoteDstPort:        make(map[behaviorRemotePortKey]int),
+		smtpRemotes:             make(map[IPKey]struct{}),
+		smtpPerRemote:           make(map[IPKey]int),
+		smtpPerDstPort:          make(map[uint16]int),
+		adminPerRemote:          make(map[IPKey]int),
+		adminPerRemoteUnreplied: make(map[IPKey]int),
+		udpRemotes:              make(map[IPKey]struct{}),
+		udpPerRemote:            make(map[IPKey]int),
+		udpPerDstPort:           make(map[uint16]int),
+		tcpRemotes:              make(map[IPKey]struct{}),
+		tcpPerRemote:            make(map[IPKey]int),
+		tcpPerDstPort:           make(map[uint16]int),
+		bgpPerRemote:            make(map[IPKey]int),
+		genevePerRemote:         make(map[IPKey]int),
+		miningRemotes:           make(map[IPKey]*miningRemoteFlowStats),
 	}
 }
-func (b *behaviorStats) updateDetailed(remote IPKey, port uint16, proto uint8, status uint32, zone uint16, bytes uint64, packets uint64) {
+func (b *behaviorStats) updateDetailedWithCoverage(remote IPKey, port uint16, proto uint8, status uint32, zone uint16, bytes uint64, packets uint64, bytesPresent, packetsPresent bool) {
 	b.flows++
-	if b.trackAcct {
-		b.bytes += bytes
-		b.packets += packets
+	if bytesPresent {
+		b.bytes = saturatingAddUint64(b.bytes, bytes)
+		b.byteCoveredFlows++
+	}
+	if packetsPresent {
+		b.packets = saturatingAddUint64(b.packets, packets)
+		b.packetCoveredFlows++
 	}
 
 	unreplied := (status&IPS_SEEN_REPLY) == 0 && (status&IPS_ASSURED) == 0
 	if unreplied {
 		b.unreplied++
 	}
+	// The bounded remote map uses space-saving counters after saturation.
+	// Metadata has a known endpoint, so its classification must retain exact
+	// flow and reply counts rather than inherit an evicted remote's estimate.
+	if remote == metadataServiceIPKey() {
+		b.metadataFlows++
+		if unreplied {
+			b.metadataUnreplied++
+		}
+		if port != 0 {
+			if b.metadataPerDstPort == nil {
+				b.metadataPerDstPort = make(map[uint16]int)
+			}
+			b.metadataPerDstPort[port]++
+		}
+	}
+	if proto == 6 && isSMTPPort(port) {
+		b.smtpFlows++
+		addBehaviorProtocolRemote(b.smtpRemotes, remote)
+		addBehaviorProtocolRemoteCount(b.smtpPerRemote, remote)
+		b.smtpPerDstPort[port]++
+		if unreplied {
+			b.smtpUnreplied++
+		}
+	}
+	if proto == 6 {
+		b.tcpCount++
+		if _, exists := b.tcpRemotes[remote]; exists {
+			b.tcpPerRemote[remote]++
+		} else if len(b.tcpRemotes) < maxRemoteMapSize {
+			b.tcpRemotes[remote] = struct{}{}
+			b.tcpPerRemote[remote] = 1
+		} else {
+			b.tcpRemoteMapCapped = true
+		}
+		if port != 0 {
+			b.tcpPerDstPort[port]++
+		}
+		if unreplied {
+			b.tcpUnreplied++
+		}
+	}
+	if proto == 6 && port == 179 {
+		b.bgpFlows++
+		addBehaviorProtocolRemoteCount(b.bgpPerRemote, remote)
+	}
+	if proto == 17 {
+		if port == 6081 {
+			b.geneveFlows++
+			addBehaviorProtocolRemoteCount(b.genevePerRemote, remote)
+		}
+		if _, exists := b.udpRemotes[remote]; exists {
+			b.udpPerRemote[remote]++
+		} else if len(b.udpRemotes) < maxRemoteMapSize {
+			b.udpRemotes[remote] = struct{}{}
+			b.udpPerRemote[remote] = 1
+		} else {
+			b.udpRemoteMapCapped = true
+		}
+		if port != 0 {
+			b.udpPerDstPort[port]++
+		}
+		if unreplied {
+			b.udpUnreplied++
+		}
+		if port == 53 {
+			b.dnsUDPFlows++
+			if unreplied {
+				b.dnsUDPUnreplied++
+			}
+			if bytesPresent {
+				b.dnsBytes = saturatingAddUint64(b.dnsBytes, bytes)
+				b.dnsByteCoveredFlows++
+			}
+		}
+	}
 
 	b.updateRemoteDetailed(remote, zone, unreplied)
+	if proto == 6 && isAdminExposurePort(port) {
+		if _, tracked := b.remotes[remote]; tracked {
+			b.adminPerRemote[remote]++
+			if unreplied {
+				b.adminPerRemoteUnreplied[remote]++
+			}
+		}
+	}
 
 	if port != 0 {
-		b.updatePortDetailed(port)
+		b.updatePortDetailed(port, !unreplied)
+		b.updateRemotePortDetailed(remote, port)
 	}
 
 	if isMulticastKey(remote) {
@@ -43,17 +150,73 @@ func (b *behaviorStats) updateDetailed(remote IPKey, port uint16, proto uint8, s
 	if proto == 17 {
 		b.udpCount++
 	}
+}
 
-	if !b.sampleRemoteSet {
-		b.sampleRemote = remote
-		b.sampleRemoteSet = true
+func (b *behaviorStats) updateRemotePortDetailed(remote IPKey, port uint16) {
+	if b.remoteMapCapped {
+		b.remotePortMapCapped = true
+		return
 	}
+	key := behaviorRemotePortKey{Remote: remote, Port: port}
+	if count, exists := b.perRemoteDstPort[key]; exists {
+		b.perRemoteDstPort[key] = count + 1
+		return
+	}
+	if len(b.perRemoteDstPort) >= maxBehaviorRemotePortPairs {
+		b.remotePortMapCapped = true
+		return
+	}
+	b.perRemoteDstPort[key] = 1
+}
+
+func isSMTPPort(port uint16) bool {
+	return port == 25 || port == 465 || port == 587
+}
+
+func addBehaviorProtocolRemote(remotes map[IPKey]struct{}, remote IPKey) {
+	if len(remotes) < maxRemoteMapSize {
+		remotes[remote] = struct{}{}
+	}
+}
+
+func addBehaviorProtocolRemoteCount(remotes map[IPKey]int, remote IPKey) {
+	if count, exists := remotes[remote]; exists {
+		remotes[remote] = count + 1
+		return
+	}
+	if len(remotes) < maxRemoteMapSize {
+		remotes[remote] = 1
+	}
+}
+
+func (b *behaviorStats) accountingAverages() (bytesPerFlow, packetsPerFlow float64, bytesOK, packetsOK bool) {
+	if b.byteCoveredFlows > 0 {
+		bytesPerFlow = float64(b.bytes) / float64(b.byteCoveredFlows)
+		bytesOK = true
+	}
+	if b.packetCoveredFlows > 0 {
+		packetsPerFlow = float64(b.packets) / float64(b.packetCoveredFlows)
+		packetsOK = true
+	}
+	return
 }
 
 func (b *behaviorStats) updateRemoteDetailed(remote IPKey, zone uint16, unreplied bool) {
 	if _, exists := b.remotes[remote]; exists {
 		b.remoteZones[remote] = zone
-		b.perRemote[remote]++
+		count := b.perRemote[remote] + 1
+		b.perRemote[remote] = count
+		if b.remoteCountEntries != nil {
+			entry, ok := b.remoteCountEntries[remote]
+			if !ok {
+				b.rebuildRemoteCountHeap()
+				entry = b.remoteCountEntries[remote]
+			}
+			if entry != nil {
+				entry.count = count
+				heap.Fix(&b.remoteCountHeap, entry.index)
+			}
+		}
 		if unreplied {
 			b.perRemoteUnreplied[remote]++
 		}
@@ -65,6 +228,11 @@ func (b *behaviorStats) updateRemoteDetailed(remote IPKey, zone uint16, unreplie
 		b.remoteZones[remote] = zone
 		b.remoteIsPrivate[remote] = isPrivateOrLocalKey(remote)
 		b.perRemote[remote] = 1
+		if b.remoteCountEntries != nil {
+			entry := &behaviorRemoteCountHeapEntry{remote: remote, count: 1}
+			b.remoteCountEntries[remote] = entry
+			heap.Push(&b.remoteCountHeap, entry)
+		}
 		if unreplied {
 			b.perRemoteUnreplied[remote] = 1
 		}
@@ -72,44 +240,99 @@ func (b *behaviorStats) updateRemoteDetailed(remote IPKey, zone uint16, unreplie
 	}
 
 	b.remoteMapCapped = true
-	victim, victimCount, ok := minRemoteCountEntry(b.perRemote)
-	if !ok {
+	if b.remoteCountEntries == nil {
+		b.rebuildRemoteCountHeap()
+	}
+	if len(b.remoteCountHeap) == 0 {
 		return
 	}
+	victimEntry := heap.Pop(&b.remoteCountHeap).(*behaviorRemoteCountHeapEntry)
+	victim := victimEntry.remote
+	victimCount := victimEntry.count
+	delete(b.remoteCountEntries, victim)
 	delete(b.remotes, victim)
 	delete(b.remoteZones, victim)
 	delete(b.remoteIsPrivate, victim)
 	delete(b.perRemote, victim)
 	delete(b.perRemoteUnreplied, victim)
+	delete(b.adminPerRemote, victim)
+	delete(b.adminPerRemoteUnreplied, victim)
 
 	b.remotes[remote] = struct{}{}
 	b.remoteZones[remote] = zone
 	b.remoteIsPrivate[remote] = isPrivateOrLocalKey(remote)
-	b.perRemote[remote] = victimCount + 1
+	victimEntry.remote = remote
+	victimEntry.count = victimCount + 1
+	b.perRemote[remote] = victimEntry.count
+	b.remoteCountEntries[remote] = victimEntry
+	heap.Push(&b.remoteCountHeap, victimEntry)
 	if unreplied {
 		b.perRemoteUnreplied[remote] = 1
 	}
 }
 
-func (b *behaviorStats) updatePortDetailed(port uint16) {
+type behaviorRemoteCountHeapEntry struct {
+	remote IPKey
+	count  int
+	index  int
+}
+
+type behaviorRemoteCountHeap []*behaviorRemoteCountHeapEntry
+
+func (h behaviorRemoteCountHeap) Len() int { return len(h) }
+
+func (h behaviorRemoteCountHeap) Less(i, j int) bool {
+	if h[i].count != h[j].count {
+		return h[i].count < h[j].count
+	}
+	return bytes.Compare(h[i].remote[:], h[j].remote[:]) < 0
+}
+
+func (h behaviorRemoteCountHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+	h[i].index = i
+	h[j].index = j
+}
+
+func (h *behaviorRemoteCountHeap) Push(value any) {
+	entry := value.(*behaviorRemoteCountHeapEntry)
+	entry.index = len(*h)
+	*h = append(*h, entry)
+}
+
+func (h *behaviorRemoteCountHeap) Pop() any {
+	old := *h
+	last := len(old) - 1
+	entry := old[last]
+	old[last] = nil
+	entry.index = -1
+	*h = old[:last]
+	return entry
+}
+
+func (b *behaviorStats) rebuildRemoteCountHeap() {
+	b.remoteCountHeap = make(behaviorRemoteCountHeap, 0, len(b.perRemote))
+	b.remoteCountEntries = make(map[IPKey]*behaviorRemoteCountHeapEntry, len(b.perRemote))
+	for remote := range b.remotes {
+		count, ok := b.perRemote[remote]
+		if !ok {
+			continue
+		}
+		entry := &behaviorRemoteCountHeapEntry{remote: remote, count: count, index: len(b.remoteCountHeap)}
+		b.remoteCountHeap = append(b.remoteCountHeap, entry)
+		b.remoteCountEntries[remote] = entry
+	}
+	heap.Init(&b.remoteCountHeap)
+}
+
+func (b *behaviorStats) updatePortDetailed(port uint16, replied bool) {
 	if _, exists := b.dstPorts[port]; !exists {
 		b.dstPorts[port] = struct{}{}
 	}
 	b.perDstPort[port]++
-}
-
-func minRemoteCountEntry(in map[IPKey]int) (IPKey, int, bool) {
-	var victim IPKey
-	victimCount := 0
-	set := false
-	for k, count := range in {
-		if !set || count < victimCount || (count == victimCount && bytes.Compare(k[:], victim[:]) < 0) {
-			victim = k
-			victimCount = count
-			set = true
-		}
+	if replied {
+		b.perDstPortReplied[port]++
 	}
-	return victim, victimCount, set
 }
 
 func cloneIPKeySet(in map[IPKey]struct{}) map[IPKey]struct{} {
@@ -149,25 +372,51 @@ func countNewIPKeys(current, prev map[IPKey]struct{}, ceiling int) (int, bool) {
 	return count, false
 }
 
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
 	return b
 }
-func sumPortCounts(m map[uint16]int, ports ...uint16) int {
-	s := 0
-	for _, p := range ports {
-		s += m[p]
+
+func topBehaviorRemote(perRemote map[IPKey]int) (count int, remote IPKey, set bool) {
+	for candidate, candidateCount := range perRemote {
+		if !set || candidateCount > count || (candidateCount == count && compareIPKey(candidate, remote) < 0) {
+			count = candidateCount
+			remote = candidate
+			set = true
+		}
 	}
-	return s
+	return count, remote, set
 }
+
+func topBehaviorPort(perPort map[uint16]int) (count int, port uint16) {
+	for candidate, candidateCount := range perPort {
+		if candidateCount > count || (candidateCount == count && candidateCount > 0 && (port == 0 || candidate < port)) {
+			count = candidateCount
+			port = candidate
+		}
+	}
+	return count, port
+}
+
+func topBehaviorRemoteForPort(stats *behaviorStats, port uint16) (count int, remote IPKey, set bool) {
+	if stats == nil || port == 0 || stats.remotePortMapCapped {
+		return 0, IPKey{}, false
+	}
+	for key, candidateCount := range stats.perRemoteDstPort {
+		if key.Port != port {
+			continue
+		}
+		if !set || candidateCount > count || (candidateCount == count && compareIPKey(key.Remote, remote) < 0) {
+			count = candidateCount
+			remote = key.Remote
+			set = true
+		}
+	}
+	return
+}
+
 func isAdminExposurePort(p uint16) bool {
 	switch p {
 	case 22, 3389, 5900, 2375, 6443, 10250, 2379, 9200, 27017, 6379, 445, 3306, 5432, 8888:
@@ -198,6 +447,84 @@ func behaviorEvidenceFromFeature(feature BehaviorFeature) (topRemoteShare, topPo
 	return
 }
 
+func smtpBehaviorEvidenceFromFeature(feature BehaviorFeature) (topRemoteShare, topPortShare float64, mode string) {
+	flows := maxInt(1, feature.Flows)
+	topRemoteShare = float64(feature.SMTPTopRemoteFlows) / float64(flows)
+	topPortShare = float64(feature.SMTPTopDstPortFlows) / float64(flows)
+	mode = behaviorEvidenceMode(topRemoteShare, topPortShare)
+	return
+}
+
+func udpBehaviorEvidenceFromFeature(feature BehaviorFeature) (topRemoteShare, topPortShare float64, mode string) {
+	flows := maxInt(1, feature.UDPCount)
+	topPortShare = float64(feature.UDPTopDstPortFlows) / float64(flows)
+	if feature.UDPRemoteEvidenceApproximate {
+		return topRemoteShare, topPortShare, ""
+	}
+	topRemoteShare = float64(feature.UDPTopRemoteFlows) / float64(flows)
+	mode = behaviorEvidenceMode(topRemoteShare, topPortShare)
+	return
+}
+
+func tcpBehaviorEvidenceFromFeature(feature BehaviorFeature) (topRemoteShare, topPortShare float64, mode string) {
+	flows := maxInt(1, feature.TCPCount)
+	if !feature.TCPRemoteEvidenceApproximate {
+		topRemoteShare = float64(feature.TCPTopRemoteFlows) / float64(flows)
+	}
+	topPortShare = float64(feature.TCPTopDstPortFlows) / float64(flows)
+	mode = behaviorEvidenceMode(topRemoteShare, topPortShare)
+	return
+}
+
+func restrictedProtocolBehaviorEvidenceFromFeature(feature BehaviorFeature, signal string) (remote IPKey, remoteFlows int, port uint16, portFlows int) {
+	switch signal {
+	case "bgp_peering_attempt":
+		return feature.BGPTopRemote, feature.BGPTopRemoteFlows, 179, feature.BGPFlows
+	case "geneve_underlay_attempt":
+		return feature.GeneveTopRemote, feature.GeneveTopRemoteFlows, 6081, feature.GeneveFlows
+	default:
+		return IPKey{}, 0, 0, 0
+	}
+}
+
+func isDarkspaceBehaviorSignal(signal string) bool {
+	switch signal {
+	case "darkspace_port_detected", "inbound_darkspace_port_detected", "darkspace_plus_scan", "darkspace_plus_physics":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMetadataBehaviorSignal(signal string) bool {
+	return signal == "metadata_service_hammering" || signal == "metadata_probe_suspected"
+}
+
+func populateCategoryBehaviorEvidence(ev *behaviorSignalEvidence, cm *ConntrackManager, feature BehaviorFeature, remote IPKey, remoteFlows int, port uint16, portFlows int) {
+	ev.TopDstPort = port
+	ev.TopDstPortName = cm.behaviorPortName(feature.Direction, port)
+	if remote != (IPKey{}) {
+		ev.TopRemoteIP = IPKeyToString(remote)
+	}
+	flows := maxInt(1, feature.Flows)
+	ev.TopRemoteShare = roundToFiveDecimals(float64(remoteFlows) / float64(flows))
+	ev.TopPortShare = roundToFiveDecimals(float64(portFlows) / float64(flows))
+	ev.EvidenceMode = behaviorEvidenceMode(ev.TopRemoteShare, ev.TopPortShare)
+}
+
+func isUDPBehaviorSignal(signal string) bool {
+	switch signal {
+	case "outbound_udp_fanout_suspected", "inbound_udp_flood_suspected", "inbound_udp_targeted_flood_suspected":
+		return true
+	default:
+		return false
+	}
+}
+
+func isTCPBehaviorSignal(signal string) bool {
+	return signal == "outbound_single_remote_flood" || signal == "inbound_single_remote_flood"
+}
+
 func buildBehaviorEvidence(feature BehaviorFeature) BehaviorEvidence {
 	topRemoteShare, topPortShare, mode := behaviorEvidenceFromFeature(feature)
 	return BehaviorEvidence{
@@ -207,8 +534,72 @@ func buildBehaviorEvidence(feature BehaviorFeature) BehaviorEvidence {
 	}
 }
 
-func (cm *ConntrackManager) buildBehaviorAlertEvidence(feature BehaviorFeature, topRemoteKey IPKey, topRemoteSet bool) behaviorAlertEvidence {
-	ev := behaviorAlertEvidence{}
+func (cm *ConntrackManager) buildBehaviorSignalEvidence(feature BehaviorFeature, topRemoteKey IPKey, topRemoteSet bool, signal string) behaviorSignalEvidence {
+	ev := behaviorSignalEvidence{}
+	if isMetadataBehaviorSignal(signal) && feature.MetadataHits > 0 {
+		populateCategoryBehaviorEvidence(&ev, cm, feature, metadataServiceIPKey(), feature.MetadataHits, feature.MetadataTopDstPort, feature.MetadataTopDstPortFlows)
+		return ev
+	}
+	if signal == "outbound_stratum_mining_suspected" && feature.Mining.Valid {
+		ev.TopDstPort = feature.Mining.TopPort
+		ev.TopDstPortName = builtinMiningPortName(feature.Mining.TopPort)
+		if feature.Mining.TopRemote != (IPKey{}) {
+			ev.TopRemoteIP = IPKeyToString(feature.Mining.TopRemote)
+		}
+		if feature.Mining.Flows > 0 {
+			ev.TopRemoteShare = float64(feature.Mining.TopRemoteFlows) / float64(feature.Mining.Flows)
+			ev.TopPortShare = float64(feature.Mining.TopPortFlows) / float64(feature.Mining.Flows)
+		}
+		ev.TopRemoteShare = roundToFiveDecimals(ev.TopRemoteShare)
+		ev.TopPortShare = roundToFiveDecimals(ev.TopPortShare)
+		ev.EvidenceMode = behaviorEvidenceMode(ev.TopRemoteShare, ev.TopPortShare)
+		return ev
+	}
+	if signal == "smtp_spam_behavior_suspected" && feature.SMTPFlows > 0 {
+		ev.TopDstPort = feature.SMTPTopDstPort
+		ev.TopDstPortName = cm.behaviorPortName(feature.Direction, feature.SMTPTopDstPort)
+		if feature.SMTPTopRemote != (IPKey{}) {
+			ev.TopRemoteIP = IPKeyToString(feature.SMTPTopRemote)
+		}
+		ev.TopRemoteShare, ev.TopPortShare, ev.EvidenceMode = smtpBehaviorEvidenceFromFeature(feature)
+		ev.TopRemoteShare = roundToFiveDecimals(ev.TopRemoteShare)
+		ev.TopPortShare = roundToFiveDecimals(ev.TopPortShare)
+		return ev
+	}
+	if isUDPBehaviorSignal(signal) && feature.UDPCount > 0 {
+		ev.TopDstPort = feature.UDPTopDstPort
+		ev.TopDstPortName = cm.behaviorPortName(feature.Direction, feature.UDPTopDstPort)
+		if feature.UDPTopRemote != (IPKey{}) && !feature.UDPRemoteEvidenceApproximate {
+			ev.TopRemoteIP = IPKeyToString(feature.UDPTopRemote)
+		}
+		ev.TopRemoteShare, ev.TopPortShare, ev.EvidenceMode = udpBehaviorEvidenceFromFeature(feature)
+		ev.TopRemoteShare = roundToFiveDecimals(ev.TopRemoteShare)
+		ev.TopPortShare = roundToFiveDecimals(ev.TopPortShare)
+		return ev
+	}
+	if isTCPBehaviorSignal(signal) && feature.TCPCount > 0 {
+		ev.TopDstPort = feature.TCPTopDstPort
+		ev.TopDstPortName = cm.behaviorPortName(feature.Direction, feature.TCPTopDstPort)
+		if feature.TCPTopRemote != (IPKey{}) && !feature.TCPRemoteEvidenceApproximate {
+			ev.TopRemoteIP = IPKeyToString(feature.TCPTopRemote)
+		}
+		ev.TopRemoteShare, ev.TopPortShare, ev.EvidenceMode = tcpBehaviorEvidenceFromFeature(feature)
+		ev.TopRemoteShare = roundToFiveDecimals(ev.TopRemoteShare)
+		ev.TopPortShare = roundToFiveDecimals(ev.TopPortShare)
+		return ev
+	}
+	if remote, remoteFlows, port, portFlows := restrictedProtocolBehaviorEvidenceFromFeature(feature, signal); port != 0 {
+		populateCategoryBehaviorEvidence(&ev, cm, feature, remote, remoteFlows, port, portFlows)
+		return ev
+	}
+	if signal == "inbound_admin_port_exposure_suspected" && feature.AdminPortFlows > 0 {
+		populateCategoryBehaviorEvidence(&ev, cm, feature, feature.AdminTopRemote, feature.AdminTopRemoteFlows, feature.AdminTopDstPort, feature.AdminTopDstPortFlows)
+		return ev
+	}
+	if isDarkspaceBehaviorSignal(signal) && feature.UnmonitoredPortFlows > 0 {
+		populateCategoryBehaviorEvidence(&ev, cm, feature, feature.TopUnmonitoredRemote, feature.TopUnmonitoredRemoteFlows, feature.TopUnmonitoredDstPort, feature.MaxSingleUnmonitoredDstPort)
+		return ev
+	}
 	ev.TopDstPort = feature.TopDstPort
 	ev.TopDstPortName = cm.behaviorPortName(feature.Direction, feature.TopDstPort)
 	if topRemoteSet && !feature.RemoteEvidenceApproximate {
@@ -225,38 +616,62 @@ func (cm *ConntrackManager) buildBehaviorAlertEvidence(feature BehaviorFeature, 
 	ev.EvidenceMode = behaviorEvidenceMode(ev.TopRemoteShare, ev.TopPortShare)
 	return ev
 }
-func behaviorSelectAlertIPs(direction, addr string, stats *behaviorStats, kind string, hostIPs map[string]struct{}) (srcIP, dstIP string) {
+func behaviorSelectSignalIPs(direction, addr string, stats *behaviorStats, signal string, hostIPs map[string]struct{}) (srcIP, dstIP string) {
+	selectedRemote := ""
+	if _, remote, ok := topBehaviorRemote(stats.perRemote); ok {
+		selectedRemote = IPKeyToString(remote)
+	}
+
 	if direction == "outbound" {
 		srcIP = addr
-		if stats.sampleRemoteSet {
-			dstIP = IPKeyToString(stats.sampleRemote)
-		}
+		dstIP = selectedRemote
 
-		if kind == "lateral_probe_suspected" {
-			for rk := range stats.remotes {
+		if isMetadataBehaviorSignal(signal) {
+			dstIP = IPKeyToString(metadataServiceIPKey())
+		} else if signal == "lateral_probe_suspected" {
+			if remote, ok := highestFlowBehaviorRemoteMatching(stats, func(rk IPKey) bool {
 				r := IPKeyToString(rk)
-				if isPrivateOrLocalStr(r) && !isInfrastructureIP(r, hostIPs) {
-					dstIP = r
-					break
-				}
+				return IPKeyToAddr(rk).IsPrivate() && !isInfrastructureIP(r, hostIPs)
+			}); ok {
+				dstIP = IPKeyToString(remote)
 			}
-		} else if kind == "restricted_network_probe" {
-			for rk := range stats.remotes {
-				r := IPKeyToString(rk)
-				if isInfrastructureIP(r, hostIPs) {
-					dstIP = r
-					break
+		} else if signal == "restricted_network_probe" {
+			if remote, ok := highestFlowBehaviorRemoteMatching(stats, func(rk IPKey) bool {
+				if rk == metadataServiceIPKey() {
+					return false
 				}
+				return isInfrastructureIP(IPKeyToString(rk), hostIPs) || isLocalOnlyKey(rk)
+			}); ok {
+				dstIP = IPKeyToString(remote)
 			}
 		}
 		return srcIP, dstIP
 	}
 
-	if stats.sampleRemoteSet {
-		srcIP = IPKeyToString(stats.sampleRemote)
-	}
+	srcIP = selectedRemote
 	dstIP = addr
 	return srcIP, dstIP
+}
+
+func highestFlowBehaviorRemoteMatching(stats *behaviorStats, matches func(IPKey) bool) (IPKey, bool) {
+	if stats == nil {
+		return IPKey{}, false
+	}
+	var selected IPKey
+	selectedCount := 0
+	set := false
+	for remote := range stats.remotes {
+		if !matches(remote) {
+			continue
+		}
+		count := stats.perRemote[remote]
+		if !set || count > selectedCount || (count == selectedCount && compareIPKey(remote, selected) < 0) {
+			selected = remote
+			selectedCount = count
+			set = true
+		}
+	}
+	return selected, set
 }
 func (cm *ConntrackManager) behaviorPortName(direction string, port uint16) string {
 	if port == 0 {

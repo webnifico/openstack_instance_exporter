@@ -1,0 +1,233 @@
+package main
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+func (cm *ConntrackManager) describeConntrackMetrics(ch chan<- *prometheus.Desc) {
+	descs := []*prometheus.Desc{
+		cm.instanceConntrackIPFlowsDesc, cm.instanceConntrackIPFlowsInboundDesc, cm.instanceConntrackIPFlowsOutboundDesc,
+		cm.instanceOutboundUniqueRemotesDesc, cm.instanceOutboundNewRemotesDesc, cm.instanceOutboundFlowsDesc,
+		cm.instanceOutboundMaxFlowsSingleRemoteDesc, cm.instanceOutboundUniqueDstPortsDesc, cm.instanceOutboundNewDstPortsDesc,
+		cm.instanceOutboundMaxFlowsSingleDstPortDesc,
+		cm.instanceOutboundBytesPerFlowDesc, cm.instanceOutboundPacketsPerFlowDesc,
+		cm.instanceInboundUniqueRemotesDesc, cm.instanceInboundNewRemotesDesc, cm.instanceInboundFlowsDesc,
+		cm.instanceInboundMaxFlowsSingleRemoteDesc, cm.instanceInboundUniqueDstPortsDesc, cm.instanceInboundNewDstPortsDesc,
+		cm.instanceInboundMaxFlowsSingleDstPortDesc,
+		cm.instanceInboundBytesPerFlowDesc, cm.instanceInboundPacketsPerFlowDesc,
+		cm.instanceMiningSuspectedDesc,
+	}
+	for _, d := range descs {
+		ch <- d
+	}
+}
+
+func behaviorPressureOwner(fixedIPs []IP, connAgg *ConntrackAgg, instanceUUID string, outboundEnabled, inboundEnabled bool) behaviorIdentityKey {
+	if connAgg == nil || connAgg.VMIndex == nil || instanceUUID == "" {
+		return behaviorIdentityKey{}
+	}
+
+	var selected behaviorIdentityKey
+	selectedFlows := -1
+	consider := func(ip IPKey, direction string, flows int) {
+		candidate := behaviorIdentityKey{InstanceUUID: instanceUUID, IP: ip, Direction: direction}
+		if flows > selectedFlows ||
+			(flows == selectedFlows && (selected == (behaviorIdentityKey{}) || compareIPKey(candidate.IP, selected.IP) < 0)) ||
+			(flows == selectedFlows && candidate.IP == selected.IP && candidate.Direction < selected.Direction) {
+			selected = candidate
+			selectedFlows = flows
+		}
+	}
+
+	for _, ip := range fixedIPs {
+		addrKey := IPStrToKey(ip.Address)
+		if addrKey == (IPKey{}) {
+			continue
+		}
+		idx, ok := connAgg.VMIndex[VMIPIdentity{InstanceUUID: instanceUUID, IP: addrKey}]
+		if !ok {
+			continue
+		}
+		i := int(idx)
+		if outboundEnabled && i >= 0 && i < len(connAgg.FlowsOut) {
+			consider(addrKey, "outbound", connAgg.FlowsOut[i])
+		}
+		if inboundEnabled && i >= 0 && i < len(connAgg.FlowsIn) {
+			consider(addrKey, "inbound", connAgg.FlowsIn[i])
+		}
+	}
+	return selected
+}
+
+func (cm *ConntrackManager) calculateConntrackMetrics(
+	fixedIPs []IP,
+	connAgg *ConntrackAgg,
+	ipSet map[string]struct{},
+	hostIPs map[string]struct{},
+	hostConntrackMax uint64,
+	conntrackFresh bool,
+	domain, serverName, instanceUUID, projectUUID, projectName, userUUID string,
+	dynamicMetrics *[]prometheus.Metric,
+) int {
+
+	instanceConntrackTotal := 0
+
+	hostIPKeys := make(map[IPKey]struct{}, len(hostIPs))
+	for ipStr := range hostIPs {
+		k := IPStrToKey(ipStr)
+		if k == (IPKey{}) {
+			continue
+		}
+		hostIPKeys[k] = struct{}{}
+	}
+
+	instanceFlowTotal := 0
+	if connAgg != nil && connAgg.InstanceFlowTotals != nil {
+		instanceFlowTotal = connAgg.InstanceFlowTotals[instanceUUID]
+	}
+	observationUnix := int64(0)
+	if connAgg != nil {
+		observationUnix = connAgg.ObservationUnix
+	}
+	if observationUnix <= 0 {
+		// Direct callers may construct an aggregate without the raw reader.
+		// Production complete snapshots always carry one shared observation time.
+		observationUnix = cm.conntrackNow().Unix()
+	}
+
+	ctx := BehaviorContext{
+		HostIPs:           hostIPs,
+		HostIPKeys:        hostIPKeys,
+		HostConntrackMax:  hostConntrackMax,
+		InstanceFlowTotal: instanceFlowTotal,
+		HostPressureOwner: behaviorPressureOwner(fixedIPs, connAgg, instanceUUID, cm.outboundBehaviorEnabled, cm.inboundBehaviorEnabled),
+		ObservationUnix:   observationUnix,
+		FreezeState:       !conntrackFresh || cm.behaviorInstanceStateFrozen(instanceUUID),
+		Rebaseline: conntrackFresh && (cm.behaviorNeedsRecoveryRebaseline() ||
+			cm.behaviorInstanceNeedsRecoveryRebaseline(instanceUUID)),
+	}
+
+	for _, ip := range fixedIPs {
+		addr := ip.Address
+		if addr == "" {
+			continue
+		}
+
+		addrKey := IPStrToKey(addr)
+		if connAgg == nil || connAgg.VMIndex == nil {
+			continue
+		}
+		idx, ok := connAgg.VMIndex[VMIPIdentity{InstanceUUID: instanceUUID, IP: addrKey}]
+		if !ok {
+			continue
+		}
+		i := int(idx)
+
+		in := 0
+		out := 0
+
+		var outStats *behaviorStats
+		var inStats *behaviorStats
+
+		if i >= 0 && i < len(connAgg.FlowsIn) {
+			in = connAgg.FlowsIn[i]
+		}
+		if i >= 0 && i < len(connAgg.FlowsOut) {
+			out = connAgg.FlowsOut[i]
+		}
+
+		if cm.outboundBehaviorEnabled && i >= 0 && i < len(connAgg.OutboundStats) {
+			outStats = connAgg.OutboundStats[i]
+		}
+		if cm.inboundBehaviorEnabled && i >= 0 && i < len(connAgg.InboundStats) {
+			inStats = connAgg.InboundStats[i]
+		}
+		if cm.outboundBehaviorEnabled && outStats == nil {
+			outStats = newBehaviorStats(false)
+		}
+		if cm.inboundBehaviorEnabled && inStats == nil {
+			inStats = newBehaviorStats(false)
+		}
+
+		total := in + out
+
+		*dynamicMetrics = append(*dynamicMetrics,
+			prometheus.MustNewConstMetric(cm.instanceConntrackIPFlowsDesc, prometheus.GaugeValue, float64(total), domain, serverName, instanceUUID, projectUUID, projectName, userUUID, addr, ip.Family),
+			prometheus.MustNewConstMetric(cm.instanceConntrackIPFlowsInboundDesc, prometheus.GaugeValue, float64(in), domain, serverName, instanceUUID, projectUUID, projectName, userUUID, addr, ip.Family),
+			prometheus.MustNewConstMetric(cm.instanceConntrackIPFlowsOutboundDesc, prometheus.GaugeValue, float64(out), domain, serverName, instanceUUID, projectUUID, projectName, userUUID, addr, ip.Family),
+		)
+
+		if cm.outboundBehaviorEnabled && outStats != nil {
+			ident := behaviorIdentityKey{InstanceUUID: instanceUUID, IP: addrKey, Direction: "outbound"}
+			if ctx.FreezeState {
+				if !cm.behaviorObservationAvailable(ident) {
+					outStats = nil
+				}
+			}
+		}
+		if cm.inboundBehaviorEnabled && inStats != nil {
+			ident := behaviorIdentityKey{InstanceUUID: instanceUUID, IP: addrKey, Direction: "inbound"}
+			if ctx.FreezeState {
+				if !cm.behaviorObservationAvailable(ident) {
+					inStats = nil
+				}
+			}
+		}
+
+		if cm.outboundBehaviorEnabled && outStats != nil {
+			cm.analyzeBehavior(
+				outStats,
+				addrKey,
+				addr,
+				ip.Family,
+				domain, serverName, instanceUUID, projectUUID, projectName, userUUID,
+				dynamicMetrics,
+				metricDescGroup{
+					uniqueRemotes:      cm.instanceOutboundUniqueRemotesDesc,
+					newRemotes:         cm.instanceOutboundNewRemotesDesc,
+					flows:              cm.instanceOutboundFlowsDesc,
+					maxSingleRemote:    cm.instanceOutboundMaxFlowsSingleRemoteDesc,
+					uniqueDstPorts:     cm.instanceOutboundUniqueDstPortsDesc,
+					newDstPorts:        cm.instanceOutboundNewDstPortsDesc,
+					maxSingleDstPort:   cm.instanceOutboundMaxFlowsSingleDstPortDesc,
+					bytesPerFlow:       cm.instanceOutboundBytesPerFlowDesc,
+					packetsPerFlow:     cm.instanceOutboundPacketsPerFlowDesc,
+					thresholdConfigKey: "outbound",
+				},
+				ctx,
+			)
+		}
+
+		if cm.inboundBehaviorEnabled && inStats != nil {
+			cm.analyzeBehavior(
+				inStats,
+				addrKey,
+				addr,
+				ip.Family,
+				domain, serverName, instanceUUID, projectUUID, projectName, userUUID,
+				dynamicMetrics,
+				metricDescGroup{
+					uniqueRemotes:      cm.instanceInboundUniqueRemotesDesc,
+					newRemotes:         cm.instanceInboundNewRemotesDesc,
+					flows:              cm.instanceInboundFlowsDesc,
+					maxSingleRemote:    cm.instanceInboundMaxFlowsSingleRemoteDesc,
+					uniqueDstPorts:     cm.instanceInboundUniqueDstPortsDesc,
+					newDstPorts:        cm.instanceInboundNewDstPortsDesc,
+					maxSingleDstPort:   cm.instanceInboundMaxFlowsSingleDstPortDesc,
+					bytesPerFlow:       cm.instanceInboundBytesPerFlowDesc,
+					packetsPerFlow:     cm.instanceInboundPacketsPerFlowDesc,
+					thresholdConfigKey: "inbound",
+				},
+				ctx,
+			)
+		}
+	}
+
+	if connAgg != nil && connAgg.InstanceFlowTotals != nil {
+		instanceConntrackTotal = connAgg.InstanceFlowTotals[instanceUUID]
+	}
+
+	_ = ipSet
+
+	return instanceConntrackTotal
+}

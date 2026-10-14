@@ -9,9 +9,8 @@ import (
 	"time"
 )
 
-type IntelHistory struct {
-	EWMA        float64
-	Initialized bool
+type ThreatSourceState struct {
+	Lists map[string]bool
 }
 type HostThreatsConfig struct {
 	Enable          bool
@@ -39,7 +38,7 @@ type CustomListConfig struct {
 }
 
 // -----------------------------------------------------------------------------
-// LibvirtData Structures (Manual Parsing)
+// Threat Provider State
 // -----------------------------------------------------------------------------
 type IPThreatProvider struct {
 	Name            string
@@ -115,11 +114,13 @@ type ThreatManager struct {
 	threatLogMinInterval time.Duration
 	threatLastHitMu      sync.Mutex
 	threatLastHit        map[string]time.Time
+	threatLogNowOverride func() time.Time
 
-	hostThreatsEnabled   bool
-	hostThreatHitsMu     sync.RWMutex
-	hostThreatHits       map[string]map[string]string
-	hostIPsAllowPrivate  bool
-	hostInterfaces       map[string]struct{}
-	hostThreatListedDesc *prometheus.Desc
+	hostThreatsEnabled      bool
+	hostThreatHitsMu        sync.RWMutex
+	hostThreatHits          map[string]map[string]string
+	hostIPsAllowPrivate     bool
+	hostInterfaces          map[string]struct{}
+	hostThreatListedDesc    *prometheus.Desc
+	hostThreatFeedFreshDesc *prometheus.Desc
 }

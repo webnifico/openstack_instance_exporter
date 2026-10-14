@@ -8,8 +8,8 @@ const (
 
 	behaviorPrevKeyTTLSeconds int64 = 24 * 60 * 60
 
-	behaviorAlertCooldownSeconds  int64 = 180  //3m
-	behaviorAlertHeartbeatSeconds int64 = 7200 //2h
+	behaviorSignalCooldownSeconds  int64 = 180  //3m
+	behaviorSignalHeartbeatSeconds int64 = 7200 //2h
 
 	behaviorEWMATauFastDefaultSeconds float64 = 180
 	behaviorEWMATauSlowDefaultSeconds float64 = 7200
@@ -21,13 +21,8 @@ const (
 )
 
 type behaviorAnomalies struct {
-	Flows          float64
-	Remotes        float64
-	Ports          float64
-	Unreplied      float64
-	BytesPerFlow   float64
-	PacketsPerFlow float64
-	Signal         float64
+	Flows   float64
+	Remotes float64
 }
 
 type axisEWMA struct {
@@ -56,12 +51,16 @@ type BehaviorContext struct {
 	HostIPKeys        map[IPKey]struct{}
 	HostConntrackMax  uint64
 	InstanceFlowTotal int
+	HostPressureOwner behaviorIdentityKey
+	ObservationUnix   int64
+	FreezeState       bool
+	Rebaseline        bool
 }
-type behaviorAlertKey struct {
+type behaviorSignalKey struct {
 	InstanceUUID string
 	IP           IPKey
 	Direction    string
-	Kind         string
+	Signal       string
 }
 type behaviorEmitKey struct {
 	InstanceUUID string
@@ -69,59 +68,109 @@ type behaviorEmitKey struct {
 	Direction    string
 }
 type behaviorPersistState struct {
-	Hits          int
-	FirstSeenUnix int64
-	LastSeenUnix  int64
+	Hits                int
+	FirstSeenUnix       int64
+	LastSeenUnix        int64
+	CandidateRuleID     string
+	CandidateRuleSource string
 }
 type behaviorEmitState struct {
-	LastKind         string
-	LastPriority     string
-	LastSeverityBand string
-	LastTopRemote    string
-	LastTopDstPort   uint16
-	LastEmitUnix     int64
+	LastSignal           string
+	LastTopRemote        string
+	LastTopDstPort       uint16
+	LastEpisodeStartUnix int64
+	LastEmitUnix         int64
 }
 type BehaviorFeature struct {
 	Direction string
 
-	ThresholdFlows int
-	LocalScanHits  int
-	InfraHits      int
-	InfraMaxFlows  int
-	PublicRemotes  int
+	ThresholdFlows              int
+	LocalScanHits               int
+	InfraHits                   int
+	InfraMaxFlows               int
+	TenantPrivateHits           int
+	TenantPrivateMaxFlows       int
+	TenantPrivateUnrepliedRatio float64
+	PublicRemotes               int
 
-	MetadataHits           int
-	MetadataMaxFlows       int
-	MetadataUnrepliedRatio float64
+	MetadataHits            int
+	MetadataMaxFlows        int
+	MetadataUnrepliedRatio  float64
+	MetadataTopDstPort      uint16
+	MetadataTopDstPortFlows int
 
-	BGPFlows     int
-	GeneveFlows  int
-	SMTPFlows    int
-	StratumFlows int
+	BGPFlows             int
+	BGPTopRemote         IPKey
+	BGPTopRemoteFlows    int
+	GeneveFlows          int
+	GeneveTopRemote      IPKey
+	GeneveTopRemoteFlows int
+	SMTPFlows            int
+	SMTPUniqueRemotes    int
+	SMTPUnrepliedRatio   float64
+	SMTPTopRemote        IPKey
+	SMTPTopRemoteFlows   int
+	SMTPTopDstPort       uint16
+	SMTPTopDstPortFlows  int
+	StratumFlows         int
+	StratumRepliedFlows  int
+	MiningHigh           miningTierSummary
+	MiningShared         miningTierSummary
+	Mining               miningDetectionEvidence
 
-	AdminPortFlows int
+	AdminPortFlows       int
+	AdminUniqueRemotes   int
+	AdminNewRemotes      int
+	AdminUnrepliedRatio  float64
+	AdminTopRemote       IPKey
+	AdminTopRemoteFlows  int
+	AdminTopDstPort      uint16
+	AdminTopDstPortFlows int
 
-	Flows                       int
-	UniqueRemotes               int
-	NewRemotes                  int
-	UniqueDstPorts              int
-	NewDstPorts                 int
-	MaxSingleRemote             int
-	MaxSingleDstPort            int
-	TopDstPort                  uint16
-	UnmonitoredPortFlows        int
-	UnmonitoredUniqueDstPorts   int
-	MaxSingleUnmonitoredDstPort int
-	TopUnmonitoredDstPort       uint16
-	SynergyDarkScan             bool
-	SynergyDarkPhysics          bool
-	UnrepliedRatio              float64
-	MulticastCount              int
-	ICMPCount                   int
-	UDPCount                    int
+	Flows                        int
+	UniqueRemotes                int
+	NewRemotes                   int
+	UniqueDstPorts               int
+	NewDstPorts                  int
+	MaxSingleRemote              int
+	MaxSingleDstPort             int
+	TopDstPort                   uint16
+	UnmonitoredPortFlows         int
+	UnmonitoredUnrepliedRatio    float64
+	UnmonitoredUniqueDstPorts    int
+	MaxSingleUnmonitoredDstPort  int
+	TopUnmonitoredDstPort        uint16
+	TopUnmonitoredRemote         IPKey
+	TopUnmonitoredRemoteFlows    int
+	SynergyDarkScan              bool
+	SynergyDarkPhysics           bool
+	UnrepliedRatio               float64
+	MulticastCount               int
+	ICMPCount                    int
+	UDPCount                     int
+	UDPUniqueRemotes             int
+	UDPUnrepliedRatio            float64
+	UDPTopRemote                 IPKey
+	UDPTopRemoteFlows            int
+	UDPTopDstPort                uint16
+	UDPTopDstPortFlows           int
+	UDPRemoteEvidenceApproximate bool
+	TCPCount                     int
+	TCPUnrepliedRatio            float64
+	TCPTopRemote                 IPKey
+	TCPTopRemoteFlows            int
+	TCPTopDstPort                uint16
+	TCPTopDstPortFlows           int
+	TCPRemoteEvidenceApproximate bool
+	DNSUDPFlows                  int
+	DNSBytesPerFlow              float64
+	DNSBytesPerFlowAvailable     bool
+	DNSUnrepliedRatio            float64
 
-	BytesPerFlow   float64
-	PacketsPerFlow float64
+	BytesPerFlow            float64
+	PacketsPerFlow          float64
+	BytesPerFlowAvailable   bool
+	PacketsPerFlowAvailable bool
 
 	HostImpactPercent float64
 
@@ -131,15 +180,24 @@ type BehaviorFeature struct {
 	NewRemotesSaturated       bool
 
 	ConntrackAcct bool
+
+	InstanceFlowTotal int
+	HostPressureOwner bool
 }
-type behaviorEWMAState struct {
+type behaviorObservationState struct {
 	LastSeenUnix  int64
 	Flows         axisEWMA
 	UniqueRemotes axisEWMA
-	UniquePorts   axisEWMA
-	Unreplied     axisEWMA
-	BytesPerFlow  axisEWMA
-	PktsPerFlow   axisEWMA
+
+	// LastInterval preserves delta metrics from the last complete conntrack
+	// observation. Retained cycles must not recalculate them against themselves.
+	LastInterval behaviorIntervalSnapshot
+}
+type behaviorIntervalSnapshot struct {
+	NewRemotes          int
+	NewDstPorts         int
+	NewRemotesSaturated bool
+	Initialized         bool
 }
 type behaviorIdentityKey struct {
 	InstanceUUID string
@@ -149,24 +207,65 @@ type behaviorIdentityKey struct {
 type behaviorStats struct {
 	trackAcct bool
 
-	remotes            map[IPKey]struct{}
-	remoteZones        map[IPKey]uint16
-	remoteIsPrivate    map[IPKey]bool
-	perRemote          map[IPKey]int
-	perRemoteUnreplied map[IPKey]int
-	dstPorts           map[uint16]struct{}
-	perDstPort         map[uint16]int
-	flows              int
-	unreplied          int
-	bytes              uint64
-	packets            uint64
-	sampleRemote       IPKey
-	sampleRemoteSet    bool
-	multicastCount     int
-	icmpCount          int
-	udpCount           int
+	remotes                 map[IPKey]struct{}
+	remoteZones             map[IPKey]uint16
+	remoteIsPrivate         map[IPKey]bool
+	perRemote               map[IPKey]int
+	perRemoteUnreplied      map[IPKey]int
+	remoteCountHeap         behaviorRemoteCountHeap
+	remoteCountEntries      map[IPKey]*behaviorRemoteCountHeapEntry
+	dstPorts                map[uint16]struct{}
+	perDstPort              map[uint16]int
+	perDstPortReplied       map[uint16]int
+	perRemoteDstPort        map[behaviorRemotePortKey]int
+	smtpRemotes             map[IPKey]struct{}
+	smtpPerRemote           map[IPKey]int
+	smtpPerDstPort          map[uint16]int
+	adminPerRemote          map[IPKey]int
+	adminPerRemoteUnreplied map[IPKey]int
+	udpRemotes              map[IPKey]struct{}
+	udpPerRemote            map[IPKey]int
+	udpPerDstPort           map[uint16]int
+	tcpRemotes              map[IPKey]struct{}
+	tcpPerRemote            map[IPKey]int
+	tcpPerDstPort           map[uint16]int
+	flows                   int
+	unreplied               int
+	metadataFlows           int
+	metadataUnreplied       int
+	metadataPerDstPort      map[uint16]int
+	smtpFlows               int
+	smtpUnreplied           int
+	bgpFlows                int
+	bgpPerRemote            map[IPKey]int
+	geneveFlows             int
+	genevePerRemote         map[IPKey]int
+	udpUnreplied            int
+	tcpUnreplied            int
+	dnsUDPFlows             int
+	dnsUDPUnreplied         int
+	dnsBytes                uint64
+	dnsByteCoveredFlows     int
+	bytes                   uint64
+	packets                 uint64
+	byteCoveredFlows        int
+	packetCoveredFlows      int
+	multicastCount          int
+	icmpCount               int
+	udpCount                int
+	tcpCount                int
 
-	remoteMapCapped bool
+	remoteMapCapped       bool
+	remotePortMapCapped   bool
+	udpRemoteMapCapped    bool
+	tcpRemoteMapCapped    bool
+	miningRemotes         map[IPKey]*miningRemoteFlowStats
+	miningRemoteMapCapped bool
+}
+
+type behaviorRemotePortKey struct {
+	Remote IPKey
+	Port   uint16
 }
 
 type BehaviorEvidence struct {
@@ -204,16 +303,21 @@ type RuleThresholds struct {
 }
 
 type RuleCtx struct {
-	Thresholds    RuleThresholds
-	DstPortCounts map[uint16]int
+	Thresholds                 RuleThresholds
+	DstPortCounts              map[uint16]int
+	DstPortRepliedCounts       map[uint16]int
+	RemoteDstPortCounts        map[behaviorRemotePortKey]int
+	PortEvidenceComplete       bool
+	RemotePortEvidenceComplete bool
 }
 type BehaviorRule struct {
-	ID     string
-	Dir    string
-	When   func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) bool
-	Kind   func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string
-	Reason func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string
-	Source string
+	ID       string
+	Dir      string
+	When     func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) bool
+	Signal   func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string
+	Reason   func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) string
+	Evidence func(feature BehaviorFeature, sc behaviorScaler, ev BehaviorEvidence, ctx *RuleCtx) (behaviorSignalEvidence, bool)
+	Source   string
 }
 
 type externalBehaviorRulesFile struct {
@@ -237,7 +341,7 @@ type externalBehaviorRuleYML struct {
 	TopRemoteShareMin float64 `yaml:"top_remote_share_min"`
 	TopPortShareMin   float64 `yaml:"top_port_share_min"`
 
-	Kind   string `yaml:"kind"`
+	Signal string `yaml:"signal"`
 	Reason string `yaml:"reason"`
 }
 type BehaviorRulesConfigStatus struct {
@@ -250,10 +354,9 @@ type BehaviorRulesConfigStatus struct {
 
 type behaviorRuleLogState struct {
 	LastSuppressedUnix int64
-	LastSummaryUnix    int64
 }
 
-type behaviorAlertEvidence struct {
+type behaviorSignalEvidence struct {
 	TopRemoteIP    string
 	TopDstPort     uint16
 	TopDstPortName string

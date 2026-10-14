@@ -1,0 +1,6 @@
+/dist/
+/ansible_role/openstack_instance_exporter/files/
+/PACKAGE_SHA256SUMS
+
+__pycache__/
+*.py[cod]

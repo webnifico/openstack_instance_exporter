@@ -46,11 +46,11 @@ func isPrivateOrLocal(ip net.IP) bool {
 	}
 	return false
 }
-func MakePairKey(aIP IPKey, aPort uint16, bIP IPKey, bPort uint16, proto uint8) PairKey {
+func MakeConntrackPairKey(aIP IPKey, aPort uint16, bIP IPKey, bPort uint16, proto uint8, icmpID uint16, icmpType, icmpCode uint8) PairKey {
 	if compareEndpoint(aIP, aPort, bIP, bPort) <= 0 {
-		return PairKey{A: aIP, AP: aPort, B: bIP, BP: bPort, Proto: proto}
+		return PairKey{A: aIP, AP: aPort, B: bIP, BP: bPort, Proto: proto, ICMPID: icmpID, ICMPType: icmpType, ICMPCode: icmpCode}
 	}
-	return PairKey{A: bIP, AP: bPort, B: aIP, BP: aPort, Proto: proto}
+	return PairKey{A: bIP, AP: bPort, B: aIP, BP: aPort, Proto: proto, ICMPID: icmpID, ICMPType: icmpType, ICMPCode: icmpCode}
 }
 func compareIPKey(a, b IPKey) int {
 	for i := 0; i < 16; i++ {
@@ -77,14 +77,7 @@ func compareEndpoint(ipA IPKey, portA uint16, ipB IPKey, portB uint16) int {
 	return 0
 }
 func PairKeyString(pk PairKey) string {
-	return hex.EncodeToString(pk.A[:]) + ":" + strconv.Itoa(int(pk.AP)) + "|" + hex.EncodeToString(pk.B[:]) + ":" + strconv.Itoa(int(pk.BP)) + "|" + strconv.Itoa(int(pk.Proto))
-}
-func isPrivateOrLocalStr(s string) bool {
-	ip := net.ParseIP(s)
-	if ip == nil {
-		return false
-	}
-	return isPrivateOrLocal(ip)
+	return hex.EncodeToString(pk.A[:]) + ":" + strconv.Itoa(int(pk.AP)) + "|" + hex.EncodeToString(pk.B[:]) + ":" + strconv.Itoa(int(pk.BP)) + "|" + strconv.Itoa(int(pk.Proto)) + "|" + strconv.Itoa(int(pk.ICMPID)) + ":" + strconv.Itoa(int(pk.ICMPType)) + ":" + strconv.Itoa(int(pk.ICMPCode))
 }
 
 // isInfrastructureIP checks for metadata/link-local and Host IPs
@@ -111,22 +104,38 @@ func isInfrastructureIP(ipStr string, hostIPs map[string]struct{}) bool {
 	}
 	return false
 }
-func isInfrastructureKey(k IPKey, hostIPKeys map[IPKey]struct{}) bool {
+
+type behaviorDestinationClass uint8
+
+const (
+	behaviorDestinationLocalLink behaviorDestinationClass = iota
+	behaviorDestinationMetadata
+	behaviorDestinationHostControl
+	behaviorDestinationTenantPrivate
+	behaviorDestinationPublic
+)
+
+// classifyBehaviorDestination assigns each remote address to exactly one
+// behavior classification. Metadata is deliberately checked before the broader
+// link-local class, while explicitly discovered host addresses take precedence
+// over tenant-private ranges.
+func classifyBehaviorDestination(k IPKey, hostIPKeys map[IPKey]struct{}) behaviorDestinationClass {
+	if k == metadataServiceIPKey() {
+		return behaviorDestinationMetadata
+	}
 	if hostIPKeys != nil {
 		if _, ok := hostIPKeys[k]; ok {
-			return true
+			return behaviorDestinationHostControl
 		}
 	}
-	if isIPv4MappedKey(k) {
-		if k[12] == 169 && k[13] == 254 {
-			return true
-		}
-		return false
+	addr := IPKeyToAddr(k)
+	if addr.IsPrivate() {
+		return behaviorDestinationTenantPrivate
 	}
-	if k[0] == 0xfe && (k[1]&0xc0) == 0x80 {
-		return true
+	if !addr.IsValid() || !addr.IsGlobalUnicast() {
+		return behaviorDestinationLocalLink
 	}
-	return false
+	return behaviorDestinationPublic
 }
 
 var metadataServiceKey = V4ToKey([4]byte{169, 254, 169, 254})
@@ -172,19 +181,6 @@ func V6BytesToKey(b []byte) IPKey {
 }
 func V6ToKey(b [16]byte) IPKey {
 	return V6BytesToKey(b[:])
-}
-func IPToKey(ip net.IP) IPKey {
-	if ip == nil {
-		return IPKey{}
-	}
-	if ip4 := ip.To4(); ip4 != nil {
-		return V4BytesToKey(ip4)
-	}
-	ip16 := ip.To16()
-	if ip16 == nil {
-		return IPKey{}
-	}
-	return V6BytesToKey(ip16)
 }
 func AddrToKey(addr netip.Addr) IPKey {
 	if !addr.IsValid() {
@@ -237,34 +233,26 @@ func isPrivateOrLocalKey(k IPKey) bool {
 }
 func isLocalOnlyKey(k IPKey) bool {
 	addr := IPKeyToAddr(k)
-	if addr.IsLoopback() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified() {
-		return true
-	}
-	return false
+	return !addr.IsValid() || !addr.IsGlobalUnicast()
 }
 func isMulticastKey(k IPKey) bool {
 	return IPKeyToAddr(k).IsMulticast()
 }
 
 // -----------------------------------------------------------------------------
-// Metric Descriptor Helpers
+// Address and Endpoint Keys
 // -----------------------------------------------------------------------------
-
-func copyPortNameMap(in map[uint16]string) map[uint16]string {
-	out := make(map[uint16]string, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
-}
 
 // IPKey is a 16-byte array used as a map key to avoid string allocations.
 // IPv4 addresses are stored as IPv4-mapped IPv6 (::ffff:1.2.3.4).
 type IPKey [16]byte
 type PairKey struct {
-	A     IPKey
-	AP    uint16
-	B     IPKey
-	BP    uint16
-	Proto uint8
+	A        IPKey
+	AP       uint16
+	B        IPKey
+	BP       uint16
+	Proto    uint8
+	ICMPID   uint16
+	ICMPType uint8
+	ICMPCode uint8
 }

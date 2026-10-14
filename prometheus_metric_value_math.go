@@ -20,12 +20,3 @@ func clamp01(value float64) float64 {
 	}
 	return value
 }
-func clampInt01To100(value int) int {
-	if value < 0 {
-		return 0
-	}
-	if value > 100 {
-		return 100
-	}
-	return value
-}

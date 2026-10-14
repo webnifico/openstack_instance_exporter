@@ -5,8 +5,33 @@ import (
 	"time"
 )
 
-func (cm *ConntrackManager) cleanupBehaviorMaps(activeSet map[string]struct{}) {
+func miningSignalCleanupLastActivity(state *miningSignalState) int64 {
+	if state == nil {
+		return 0
+	}
+	lastActivity := state.LastSeenUnix
+	if state.LastEmitUnix > lastActivity {
+		lastActivity = state.LastEmitUnix
+	}
+	if state.LastRecoveryObservationUnix > lastActivity {
+		lastActivity = state.LastRecoveryObservationUnix
+	}
+	return lastActivity
+}
+
+func miningSignalCleanupExpired(state *miningSignalState, now int64) bool {
+	if state == nil {
+		return true
+	}
+	lastActivity := miningSignalCleanupLastActivity(state)
+	return lastActivity <= 0 || (now-lastActivity) > behaviorIdentityTTLSeconds
+}
+
+// freezeAging pauses source-time TTL expiry while still removing state owned by
+// instances that Libvirt confirms are no longer active.
+func (cm *ConntrackManager) cleanupBehaviorMapsWithAging(activeSet map[string]struct{}, freezeAging bool) {
 	now := time.Now().Unix()
+	frozenInstances := cm.snapshotBehaviorFrozenInstances()
 
 	cleanupShard := func(mu *sync.Mutex, prevR map[BehaviorKey]outboundPrev, prevP map[BehaviorKey]outboundPrevDstPorts, seen map[BehaviorKey]int64) {
 		mu.Lock()
@@ -14,7 +39,9 @@ func (cm *ConntrackManager) cleanupBehaviorMaps(activeSet map[string]struct{}) {
 
 		for k := range prevR {
 			last, okSeen := seen[k]
-			if _, ok := activeSet[k.InstanceUUID]; !ok || !okSeen || (now-last) > behaviorPrevKeyTTLSeconds {
+			_, active := activeSet[k.InstanceUUID]
+			_, instanceFrozen := frozenInstances[k.InstanceUUID]
+			if !active || !okSeen || (!freezeAging && !instanceFrozen && (now-last) > behaviorPrevKeyTTLSeconds) {
 				delete(prevR, k)
 				delete(prevP, k)
 				delete(seen, k)
@@ -26,7 +53,9 @@ func (cm *ConntrackManager) cleanupBehaviorMaps(activeSet map[string]struct{}) {
 				continue
 			}
 			last, okSeen := seen[k]
-			if _, ok := activeSet[k.InstanceUUID]; !ok || !okSeen || (now-last) > behaviorPrevKeyTTLSeconds {
+			_, active := activeSet[k.InstanceUUID]
+			_, instanceFrozen := frozenInstances[k.InstanceUUID]
+			if !active || !okSeen || (!freezeAging && !instanceFrozen && (now-last) > behaviorPrevKeyTTLSeconds) {
 				delete(prevP, k)
 				delete(seen, k)
 			}
@@ -39,20 +68,27 @@ func (cm *ConntrackManager) cleanupBehaviorMaps(activeSet map[string]struct{}) {
 	}
 }
 
-func (cm *ConntrackManager) cleanupBehaviorState(activeSet map[string]struct{}) {
+// freezeAging pauses source-time TTL expiry while still removing state owned by
+// instances that Libvirt confirms are no longer active.
+func (cm *ConntrackManager) cleanupBehaviorStateWithAging(activeSet map[string]struct{}, freezeAging bool) {
 	now := time.Now().Unix()
+	frozenInstances := cm.snapshotBehaviorFrozenInstances()
 	for i := 0; i < shardCount; i++ {
-		cm.behaviorEWMAMu[i].Lock()
-		for k, s := range cm.behaviorEWMA[i] {
-			if _, ok := activeSet[k.InstanceUUID]; !ok || (now-s.LastSeenUnix) > behaviorIdentityTTLSeconds {
-				delete(cm.behaviorEWMA[i], k)
+		cm.behaviorObservationMu[i].Lock()
+		for k, s := range cm.behaviorObservations[i] {
+			_, active := activeSet[k.InstanceUUID]
+			_, instanceFrozen := frozenInstances[k.InstanceUUID]
+			if !active || (!freezeAging && !instanceFrozen && (now-s.LastSeenUnix) > behaviorIdentityTTLSeconds) {
+				delete(cm.behaviorObservations[i], k)
 			}
 		}
-		cm.behaviorEWMAMu[i].Unlock()
+		cm.behaviorObservationMu[i].Unlock()
 
 		cm.outboundMu[i].Lock()
 		for k, last := range cm.outboundPrevLastSeen[i] {
-			if _, ok := activeSet[k.InstanceUUID]; !ok || (now-last) > behaviorPrevKeyTTLSeconds {
+			_, active := activeSet[k.InstanceUUID]
+			_, instanceFrozen := frozenInstances[k.InstanceUUID]
+			if !active || (!freezeAging && !instanceFrozen && (now-last) > behaviorPrevKeyTTLSeconds) {
 				delete(cm.outboundPrevLastSeen[i], k)
 				delete(cm.outboundPrev[i], k)
 				delete(cm.outboundPrevDstPorts[i], k)
@@ -62,7 +98,9 @@ func (cm *ConntrackManager) cleanupBehaviorState(activeSet map[string]struct{}) 
 
 		cm.inboundMu[i].Lock()
 		for k, last := range cm.inboundPrevLastSeen[i] {
-			if _, ok := activeSet[k.InstanceUUID]; !ok || (now-last) > behaviorPrevKeyTTLSeconds {
+			_, active := activeSet[k.InstanceUUID]
+			_, instanceFrozen := frozenInstances[k.InstanceUUID]
+			if !active || (!freezeAging && !instanceFrozen && (now-last) > behaviorPrevKeyTTLSeconds) {
 				delete(cm.inboundPrevLastSeen[i], k)
 				delete(cm.inboundPrev[i], k)
 				delete(cm.inboundPrevDstPorts[i], k)
@@ -71,16 +109,27 @@ func (cm *ConntrackManager) cleanupBehaviorState(activeSet map[string]struct{}) 
 		cm.inboundMu[i].Unlock()
 	}
 
-	cm.behaviorAlertMu.Lock()
+	cm.behaviorSignalMu.Lock()
 	for k, st := range cm.behaviorPersist {
-		if _, ok := activeSet[k.InstanceUUID]; !ok || (now-st.LastSeenUnix) > 3600 {
+		_, active := activeSet[k.InstanceUUID]
+		_, instanceFrozen := frozenInstances[k.InstanceUUID]
+		if !active || (!freezeAging && !instanceFrozen && (now-st.LastSeenUnix) > 3600) {
 			delete(cm.behaviorPersist, k)
 		}
 	}
 	for k, st := range cm.behaviorEmit {
-		if _, ok := activeSet[k.InstanceUUID]; !ok || (now-st.LastEmitUnix) > 3600 {
+		_, active := activeSet[k.InstanceUUID]
+		_, instanceFrozen := frozenInstances[k.InstanceUUID]
+		if !active || (!freezeAging && !instanceFrozen && (now-st.LastEmitUnix) > behaviorPrevKeyTTLSeconds) {
 			delete(cm.behaviorEmit, k)
 		}
 	}
-	cm.behaviorAlertMu.Unlock()
+	for k, st := range cm.miningSignals {
+		_, active := activeSet[k.InstanceUUID]
+		_, instanceFrozen := frozenInstances[k.InstanceUUID]
+		if !active || (!freezeAging && !instanceFrozen && miningSignalCleanupExpired(st, now)) {
+			delete(cm.miningSignals, k)
+		}
+	}
+	cm.behaviorSignalMu.Unlock()
 }

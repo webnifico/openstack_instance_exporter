@@ -25,6 +25,7 @@ func initThreatMetrics(tm *ThreatManager) {
 	tm.hostSpamhausEntriesDesc = newHostMetricDesc("oie_host_threat_spamhaus_entries", "Number of Spamhaus CIDRs currently loaded")
 
 	tm.hostThreatListedDesc = prometheus.NewDesc("oie_host_threat_provider_ip_listed", "Provider-owned host IP present in a threat list (1 = member)", []string{"list", "ip", "family"}, nil)
+	tm.hostThreatFeedFreshDesc = prometheus.NewDesc("oie_host_threat_feed_fresh", "Threat feed state: 1 if enabled with a usable snapshot, 0 if enabled without one, and -1 if disabled", []string{"list"}, nil)
 }
 func (tm *ThreatManager) describeThreatMetrics(ch chan<- *prometheus.Desc) {
 	for _, p := range tm.Providers {

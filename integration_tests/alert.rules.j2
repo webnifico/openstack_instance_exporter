@@ -1,0 +1,82 @@
+{{ ansible_managed | comment }}
+
+{% if file_content.prometheus_alert_rules is defined and file_content.prometheus_alert_rules | length > 0 %}
+groups:
+{% for group in file_content.prometheus_alert_rules %}
+{% if group.group_enabled_var is defined %}
+{% set group_enabled = lookup(
+  'ansible.builtin.vars',
+  group.group_enabled_var,
+  default=false
+) | bool %}
+{% else %}
+{% set group_enabled = group.group_enabled | default(true) | bool %}
+{% endif %}
+{% if group_enabled and ((group.group_rules | default([]) | length > 0) or (group.group_recording_rules | default([]) | length > 0)) %}
+- name: "{{ group.group_name }}"
+{% if group.group_interval is defined %}
+  interval: "{{ group.group_interval }}"
+{% endif %}
+  rules:
+{% if group.group_recording_rules is defined %}
+{% for recording in group.group_recording_rules %}
+    - record: "{{ recording.record }}"
+{% if group.group_plain_expressions | default(false) | bool %}
+      expr: |2
+{{ recording.expr | indent(8, true) }}
+{% else %}
+      expr: "{{ recording.expr }}"
+{% endif %}
+{% if recording.labels is defined %}
+      labels:
+{% for key, value in recording.labels.items() %}
+        {{ key }}: {{ value | tojson }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% for alert in group.group_rules | default([]) %}
+    - alert: "{{ alert.alert }}"
+{% if group.group_plain_expressions | default(false) | bool %}
+      expr: |2
+{{ alert.expr | indent(8, true) }}
+{% elif alert.expr.startswith("|") %}
+      expr: {{ alert.expr | replace("\n", "\n          ") }}
+{% else %}
+      expr: "{{ alert.expr }}"
+{% endif %}
+{% if alert.for is defined %}
+      for: "{{ alert.for }}"
+{% endif %}
+      labels:
+        severity: "{{ alert.labels.severity }}"
+{% if alert.labels.oid is defined %}
+        oid: "{{ alert.labels.oid }}"
+{% endif %}
+{% if alert.labels.type is defined %}
+        type: "{{ alert.labels.type }}"
+{% endif %}
+      annotations:
+{% if group.group_plain_expressions | default(false) | bool %}
+{% for key, value in alert.annotations | default({}) | dictsort %}
+        {{ key }}: {{ value | tojson }}
+{% endfor %}
+{% else %}
+{% if alert.annotations.description is defined %}
+{% if alert.annotations.description.startswith("|") %}
+        description: {{ alert.annotations.description | replace("\n", "\n          ") }}
+{% else %}
+        description: "{{ alert.annotations.description }}"
+{% endif %}
+{% endif %}
+{% if alert.annotations.summary is defined %}
+        summary: "{{ alert.annotations.summary }}"
+{% endif %}
+{% if alert.annotations.documentation is defined %}
+        documentation: "{{ alert.annotations.documentation }}"
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}

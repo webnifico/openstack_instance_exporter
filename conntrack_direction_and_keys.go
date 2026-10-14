@@ -60,15 +60,18 @@ func flowDirection(ipSet map[IPKey]struct{}, ct ConntrackEntry) string {
 // -----------------------------------------------------------------------------
 
 type ConntrackEntry struct {
-	Src     string
-	Dst     string
-	SrcPort uint16
-	DstPort uint16
-	Proto   uint8
-	Status  uint32
-	Zone    uint16
-	Bytes   uint64
-	Packets uint64
+	Src      string
+	Dst      string
+	SrcPort  uint16
+	DstPort  uint16
+	Proto    uint8
+	Status   uint32
+	Zone     uint16
+	Bytes    uint64
+	Packets  uint64
+	ICMPID   uint16
+	ICMPType uint8
+	ICMPCode uint8
 }
 
 type ConntrackFlowLite struct {
@@ -78,10 +81,16 @@ type ConntrackFlowLite struct {
 	DstPort        uint16
 	Proto          uint8
 	Zone           uint16
+	Status         uint32
+	ICMPID         uint16
+	ICMPType       uint8
+	ICMPCode       uint8
 	ForwardPackets uint64
 	ForwardBytes   uint64
 	ReversePackets uint64
 	ReverseBytes   uint64
+	PacketsPresent bool
+	BytesPresent   bool
 }
 
 type VMIPIdentity struct {
@@ -89,9 +98,22 @@ type VMIPIdentity struct {
 	IP           IPKey
 }
 
+const (
+	conntrackObservedIPv4 uint8 = 1 << iota
+	conntrackObservedIPv6
+)
+
 type ConntrackAgg struct {
 	VMIndex            map[VMIPIdentity]uint32
 	InstanceFlowTotals map[string]int
+	// ObservedFamilies captures the scope of a production dump. Zero leaves
+	// generic aggregators and direct fixtures scoped to their full inventory.
+	ObservedFamilies uint8
+	// ObservationUnix is captured once for a complete conntrack snapshot so
+	// parallel per-instance analysis shares one persistence clock boundary.
+	// ObservationTimeSet makes Unix epoch zero an explicit valid boundary.
+	ObservationUnix    int64
+	ObservationTimeSet bool
 
 	FlowsIn  []int
 	FlowsOut []int
@@ -99,15 +121,10 @@ type ConntrackAgg struct {
 	OutboundStats []*behaviorStats
 	InboundStats  []*behaviorStats
 
-	SpamhausHits        map[string]map[PairKey]ConntrackEntry
-	SpamhausHitsDropped map[string]uint64
-	ProviderHits        map[string]map[string]map[PairKey]ConntrackEntry
-	ProviderHitsDropped map[string]map[string]uint64
+	SpamhausHits            map[string]map[PairKey]ConntrackEntry
+	SpamhausHitsDropped     map[string]uint64
+	ProviderHits            map[string]map[string]map[PairKey]ConntrackEntry
+	ProviderHitsDropped     map[string]map[string]uint64
+	SpamhausSourceIncluded  bool
+	ProviderSourcesIncluded map[string]struct{}
 }
-
-// -----------------------------------------------------------------------------
-// Configuration Structs
-// -----------------------------------------------------------------------------
-
-// Resource EWMA State
-// -----------------------------------------------------------------------------
