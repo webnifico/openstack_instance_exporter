@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"math"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,28 +21,169 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
+	os.Exit(runMain())
+}
+
+const (
+	minimumCollectionInterval  = 5 * time.Second
+	maximumCollectionInterval  = time.Minute
+	minimumBehaviorSensitivity = 0.1
+	maximumBehaviorSensitivity = 10.0
+)
+
+func validateCollectionInterval(interval time.Duration) error {
+	if interval < minimumCollectionInterval || interval > maximumCollectionInterval {
+		return fmt.Errorf(
+			"collection.interval must be between %s and %s inclusive",
+			minimumCollectionInterval,
+			maximumCollectionInterval,
+		)
+	}
+	return nil
+}
+
+func validateStartupScalarFlags(behaviorSensitivity float64) error {
+	if math.IsNaN(behaviorSensitivity) || math.IsInf(behaviorSensitivity, 0) {
+		return fmt.Errorf("behavior.sensitivity must be finite")
+	}
+	if behaviorSensitivity < minimumBehaviorSensitivity || behaviorSensitivity > maximumBehaviorSensitivity {
+		return fmt.Errorf("behavior.sensitivity must be between %.1f and %.1f inclusive", minimumBehaviorSensitivity, maximumBehaviorSensitivity)
+	}
+	return nil
+}
+
+func validateParsedFlagArguments(rawArgs []string, parsed *flag.FlagSet) error {
+	for _, argument := range rawArgs {
+		if argument == "--" {
+			return fmt.Errorf("the -- argument separator is not supported")
+		}
+	}
+	if parsed == nil {
+		return fmt.Errorf("startup flags could not be inspected")
+	}
+	if parsed.NArg() != 0 {
+		return fmt.Errorf("positional arguments are not supported")
+	}
+	return nil
+}
+
+type startupRuntimeFlags struct {
+	listenAddress               string
+	collectionInterval          time.Duration
+	workerCount                 int
+	behaviorEWMATauFast         time.Duration
+	behaviorEWMATauSlow         time.Duration
+	conntrackRawRcvBufBytes     int
+	conntrackNetlinkRecvTimeout time.Duration
+	threatLogMinInterval        time.Duration
+	threats                     CollectorConfig
+	configuredInputs            startupConfiguredInputs
+}
+
+func validateStartupRuntimeFlags(values startupRuntimeFlags) error {
+	if err := validateListenAddress(values.listenAddress); err != nil {
+		return err
+	}
+	if err := validateCollectionInterval(values.collectionInterval); err != nil {
+		return err
+	}
+	if values.workerCount < 0 {
+		return fmt.Errorf("worker.count must be zero or greater")
+	}
+	if values.workerCount > maxDomainWorkers {
+		return fmt.Errorf("worker.count must be no greater than %d", maxDomainWorkers)
+	}
+	if values.behaviorEWMATauFast <= 0 {
+		return fmt.Errorf("behavior.ewma_fast_tau must be greater than zero")
+	}
+	if values.behaviorEWMATauSlow <= 0 {
+		return fmt.Errorf("behavior.ewma_slow_tau must be greater than zero")
+	}
+	if values.behaviorEWMATauFast >= values.behaviorEWMATauSlow {
+		return fmt.Errorf("behavior.ewma_fast_tau must be less than behavior.ewma_slow_tau")
+	}
+	if values.conntrackRawRcvBufBytes < 0 {
+		return fmt.Errorf("conntrack.raw.rcvbuf_bytes must be zero or greater")
+	}
+	if values.conntrackNetlinkRecvTimeout <= 0 {
+		return fmt.Errorf("conntrack.raw.rcv_timeout must be greater than zero")
+	}
+	if values.threatLogMinInterval < 0 {
+		return fmt.Errorf("threat.log.min_interval must be zero or greater")
+	}
+
+	validateProvider := func(enabled bool, prefix, urlFlag, rawURL string, refresh time.Duration) error {
+		if !enabled {
+			return nil
+		}
+		if refresh < 0 {
+			return fmt.Errorf("%s.refresh must be zero or greater", prefix)
+		}
+		return validateThreatFeedURL(urlFlag, rawURL)
+	}
+	if err := validateProvider(values.threats.TorExit.Enable, "tor.exit", "tor.exit.url", values.threats.TorExit.URL, values.threats.TorExit.Refresh); err != nil {
+		return err
+	}
+	if err := validateProvider(values.threats.TorRelay.Enable, "tor.relay", "tor.relay.url", values.threats.TorRelay.URL, values.threats.TorRelay.Refresh); err != nil {
+		return err
+	}
+	if err := validateProvider(values.threats.Emerging.Enable, "emergingthreats", "emergingthreats.url", values.threats.Emerging.URL, values.threats.Emerging.Refresh); err != nil {
+		return err
+	}
+	if values.threats.Spamhaus.Enable {
+		if values.threats.Spamhaus.Refresh < 0 {
+			return fmt.Errorf("spamhaus refresh interval must be zero or greater")
+		}
+		configured := 0
+		if strings.TrimSpace(values.threats.Spamhaus.URLv4) != "" {
+			configured++
+			if err := validateThreatFeedURL("spamhaus.url", values.threats.Spamhaus.URLv4); err != nil {
+				return err
+			}
+		}
+		if strings.TrimSpace(values.threats.Spamhaus.URLv6) != "" {
+			configured++
+			if err := validateThreatFeedURL("spamhaus.ipv6.url", values.threats.Spamhaus.URLv6); err != nil {
+				return err
+			}
+		}
+		if configured == 0 {
+			return fmt.Errorf("spamhaus requires at least one configured feed URL")
+		}
+	}
+	if values.threats.Custom.Enable {
+		if values.threats.Custom.Refresh < 0 {
+			return fmt.Errorf("customlist refresh interval must be zero or greater")
+		}
+		if strings.TrimSpace(values.threats.Custom.Path) == "" {
+			return fmt.Errorf("customlist.path must not be empty when customlist is enabled")
+		}
+		if strings.IndexByte(values.threats.Custom.Path, 0) >= 0 {
+			return fmt.Errorf("customlist.path contains a NUL byte")
+		}
+	}
+	return validateConfiguredInputs(values.threats, values.configuredInputs)
+}
+
+func runMain() int {
 	var (
-		listenAddress, metricsPath, libvirtURI, logLevelFlag, logFilePath          string
-		hostInterfacesCSV, contactsDirection                                       string
-		workerCount                                                                int
-		collectionInterval, threatLogMinInterval                                   time.Duration
-		behaviorEWMATauFast, behaviorEWMATauSlow                                   time.Duration
-		behaviorSensitivity                                                        float64
-		behaviorPortsConfigPath                                                    string
-		behaviorRulesConfigPath                                                    string
-		logFileEnable, outboundBehavior, inboundBehavior, hostThreats, hostPrivate bool
+		listenAddress, metricsPath, libvirtURI, logLevelFlag, logFilePath                               string
+		hostInterfacesCSV, contactsDirection                                                            string
+		workerCount                                                                                     int
+		collectionInterval, threatLogMinInterval                                                        time.Duration
+		behaviorEWMATauFast, behaviorEWMATauSlow                                                        time.Duration
+		behaviorSensitivity                                                                             float64
+		behaviorPortsConfigPath                                                                         string
+		behaviorRulesConfigPath                                                                         string
+		logFileEnable, debugLogLevelEnable, outboundBehavior, inboundBehavior, hostThreats, hostPrivate bool
 
 		conntrackRawRcvBufBytes     int
 		conntrackNetlinkRecvTimeout time.Duration
 		conntrackIPv4Enable         bool
 		conntrackIPv6Enable         bool
-
-		// Weights
-		wResource, wBehavior, wThreat float64
 	)
 
 	// Config Structs to be populated
@@ -49,7 +194,9 @@ func main() {
 	// ───────────────────────────────────────────────────────────────
 	flag.StringVar(&listenAddress, "web.listen-address", "0.0.0.0:9120", "Address to listen on")
 	flag.StringVar(&metricsPath, "web.telemetry-path", "/metrics", "Path under which to expose metrics")
+	flag.BoolVar(&debugLogLevelEnable, "web.debug-log-level.enable", false, "Enable the runtime log-level debug endpoint")
 	flag.StringVar(&libvirtURI, "libvirt.uri", "qemu:///system", "Libvirt URI")
+	flag.BoolVar(&cfg.VolumeRetypeEnable, "volume.retype.enable", false, "Enable attached-volume retype monitoring and progress polling")
 	flag.DurationVar(&collectionInterval, "collection.interval", 15*time.Second, "Background collection interval")
 	flag.IntVar(&workerCount, "worker.count", 0, "Number of concurrent workers (0 = NumCPU)")
 
@@ -57,8 +204,6 @@ func main() {
 	//	THRESHOLDS & BEHAVIOR
 	// ───────────────────────────────────────────────────────────────
 	flag.StringVar(&contactsDirection, "contacts.direction", "out", "Default direction: out, in, any")
-
-	// Dynamic Resource Thresholds
 
 	flag.BoolVar(&outboundBehavior, "outbound.behavior.enable", false, "Enable outbound behavior metrics")
 	flag.BoolVar(&inboundBehavior, "inbound.behavior.enable", false, "Enable inbound behavior metrics")
@@ -72,13 +217,6 @@ func main() {
 	flag.IntVar(&conntrackRawRcvBufBytes, "conntrack.raw.rcvbuf_bytes", 33554432, "SO_RCVBUF bytes for raw conntrack reader")
 	flag.BoolVar(&conntrackIPv4Enable, "conntrack.ipv4.enable", true, "Enable IPv4 conntrack reads")
 	flag.BoolVar(&conntrackIPv6Enable, "conntrack.ipv6.enable", true, "Enable IPv6 conntrack reads")
-
-	// ───────────────────────────────────────────────────────────────
-	//	SEVERITY SCORING
-	// ───────────────────────────────────────────────────────────────
-	flag.Float64Var(&wResource, "severity.weight.resource", 0.45, "Weight: Resource Pressure")
-	flag.Float64Var(&wBehavior, "severity.weight.behavior", 0.45, "Weight: Behavior Anomalies")
-	flag.Float64Var(&wThreat, "severity.weight.threat_list", 0.10, "Weight: Threat List Matches")
 
 	// ───────────────────────────────────────────────────────────────
 	//  THREAT LISTS
@@ -111,22 +249,85 @@ func main() {
 	flag.BoolVar(&logFileEnable, "log.file.enable", false, "Enable file logging")
 	flag.StringVar(&logFilePath, "log.file.path", "/var/log/openstack_instance_exporter.log", "Log file path")
 	flag.StringVar(&logLevelFlag, "log.level", "info", "Log level (debug, info, warn, error; notice is accepted as an alias for warn)")
-	flag.DurationVar(&threatLogMinInterval, "threat.log.min_interval", 5*time.Minute, "Throttle repeated threat/behavior notice logs")
+	flag.DurationVar(&threatLogMinInterval, "threat.log.min_interval", 5*time.Minute, "Throttle repeated threat-list/policy notices; behavior uses its own lifecycle")
 
-	flag.Parse()
-
+	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
+		return 2
+	}
+	// Keep early diagnostics on stderr. An operator-supplied destination is not
+	// opened until flag syntax, the requested level, and the destination's file
+	// type have completed fail-closed validation.
+	initStartupLogging()
+	if err := validateParsedFlagArguments(os.Args[1:], flag.CommandLine); err != nil {
+		logMain.Error("invalid_startup_configuration", "err", err)
+		return 2
+	}
+	if err := validateLogLevel(logLevelFlag); err != nil {
+		logMain.Error("invalid_startup_configuration", "err", err)
+		return 2
+	}
+	if err := validateConfiguredLogFile(logFileEnable, logFilePath); err != nil {
+		logMain.Error("invalid_startup_configuration", "err", err)
+		return 2
+	}
+	appliedLogLevel, err := InitLoggingChecked(logLevelFlag, logFilePath, logFileEnable)
+	if err != nil {
+		logMain.Error("invalid_startup_configuration", "err", err)
+		return 2
+	}
+	if err := validateStartupScalarFlags(behaviorSensitivity); err != nil {
+		logMain.Error("invalid_startup_configuration", "err", err)
+		return 2
+	}
+	explicitlySet := explicitlyConfiguredFlags(flag.CommandLine)
+	hostInterfacesCSV = hostInterfacesForStartup(
+		hostThreats,
+		startupFlagWasExplicitlySet(explicitlySet, "host.interfaces"),
+		hostInterfacesCSV,
+	)
+	if err := validateStartupRuntimeFlags(startupRuntimeFlags{
+		listenAddress:               listenAddress,
+		collectionInterval:          collectionInterval,
+		workerCount:                 workerCount,
+		behaviorEWMATauFast:         behaviorEWMATauFast,
+		behaviorEWMATauSlow:         behaviorEWMATauSlow,
+		conntrackRawRcvBufBytes:     conntrackRawRcvBufBytes,
+		conntrackNetlinkRecvTimeout: conntrackNetlinkRecvTimeout,
+		threatLogMinInterval:        threatLogMinInterval,
+		threats:                     cfg,
+		configuredInputs: startupConfiguredInputs{
+			explicitlySet:      explicitlySet,
+			hostThreatsEnabled: hostThreats,
+			hostInterfacesCSV:  hostInterfacesCSV,
+			interfaceByName:    net.InterfaceByName,
+			logFileEnabled:     logFileEnable,
+			logFilePath:        logFilePath,
+			libvirtURI:         libvirtURI,
+			directions: map[string]string{
+				"contacts.direction":        contactsDirection,
+				"tor.exit.direction":        dirTorExit,
+				"tor.relay.direction":       dirTorRelay,
+				"spamhaus.direction":        dirSpam,
+				"emergingthreats.direction": dirEmerging,
+				"customlist.direction":      dirCustom,
+			},
+			behaviorConfigPaths: map[string]string{
+				"behavior.ports_config": behaviorPortsConfigPath,
+				"behavior.rules_config": behaviorRulesConfigPath,
+			},
+		},
+	}); err != nil {
+		logMain.Error("invalid_startup_configuration", "err", err)
+		return 2
+	}
 	cfg.ThreatLogMinInterval = threatLogMinInterval
 
 	// ───────────────────────────────────────────────────────────────
 	//  LOGGING INITIALIZATION (Slog)
 	// ───────────────────────────────────────────────────────────────
-	appliedLogLevel := InitLogging(logLevelFlag, logFilePath, logFileEnable)
 	logMain.Info("exporter_startup", "log_level_requested", logLevelFlag, "log_level_applied", appliedLogLevel)
 
-	effectiveWorkers := workerCount
-	if effectiveWorkers <= 0 {
-		effectiveWorkers = runtime.NumCPU()
-	}
+	effectiveWorkers := effectiveDomainWorkerCount(workerCount)
 	logMain.Info("startup_config",
 		"listen_address", listenAddress,
 		"metrics_path", metricsPath,
@@ -189,6 +390,7 @@ func main() {
 			"outbound_ports", portsStatus.OutboundPorts,
 			"err", portsStatus.Err,
 		)
+		return 2
 	}
 
 	externalRules, rulesStatus := LoadBehaviorExternalRules(behaviorRulesConfigPath)
@@ -212,6 +414,7 @@ func main() {
 			"port_sets", rulesStatus.PortSets,
 			"err", rulesStatus.Err,
 		)
+		return 2
 	}
 
 	defaultDir, err := parseContactDirection(contactsDirection)
@@ -221,11 +424,11 @@ func main() {
 			"value", contactsDirection,
 			"err", err,
 		)
-		os.Exit(2)
+		return 2
 	}
-	resolveDir := func(field, s string) ContactDirection {
+	resolveDir := func(field, s string) (ContactDirection, error) {
 		if s == "" {
-			return defaultDir
+			return defaultDir, nil
 		}
 		d, err := parseContactDirection(s)
 		if err != nil {
@@ -234,42 +437,34 @@ func main() {
 				"value", s,
 				"err", err,
 			)
-			os.Exit(2)
+			return ContactAny, err
 		}
-		return d
+		return d, nil
 	}
 
-	cfg.TorExit.Direction = resolveDir("dir_tor_exit", dirTorExit)
-	cfg.TorRelay.Direction = resolveDir("dir_tor_relay", dirTorRelay)
-	cfg.Emerging.Direction = resolveDir("dir_emerging", dirEmerging)
-	cfg.Custom.Direction = resolveDir("dir_custom", dirCustom)
-	cfg.Spamhaus.Direction = resolveDir("dir_spam", dirSpam)
-
-	if hostThreats && hostInterfacesCSV == "" {
-		hostInterfacesCSV = "bgp-nic"
+	var directionErr error
+	if cfg.TorExit.Direction, directionErr = resolveDir("dir_tor_exit", dirTorExit); directionErr != nil {
+		return 2
 	}
-
-	if behaviorSensitivity < 0.1 {
-		behaviorSensitivity = 0.1
+	if cfg.TorRelay.Direction, directionErr = resolveDir("dir_tor_relay", dirTorRelay); directionErr != nil {
+		return 2
 	}
-	if behaviorSensitivity > 10.0 {
-		behaviorSensitivity = 10.0
+	if cfg.Emerging.Direction, directionErr = resolveDir("dir_emerging", dirEmerging); directionErr != nil {
+		return 2
+	}
+	if cfg.Custom.Direction, directionErr = resolveDir("dir_custom", dirCustom); directionErr != nil {
+		return 2
+	}
+	if cfg.Spamhaus.Direction, directionErr = resolveDir("dir_spam", dirSpam); directionErr != nil {
+		return 2
 	}
 
 	cfg.LibvirtURI = libvirtURI
 	cfg.CollectionInterval = collectionInterval
-	cfg.Severity = SeverityConfig{
-		ResourceWeight: wResource,
-		BehaviorWeight: wBehavior,
-		ThreatWeight:   wThreat,
-	}
 	cfg.HostThreats = HostThreatsConfig{
 		Enable: hostThreats, IPsAllowPrivate: hostPrivate, Interfaces: parseInterfaceList(hostInterfacesCSV),
 	}
-	cfg.BehaviorThresholds = BehaviorThresholds{
-		OutboundFlowsTotal: int(2000.0 / behaviorSensitivity),
-		InboundFlowsTotal:  int(2000.0 / behaviorSensitivity),
-	}
+	cfg.BehaviorThresholds = defaultBehaviorThresholds()
 	cfg.BehaviorSensitivity = behaviorSensitivity
 	cfg.BehaviorEWMATauFast = behaviorEWMATauFast
 	cfg.BehaviorEWMATauSlow = behaviorEWMATauSlow
@@ -296,47 +491,132 @@ func main() {
 		logMain.Error("conntrack_acct_status_read_failed", "err", err)
 	}
 
+	if err := validateTelemetryPath(metricsPath); err != nil {
+		logHttpApp.Error("invalid_telemetry_path", "path", metricsPath, "err", err)
+		return 2
+	}
+
 	collector, err := NewMetricsCollector(cfg)
 	if err != nil {
 		logCollectorApp.Error("collector_create_failed", "err", err)
-		return
+		return 1
 	}
 	if collector == nil {
-		return
+		logCollectorApp.Error("collector_create_failed", "err", "collector is nil")
+		return 1
 	}
+	var stopCollector sync.Once
+	defer stopCollector.Do(func() { close(collector.shutdownChan) })
 
 	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(collector, collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}), collectors.NewGoCollector(), collectors.NewBuildInfoCollector())
+	registry.MustRegister(collector)
+	registry.MustRegister(defaultRuntimeCollectors()...)
 
-	http.Handle(metricsPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
-	http.HandleFunc("/debug/log-level", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost && r.Method != http.MethodGet {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		if levelStr := r.URL.Query().Get("level"); levelStr != "" {
-			appliedLevel := InitLogging(levelStr, logFilePath, logFileEnable)
-			fmt.Fprintf(w, "log level set to %s\n", appliedLevel)
-		} else {
-			fmt.Fprintf(w, "current log level: %s\n", CurrentLogLevel())
-		}
-	})
+	mux := http.NewServeMux()
+	mux.Handle(metricsPath, newMetricsHTTPHandler(registry))
+	registerDebugLogLevelHandler(mux, debugLogLevelEnable, newDebugLogLevelHandler())
 
-	srv := &http.Server{Addr: listenAddress}
-	go func() {
-		logHttpApp.Info("http_listen_start", "addr", listenAddress)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logHttpApp.Error("http_listen_failed", "err", err)
+	listener, err := listenForHTTP(listenAddress)
+	if err != nil {
+		logHttpApp.Error("http_listen_failed", "addr", listenAddress, "err", err)
+		return 1
+	}
+	srv := newExporterHTTPServer(listenAddress, mux)
+	logHttpApp.Info("http_listen_start", "addr", listener.Addr().String())
+	if err := serveHTTPUntilShutdown(shutdownCtx, srv, listener, defaultHTTPShutdownTimeout); err != nil {
+		logHttpApp.Error("http_server_failed", "err", err)
+		return 1
+	}
+	logMain.Info("exporter_shutdown", "signal", shutdownCtx.Err())
+	return 0
+}
+
+func defaultRuntimeCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		collectors.NewGoCollector(),
+		collectors.NewBuildInfoCollector(),
+	}
+}
+
+func validateTelemetryPath(path string) (err error) {
+	if path == "" || !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("telemetry path must begin with /")
+	}
+	if path == "/" || strings.HasSuffix(path, "/") {
+		return fmt.Errorf("telemetry path must identify one exact endpoint")
+	}
+	if strings.ContainsAny(path, "?#{}") {
+		return fmt.Errorf("telemetry path must not contain a query, fragment, or wildcard pattern")
+	}
+	decoded, decodeErr := url.PathUnescape(path)
+	if decodeErr != nil || decoded != path {
+		return fmt.Errorf("telemetry path must be a literal unescaped URL path")
+	}
+	if path == debugLogLevelPath {
+		return fmt.Errorf("telemetry path conflicts with debug endpoint")
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("invalid telemetry path pattern: %v", recovered)
 		}
 	}()
+	probeMux := http.NewServeMux()
+	matched := false
+	probeMux.Handle(path, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		matched = true
+	}))
+	probeMux.Handle(debugLogLevelPath, http.NotFoundHandler())
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	probeMux.ServeHTTP(httptest.NewRecorder(), request)
+	if !matched {
+		return fmt.Errorf("telemetry path is not directly reachable without URL cleaning or query/fragment removal")
+	}
+	return nil
+}
 
-	<-shutdownCtx.Done()
-	logMain.Info("exporter_shutdown", "signal", shutdownCtx.Err())
-	close(collector.shutdownChan)
-	srv.Shutdown(context.Background())
+func listenForHTTP(address string) (net.Listener, error) {
+	return net.Listen("tcp", address)
+}
+
+func serveHTTPUntilShutdown(ctx context.Context, srv *http.Server, listener net.Listener, timeout time.Duration) error {
+	if ctx == nil || srv == nil || listener == nil {
+		return fmt.Errorf("HTTP lifecycle received nil input")
+	}
+	serveErr := make(chan error, 1)
+	go func() {
+		err := srv.Serve(listener)
+		if errors.Is(err, http.ErrServerClosed) {
+			err = nil
+		}
+		serveErr <- err
+	}()
+
+	select {
+	case err := <-serveErr:
+		if err == nil {
+			return fmt.Errorf("HTTP server stopped unexpectedly")
+		}
+		return err
+	case <-ctx.Done():
+	}
+
+	if timeout <= 0 {
+		timeout = defaultHTTPShutdownTimeout
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
+		closeErr := srv.Close()
+		return errors.Join(shutdownErr, closeErr, <-serveErr)
+	}
+	if err := <-serveErr; err != nil {
+		return err
+	}
+	return nil
 }
 
 // -----------------------------------------------------------------------------
@@ -353,7 +633,7 @@ var (
 	logMu         sync.Mutex
 	rootLoggerVal atomic.Value
 
-	// Component Loggers (Backwards Compatible)
+	// Stable component loggers used across the exporter.
 	logMain                  = NewComponentLogger("app", "app")
 	logCollectorApp          = NewComponentLogger("app", "collector")
 	logCollectorMetric       = NewComponentLogger("metric", "collector")

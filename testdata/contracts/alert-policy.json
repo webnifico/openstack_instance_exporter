@@ -1,0 +1,939 @@
+{
+  "prometheus_alert_rules": [
+    {
+      "group_exporter_job": "openstack-instance-exporter",
+      "group_name": "OpenStack Instance Exporter",
+      "group_plain_expressions": true,
+      "group_recording_rules": [
+        {
+          "expr": "rate(oie_instance_mem_swap_in_bytes_total{job=\"openstack-instance-exporter\"}[5m])\nand oie_instance_mem_swap_in_bytes_total{job=\"openstack-instance-exporter\"}",
+          "record": "oie:memory:swap_in_bytes_per_second"
+        },
+        {
+          "expr": "rate(oie_instance_cpu_steal_seconds_total{job=\"openstack-instance-exporter\"}[5m])\nand oie_instance_cpu_steal_seconds_total{job=\"openstack-instance-exporter\"}",
+          "record": "oie:cpu:steal_ratio"
+        },
+        {
+          "expr": "oie_host_libvirt_ok{job=\"openstack-instance-exporter\"} == 1\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)\nand on (job, instance) (oie_host_libvirt_last_success_timestamp_seconds{job=\"openstack-instance-exporter\"} > 0)\nand on (job, instance) (time() - oie_host_libvirt_last_success_timestamp_seconds{job=\"openstack-instance-exporter\"} >= 0)\nand on (job, instance) (time() - oie_host_libvirt_last_success_timestamp_seconds{job=\"openstack-instance-exporter\"} <= clamp_min(3 * oie_host_collection_interval_seconds{job=\"openstack-instance-exporter\"}, 120))",
+          "record": "oie:libvirt_ready"
+        },
+        {
+          "expr": "oie_host_conntrack_raw_ok{job=\"openstack-instance-exporter\"} == 1\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)\nand on (job, instance) (oie_host_conntrack_last_success_timestamp_seconds{job=\"openstack-instance-exporter\"} > 0)\nand on (job, instance) (time() - oie_host_conntrack_last_success_timestamp_seconds{job=\"openstack-instance-exporter\"} >= 0)\nand on (job, instance) (time() - oie_host_conntrack_last_success_timestamp_seconds{job=\"openstack-instance-exporter\"} <= clamp_min(3 * oie_host_collection_interval_seconds{job=\"openstack-instance-exporter\"}, 120))",
+          "record": "oie:conntrack_ready"
+        },
+        {
+          "expr": "oie_instance_state_code{job=\"openstack-instance-exporter\"} == 1\nand on (job, instance) oie:libvirt_ready",
+          "record": "oie:instance_running"
+        },
+        {
+          "expr": "oie:instance_running\nand on (job, instance) oie:conntrack_ready",
+          "record": "oie:network_current"
+        },
+        {
+          "expr": "oie_instance_resource_axis_fresh{job=\"openstack-instance-exporter\"} == 1\nand (oie_instance_resource_axis_available{job=\"openstack-instance-exporter\"} == 1)\nand on (job, instance, instance_uuid) oie:instance_running",
+          "record": "oie:resource_axis_current"
+        },
+        {
+          "expr": "(\n  label_replace(\n    (\n      oie_instance_cpu_vcpu_percent{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"cpu\"}\n    ),\n    \"signal\", \"cpu_percent\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      rate(oie_instance_mem_major_faults_total{job=\"openstack-instance-exporter\"}[5m])\n      and oie_instance_mem_major_faults_total{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"mem\"}\n    ),\n    \"signal\", \"major_faults_per_second\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      (oie_instance_disk_read_iops{job=\"openstack-instance-exporter\"} + oie_instance_disk_write_iops{job=\"openstack-instance-exporter\"})\n      and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"disk\"}\n    ),\n    \"signal\", \"disk_iops\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      (rate(oie_instance_disk_read_gib_total{job=\"openstack-instance-exporter\"}[5m]) + rate(oie_instance_disk_write_gib_total{job=\"openstack-instance-exporter\"}[5m])) * 1073741824\n      and oie_instance_disk_read_gib_total{job=\"openstack-instance-exporter\"}\n      and oie_instance_disk_write_gib_total{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"disk\"}\n    ),\n    \"signal\", \"disk_bytes_per_second\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      oie_instance_conntrack_ip_flows{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:network_current\n    ),\n    \"signal\", \"conntrack_flows\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      rate(oie_instance_net_rx_packets_total{job=\"openstack-instance-exporter\"}[2m])\n      and oie_instance_net_rx_packets_total{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"net\"}\n    ),\n    \"signal\", \"rx_packets_per_second\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      rate(oie_instance_net_rx_gib_total{job=\"openstack-instance-exporter\"}[2m]) * 1073741824\n      and oie_instance_net_rx_gib_total{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"net\"}\n    ),\n    \"signal\", \"rx_bytes_per_second\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      rate(oie_instance_net_tx_packets_total{job=\"openstack-instance-exporter\"}[2m])\n      and oie_instance_net_tx_packets_total{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"net\"}\n    ),\n    \"signal\", \"tx_packets_per_second\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      rate(oie_instance_net_tx_gib_total{job=\"openstack-instance-exporter\"}[2m]) * 1073741824\n      and oie_instance_net_tx_gib_total{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"net\"}\n    ),\n    \"signal\", \"tx_bytes_per_second\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      oie_instance_inbound_unique_remotes{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:network_current\n    ),\n    \"signal\", \"inbound_remotes\", \"__name__\", \".*\"\n  )\n)\nor (\n  label_replace(\n    (\n      oie_instance_outbound_unique_remotes{job=\"openstack-instance-exporter\"}\n      and on (job, instance, instance_uuid) oie:network_current\n    ),\n    \"signal\", \"outbound_remotes\", \"__name__\", \".*\"\n  )\n)",
+          "record": "oie:activity:sample"
+        },
+        {
+          "expr": "avg_over_time(oie:activity:sample[5m])\nand oie:activity:sample\nand (count_over_time(oie:activity:sample[5m]) >= 3)",
+          "record": "oie:activity:recent"
+        },
+        {
+          "expr": "avg_over_time(oie:activity:sample[2m])\nand oie:activity:sample\nand (count_over_time(oie:activity:sample[2m]) >= 2)",
+          "record": "oie:activity:fast"
+        },
+        {
+          "expr": "quantile_over_time(0.95, oie:activity:sample[1d:5m] offset 1h)\nand (count_over_time(oie:activity:sample[1d:5m] offset 1h) >= 72)",
+          "record": "oie:activity:baseline"
+        },
+        {
+          "expr": "oie:activity:recent / clamp_min(oie:activity:baseline, 1)",
+          "record": "oie:activity:ratio"
+        },
+        {
+          "expr": "oie:activity:recent - oie:activity:baseline",
+          "record": "oie:activity:increase"
+        },
+        {
+          "expr": "oie:activity:fast / clamp_min(oie:activity:baseline, 1)",
+          "record": "oie:activity:fast_ratio"
+        },
+        {
+          "expr": "oie:activity:recent{signal=\"cpu_percent\"}",
+          "record": "oie:cpu_percent_5m"
+        },
+        {
+          "expr": "rate(oie_instance_disk_read_seconds_total{job=\"openstack-instance-exporter\"}[5m]) / rate(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\"}[5m])\nand (increase(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\"}[5m]) >= 60)\nand oie_instance_disk_read_seconds_total{job=\"openstack-instance-exporter\"}\nand oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\"}\nand (count_over_time(oie_instance_disk_read_seconds_total{job=\"openstack-instance-exporter\"}[5m]) == count_over_time(oie_instance_disk_read_requests_total{job=\"openstack-instance-exporter\"}[5m]))\nand on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"disk\"}",
+          "record": "oie:disk:read_latency_seconds"
+        },
+        {
+          "expr": "rate(oie_instance_disk_write_seconds_total{job=\"openstack-instance-exporter\"}[5m]) / rate(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\"}[5m])\nand (increase(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\"}[5m]) >= 60)\nand oie_instance_disk_write_seconds_total{job=\"openstack-instance-exporter\"}\nand oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\"}\nand (count_over_time(oie_instance_disk_write_seconds_total{job=\"openstack-instance-exporter\"}[5m]) == count_over_time(oie_instance_disk_write_requests_total{job=\"openstack-instance-exporter\"}[5m]))\nand on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"disk\"}",
+          "record": "oie:disk:write_latency_seconds"
+        },
+        {
+          "expr": "rate(oie_instance_disk_flush_seconds_total{job=\"openstack-instance-exporter\"}[5m]) / rate(oie_instance_disk_flush_requests_total{job=\"openstack-instance-exporter\"}[5m])\nand (increase(oie_instance_disk_flush_requests_total{job=\"openstack-instance-exporter\"}[5m]) >= 60)\nand oie_instance_disk_flush_seconds_total{job=\"openstack-instance-exporter\"}\nand oie_instance_disk_flush_requests_total{job=\"openstack-instance-exporter\"}\nand (count_over_time(oie_instance_disk_flush_seconds_total{job=\"openstack-instance-exporter\"}[5m]) == count_over_time(oie_instance_disk_flush_requests_total{job=\"openstack-instance-exporter\"}[5m]))\nand on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"disk\"}",
+          "record": "oie:disk:flush_latency_seconds"
+        },
+        {
+          "expr": "stddev_over_time(oie:activity:sample[1d:5m] offset 1h)\nand oie:activity:baseline",
+          "record": "oie:activity:deviation"
+        },
+        {
+          "expr": "oie:activity:recent > 3 * oie:activity:baseline\nand (oie:activity:recent - oie:activity:baseline > 3 * oie:activity:deviation)",
+          "record": "oie:activity:unusual"
+        },
+        {
+          "expr": "increase(oie_instance_net_rx_dropped_total{job=\"openstack-instance-exporter\"}[5m]) / (increase(oie_instance_net_rx_packets_total{job=\"openstack-instance-exporter\"}[5m]) + increase(oie_instance_net_rx_dropped_total{job=\"openstack-instance-exporter\"}[5m]))\nand (increase(oie_instance_net_rx_packets_total{job=\"openstack-instance-exporter\"}[5m]) + increase(oie_instance_net_rx_dropped_total{job=\"openstack-instance-exporter\"}[5m]) >= 1000)\nand (increase(oie_instance_net_rx_dropped_total{job=\"openstack-instance-exporter\"}[5m]) >= 20)\nand oie_instance_net_rx_packets_total{job=\"openstack-instance-exporter\"}\nand oie_instance_net_rx_dropped_total{job=\"openstack-instance-exporter\"}\nand on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"net\"}",
+          "record": "oie:network:rx_drop_ratio"
+        },
+        {
+          "expr": "increase(oie_instance_net_tx_dropped_total{job=\"openstack-instance-exporter\"}[5m]) / (increase(oie_instance_net_tx_packets_total{job=\"openstack-instance-exporter\"}[5m]) + increase(oie_instance_net_tx_dropped_total{job=\"openstack-instance-exporter\"}[5m]))\nand (increase(oie_instance_net_tx_packets_total{job=\"openstack-instance-exporter\"}[5m]) + increase(oie_instance_net_tx_dropped_total{job=\"openstack-instance-exporter\"}[5m]) >= 1000)\nand (increase(oie_instance_net_tx_dropped_total{job=\"openstack-instance-exporter\"}[5m]) >= 20)\nand oie_instance_net_tx_packets_total{job=\"openstack-instance-exporter\"}\nand oie_instance_net_tx_dropped_total{job=\"openstack-instance-exporter\"}\nand on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"net\"}",
+          "record": "oie:network:tx_drop_ratio"
+        },
+        {
+          "expr": "increase(oie_instance_net_rx_errors_total{job=\"openstack-instance-exporter\"}[5m]) / (increase(oie_instance_net_rx_packets_total{job=\"openstack-instance-exporter\"}[5m]) + increase(oie_instance_net_rx_errors_total{job=\"openstack-instance-exporter\"}[5m]))\nand (increase(oie_instance_net_rx_packets_total{job=\"openstack-instance-exporter\"}[5m]) + increase(oie_instance_net_rx_errors_total{job=\"openstack-instance-exporter\"}[5m]) >= 1000)\nand (increase(oie_instance_net_rx_errors_total{job=\"openstack-instance-exporter\"}[5m]) >= 20)\nand oie_instance_net_rx_packets_total{job=\"openstack-instance-exporter\"}\nand oie_instance_net_rx_errors_total{job=\"openstack-instance-exporter\"}\nand on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"net\"}",
+          "record": "oie:network:rx_error_ratio"
+        },
+        {
+          "expr": "increase(oie_instance_net_tx_errors_total{job=\"openstack-instance-exporter\"}[5m]) / (increase(oie_instance_net_tx_packets_total{job=\"openstack-instance-exporter\"}[5m]) + increase(oie_instance_net_tx_errors_total{job=\"openstack-instance-exporter\"}[5m]))\nand (increase(oie_instance_net_tx_packets_total{job=\"openstack-instance-exporter\"}[5m]) + increase(oie_instance_net_tx_errors_total{job=\"openstack-instance-exporter\"}[5m]) >= 1000)\nand (increase(oie_instance_net_tx_errors_total{job=\"openstack-instance-exporter\"}[5m]) >= 20)\nand oie_instance_net_tx_packets_total{job=\"openstack-instance-exporter\"}\nand oie_instance_net_tx_errors_total{job=\"openstack-instance-exporter\"}\nand on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"net\"}",
+          "record": "oie:network:tx_error_ratio"
+        },
+        {
+          "expr": "max by (job, instance, domain, server_name, instance_uuid, project_uuid, project_name, user_uuid)(\n  (oie_instance_mining_suspected{confidence=\"high\",job=\"openstack-instance-exporter\"} == 1)\n  or (\n    oie_instance_mining_suspected{confidence=\"shared\",job=\"openstack-instance-exporter\"} == 1\n    and on (job, instance, instance_uuid) (oie:cpu_percent_5m >= 35)\n  )\n  or (\n    oie_instance_mining_suspected{confidence=\"shared_persistent\",job=\"openstack-instance-exporter\"} == 1\n    and on (job, instance, instance_uuid) (oie:cpu_percent_5m >= 60)\n  )\n)\nand on (job, instance, instance_uuid) oie:network_current",
+          "record": "oie:mining_warning"
+        },
+        {
+          "expr": "oie_host_cpu_usage_percent{job=\"openstack-instance-exporter\"} > 95\nand on (job, instance) (sum by (job, instance)(oie:cpu:steal_ratio and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"cpu\"}) / sum by (job, instance)(oie_instance_cpu_vcpu_count{job=\"openstack-instance-exporter\"} and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"cpu\"}) > 0.05)\nand on (job, instance) oie:libvirt_ready",
+          "record": "oie:host_cpu_impact"
+        },
+        {
+          "expr": "oie_host_mem_available_mib{job=\"openstack-instance-exporter\"} / oie_host_mem_mib_total{job=\"openstack-instance-exporter\"} < 0.02\nand on (job, instance) (sum by (job, instance)(oie:memory:swap_in_bytes_per_second and on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"mem\"}) > 1048576)\nand on (job, instance) oie:libvirt_ready",
+          "record": "oie:host_memory_impact"
+        },
+        {
+          "expr": "(oie:disk:read_latency_seconds > 0.15)\nor (oie:disk:write_latency_seconds > 0.1)\nor (oie:disk:flush_latency_seconds > 0.04)",
+          "record": "oie:disk:latency_impact"
+        },
+        {
+          "expr": "(oie:network:rx_drop_ratio > 0.02)\nor (oie:network:tx_drop_ratio > 0.02)\nor (oie:network:rx_error_ratio > 0.02)\nor (oie:network:tx_error_ratio > 0.02)",
+          "record": "oie:network:packet_impact"
+        },
+        {
+          "expr": "(\n  oie:network_current\n  and on (job, instance, instance_uuid) oie:network:packet_impact\n)\nor (\n  oie:network_current\n  and on (job, instance) (oie_host_conntrack_utilization{job=\"openstack-instance-exporter\"} >= 0.8)\n)",
+          "record": "oie:network:pressure"
+        }
+      ],
+      "group_rules": [
+        {
+          "alert": "OpenStackInstanceHighCPUUsage",
+          "annotations": {
+            "description": "CPU {{ printf \"%.3g\" $value }}% with vCPU scheduler waiting >5%. CPU is unusual and >=20%, or >=95%. Check host contention and expected workload. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "High CPU with scheduler contention \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  (oie:activity:unusual{signal=\"cpu_percent\"} >= 20)\n  or (oie:activity:recent{signal=\"cpu_percent\"} >= 95)\n)\nand on (job, instance, instance_uuid) (oie:cpu:steal_ratio > 0.05)",
+          "for": "30m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighStealRate",
+          "annotations": {
+            "description": "vCPU {{ $labels.vcpu }} scheduler waiting {{ $value | humanizePercentage }}; limit 5% over five minutes. Check host CPU and VM placement. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "vCPU scheduler delay \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:cpu:steal_ratio > 0.05\nand on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"cpu\"}",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighMemorySwapInRate",
+          "annotations": {
+            "description": "Guest swap-in {{ printf \"%.3g\" $value }} B/s; limit 64 MiB/s over five minutes. Check guest memory pressure. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "Heavy guest swap-in \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:memory:swap_in_bytes_per_second > 67108864\nand on (job, instance, instance_uuid) oie:resource_axis_current{axis=\"mem\"}",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighMajorFaultRate",
+          "annotations": {
+            "description": "Major faults {{ printf \"%.3g\" $value }}/s with guest swap-in >1 MiB/s. Check guest paging and memory pressure. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "Major faults with guest paging \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie:activity:recent{signal=\"major_faults_per_second\"} >= 200\n  and (\n    (\n      oie:activity:recent{signal=\"major_faults_per_second\"} > oie:activity:baseline{signal=\"major_faults_per_second\"} * 3\n      and (oie:activity:increase{signal=\"major_faults_per_second\"} >= 200)\n    )\n    or (oie:activity:recent{signal=\"major_faults_per_second\"} >= 2000)\n  )\n)\nand on (job, instance, instance_uuid) (oie:memory:swap_in_bytes_per_second > 1048576)",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighDiskIOPSLocal",
+          "annotations": {
+            "description": "Combined disk IOPS {{ printf \"%.3g\" $value }} is unusually high, with latency on the same disk. Check volume workload and storage latency. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}.",
+            "summary": "Unusual disk IOPS with latency \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"disk_iops\",disk_type=\"local\"} >= 100\nand on (job, instance, instance_uuid, disk_path) oie:disk:latency_impact",
+          "for": "30m",
+          "labels": {
+            "severity": "warning",
+            "type": "consumption"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighDiskIOPSVolumes",
+          "annotations": {
+            "description": "Combined disk IOPS {{ printf \"%.3g\" $value }} is unusually high, with latency on the same disk. Check volume workload and storage latency. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}.",
+            "summary": "Unusual disk IOPS with latency \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"disk_iops\",disk_type=\"volumes\"} >= 100\nand on (job, instance, instance_uuid, disk_path) oie:disk:latency_impact",
+          "for": "30m",
+          "labels": {
+            "severity": "warning",
+            "type": "consumption"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighDiskIOPSPremium",
+          "annotations": {
+            "description": "Combined disk IOPS {{ printf \"%.3g\" $value }} is unusually high, with latency on the same disk. Check volume workload and storage latency. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}.",
+            "summary": "Unusual disk IOPS with latency \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"disk_iops\",disk_type=\"premium\"} >= 100\nand on (job, instance, instance_uuid, disk_path) oie:disk:latency_impact",
+          "for": "30m",
+          "labels": {
+            "severity": "warning",
+            "type": "consumption"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighDiskIOPSUltra",
+          "annotations": {
+            "description": "Combined disk IOPS {{ printf \"%.3g\" $value }} is unusually high, with latency on the same disk. Check volume workload and storage latency. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}.",
+            "summary": "Unusual disk IOPS with latency \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"disk_iops\",disk_type=\"ultra\"} >= 100\nand on (job, instance, instance_uuid, disk_path) oie:disk:latency_impact",
+          "for": "30m",
+          "labels": {
+            "severity": "warning",
+            "type": "consumption"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighDiskIOPSOther",
+          "annotations": {
+            "description": "Combined disk IOPS {{ printf \"%.3g\" $value }} is unusually high, with latency on the same disk. Check volume workload and storage latency. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}.",
+            "summary": "Unusual disk IOPS with latency \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"disk_iops\",disk_type!~\"local|volumes|premium|ultra\"} >= 100\nand on (job, instance, instance_uuid, disk_path) oie:disk:latency_impact",
+          "for": "30m",
+          "labels": {
+            "severity": "warning",
+            "type": "consumption"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighDiskThroughput",
+          "annotations": {
+            "description": "Disk throughput {{ printf \"%.3g\" $value }} B/s is unusually high, with latency on the same disk. Check volume workload and storage latency. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}.",
+            "summary": "Unusual disk throughput with latency \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"disk_bytes_per_second\"} >= 1048576\nand on (job, instance, instance_uuid, disk_path) oie:disk:latency_impact",
+          "for": "30m",
+          "labels": {
+            "severity": "warning",
+            "type": "consumption"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceDiskReadLatencyHigh",
+          "annotations": {
+            "description": "Mean read latency {{ $value | humanizeDuration }}; limit 150 ms with >=60 operations in five minutes. Check other volumes and storage backend; this identifies slow I/O, not its cause. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}.",
+            "summary": "Read latency high \u2014 {{ $labels.server_name }} / {{ $labels.disk_path }}"
+          },
+          "expr": "oie:disk:read_latency_seconds > 0.15",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceDiskWriteLatencyHigh",
+          "annotations": {
+            "description": "Mean write latency {{ $value | humanizeDuration }}; limit 100 ms with >=60 operations in five minutes. Check other volumes and storage backend; this identifies slow I/O, not its cause. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}.",
+            "summary": "Write latency high \u2014 {{ $labels.server_name }} / {{ $labels.disk_path }}"
+          },
+          "expr": "oie:disk:write_latency_seconds > 0.1",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceDiskFlushLatencyHigh",
+          "annotations": {
+            "description": "Mean flush latency {{ $value | humanizeDuration }}; limit 40 ms with >=60 operations in five minutes. Check other volumes and storage backend; this identifies slow I/O, not its cause. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}.",
+            "summary": "Flush latency high \u2014 {{ $labels.server_name }} / {{ $labels.disk_path }}"
+          },
+          "expr": "oie:disk:flush_latency_seconds > 0.04",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighIncomingPacketRate",
+          "annotations": {
+            "description": "RX {{ printf \"%.3g\" $value }} packets/s is unusually high, with drops/errors on the same interface. History required. Check traffic and interface counters. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Interface: {{ $labels.ifname }}.",
+            "summary": "Unusual traffic with packet loss or errors \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"rx_packets_per_second\"} >= 100\nand on (job, instance, instance_uuid, ifname) oie:network:packet_impact",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighBandwidthRateRX",
+          "annotations": {
+            "description": "RX {{ printf \"%.3g\" $value }} B/s is unusually high, with drops/errors on the same interface. History required. Check traffic and interface counters. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Interface: {{ $labels.ifname }}.",
+            "summary": "Unusual traffic with packet loss or errors \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"rx_bytes_per_second\"} >= 1048576\nand on (job, instance, instance_uuid, ifname) oie:network:packet_impact",
+          "for": "30m",
+          "labels": {
+            "severity": "info",
+            "type": "consumption"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceNetworkReceiveDropRatioHigh",
+          "annotations": {
+            "description": "RX drops {{ $value | humanizePercentage }}; limit 2%, with >=1000 observations and >=20 affected packets in five minutes. Check interface counters and host networking. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Interface: {{ $labels.ifname }}.",
+            "summary": "Receive packet drops \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:network:rx_drop_ratio > 0.02",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceNetworkReceiveErrorRatioHigh",
+          "annotations": {
+            "description": "RX errors {{ $value | humanizePercentage }}; limit 2%, with >=1000 observations and >=20 affected packets in five minutes. Check interface counters and host networking. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Interface: {{ $labels.ifname }}.",
+            "summary": "Receive interface errors \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:network:rx_error_ratio > 0.02",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighOutgoingPacketRate",
+          "annotations": {
+            "description": "TX {{ printf \"%.3g\" $value }} packets/s is unusually high, with drops/errors on the same interface. History required. Check traffic and interface counters. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Interface: {{ $labels.ifname }}.",
+            "summary": "Unusual traffic with packet loss or errors \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"tx_packets_per_second\"} >= 100\nand on (job, instance, instance_uuid, ifname) oie:network:packet_impact",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighBandwidthRateTX",
+          "annotations": {
+            "description": "TX {{ printf \"%.3g\" $value }} B/s is unusually high, with drops/errors on the same interface. History required. Check traffic and interface counters. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Interface: {{ $labels.ifname }}.",
+            "summary": "Unusual traffic with packet loss or errors \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"tx_bytes_per_second\"} >= 1048576\nand on (job, instance, instance_uuid, ifname) oie:network:packet_impact",
+          "for": "30m",
+          "labels": {
+            "severity": "info",
+            "type": "consumption"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceNetworkTransmitDropRatioHigh",
+          "annotations": {
+            "description": "TX drops {{ $value | humanizePercentage }}; limit 2%, with >=1000 observations and >=20 affected packets in five minutes. Check interface counters and host networking. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Interface: {{ $labels.ifname }}.",
+            "summary": "Transmit packet drops \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:network:tx_drop_ratio > 0.02",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceNetworkTransmitErrorRatioHigh",
+          "annotations": {
+            "description": "TX errors {{ $value | humanizePercentage }}; limit 2%, with >=1000 observations and >=20 affected packets in five minutes. Check interface counters and host networking. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Interface: {{ $labels.ifname }}.",
+            "summary": "Transmit interface errors \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:network:tx_error_ratio > 0.02",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceConntrackFlowsBurst",
+          "annotations": {
+            "description": "{{ printf \"%.3g\" $value }} tracked flows: unusual growth with packet problems or host conntrack pressure. Check connection pools and traffic. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Connection surge with network pressure \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"conntrack_flows\"} >= 100\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceHighConntrackFlowsSustained",
+          "annotations": {
+            "description": "{{ printf \"%.3g\" $value }} tracked flows: unusually high while host conntrack usage is >=80%. Check connection pools and host conntrack capacity. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Sustained connection occupancy \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:unusual{signal=\"conntrack_flows\"} >= 100\nand on (job, instance) (oie_host_conntrack_utilization{job=\"openstack-instance-exporter\"} >= 0.8)",
+          "for": "30m",
+          "labels": {
+            "severity": "info",
+            "type": "consumption"
+          }
+        },
+        {
+          "alert": "OpenStackInstancePossibleFlood",
+          "annotations": {
+            "description": "{{ printf \"%.3g\" $value }} tracked flows over two minutes with packet drops/errors. Check traffic and affected interfaces; this is a possible flood. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Possible flood with packet loss or errors \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:activity:fast{signal=\"conntrack_flows\"} >= 20000\nand on (job, instance, instance_uuid) oie:network:packet_impact",
+          "for": "2m",
+          "labels": {
+            "severity": "warning",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceOutboundPortScanBurst",
+          "annotations": {
+            "description": "Outbound {{ printf \"%.3g\" $value }} destination ports across many remotes, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Outbound scanning-like activity \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_outbound_unique_dst_ports{job=\"openstack-instance-exporter\"} > 200\n  and (oie_instance_outbound_unique_remotes{job=\"openstack-instance-exporter\"} > 25)\n  and (oie_instance_outbound_flows{job=\"openstack-instance-exporter\"} > 5000)\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceOutboundSingleTargetFlood",
+          "annotations": {
+            "description": "Outbound {{ printf \"%.3g\" $value }} flows concentrated on one destination, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Possible outbound concentrated flood \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_outbound_max_flows_single_remote{job=\"openstack-instance-exporter\"} > 25000\n  and (oie_instance_outbound_max_flows_single_remote{job=\"openstack-instance-exporter\"} / clamp_min(oie_instance_outbound_flows{job=\"openstack-instance-exporter\"}, 1) >= 0.9)\n  and on (job, instance, instance_uuid, ip, family) (\n    (oie:activity:fast_ratio{signal=\"conntrack_flows\"} > 3)\n    or (oie_instance_outbound_max_flows_single_remote{job=\"openstack-instance-exporter\"} > 100000)\n  )\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "2m",
+          "labels": {
+            "severity": "warning",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceOutboundSprayOnSinglePort",
+          "annotations": {
+            "description": "Outbound {{ printf \"%.3g\" $value }} remotes across at most three destination ports, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Outbound narrow-port fan-out \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_outbound_unique_remotes{job=\"openstack-instance-exporter\"} > 300\n  and (oie_instance_outbound_unique_dst_ports{job=\"openstack-instance-exporter\"} <= 3)\n  and (oie_instance_outbound_flows{job=\"openstack-instance-exporter\"} > 5000)\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceOutboundExtremeRemoteFanout",
+          "annotations": {
+            "description": "Outbound {{ printf \"%.3g\" $value }} remote addresses, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Outbound remote breadth increased \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie:activity:recent{signal=\"outbound_remotes\"} >= 1500\n  and (\n    (\n      oie:activity:recent{signal=\"outbound_remotes\"} > oie:activity:baseline{signal=\"outbound_remotes\"} * 3\n      and (oie:activity:increase{signal=\"outbound_remotes\"} >= 500)\n    )\n    or (oie:activity:recent{signal=\"outbound_remotes\"} >= 10000)\n  )\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceOutboundZombieFlowLowThroughput",
+          "annotations": {
+            "description": "Outbound {{ printf \"%.3g\" $value }} flows with little data per flow, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Large low-activity outbound flow population \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_outbound_flows{job=\"openstack-instance-exporter\"} >= 5000\n  and (oie_instance_outbound_bytes_per_flow{job=\"openstack-instance-exporter\"} < 1024)\n  and (oie_instance_outbound_packets_per_flow{job=\"openstack-instance-exporter\"} < 10)\n  and on (job, instance, instance_uuid, ip, family) (\n    (oie:activity:ratio{signal=\"conntrack_flows\"} > 3)\n    or (oie:activity:recent{signal=\"conntrack_flows\"} >= 50000)\n  )\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "30m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceInboundPortScanBurst",
+          "annotations": {
+            "description": "Inbound {{ printf \"%.3g\" $value }} destination ports across many remotes, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Inbound scanning-like activity \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_inbound_unique_dst_ports{job=\"openstack-instance-exporter\"} > 200\n  and (oie_instance_inbound_unique_remotes{job=\"openstack-instance-exporter\"} > 25)\n  and (oie_instance_inbound_flows{job=\"openstack-instance-exporter\"} > 5000)\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceInboundSingleSourceFlood",
+          "annotations": {
+            "description": "Inbound {{ printf \"%.3g\" $value }} flows concentrated on one source, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Possible inbound concentrated flood \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_inbound_max_flows_single_remote{job=\"openstack-instance-exporter\"} > 25000\n  and (oie_instance_inbound_max_flows_single_remote{job=\"openstack-instance-exporter\"} / clamp_min(oie_instance_inbound_flows{job=\"openstack-instance-exporter\"}, 1) >= 0.9)\n  and on (job, instance, instance_uuid, ip, family) (\n    (oie:activity:fast_ratio{signal=\"conntrack_flows\"} > 3)\n    or (oie_instance_inbound_max_flows_single_remote{job=\"openstack-instance-exporter\"} > 100000)\n  )\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "2m",
+          "labels": {
+            "severity": "warning",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceInboundSprayOnSinglePort",
+          "annotations": {
+            "description": "Inbound {{ printf \"%.3g\" $value }} remotes across at most three destination ports, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Inbound narrow-port fan-out \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_inbound_unique_remotes{job=\"openstack-instance-exporter\"} > 300\n  and (oie_instance_inbound_unique_dst_ports{job=\"openstack-instance-exporter\"} <= 3)\n  and (oie_instance_inbound_flows{job=\"openstack-instance-exporter\"} > 5000)\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceInboundExtremeRemoteFanout",
+          "annotations": {
+            "description": "Inbound {{ printf \"%.3g\" $value }} remote addresses, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Inbound remote breadth increased \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie:activity:recent{signal=\"inbound_remotes\"} >= 1500\n  and (\n    (\n      oie:activity:recent{signal=\"inbound_remotes\"} > oie:activity:baseline{signal=\"inbound_remotes\"} * 3\n      and (oie:activity:increase{signal=\"inbound_remotes\"} >= 500)\n    )\n    or (oie:activity:recent{signal=\"inbound_remotes\"} >= 10000)\n  )\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "15m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceInboundZombieFlowLowThroughput",
+          "annotations": {
+            "description": "Inbound {{ printf \"%.3g\" $value }} flows with little data per flow, with packet problems or host conntrack pressure. Check traffic, workload intent and affected endpoints. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. IP: {{ $labels.ip }} ({{ $labels.family }}).",
+            "summary": "Large low-activity inbound flow population \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_inbound_flows{job=\"openstack-instance-exporter\"} >= 5000\n  and (oie_instance_inbound_bytes_per_flow{job=\"openstack-instance-exporter\"} < 1024)\n  and (oie_instance_inbound_packets_per_flow{job=\"openstack-instance-exporter\"} < 10)\n  and on (job, instance, instance_uuid, ip, family) (\n    (oie:activity:ratio{signal=\"conntrack_flows\"} > 3)\n    or (oie:activity:recent{signal=\"conntrack_flows\"} >= 50000)\n  )\n)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "30m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceTorExitRepeatedContact",
+          "annotations": {
+            "description": "{{ printf \"%.3g\" $value }} active flow matches against Tor exit. Packet problems or host conntrack pressure also qualify. Check destination and authorized workload; a list match does not prove compromise. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "Persistent TorExit list match \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie_instance_threat_tor_exit_active_flows{direction=~\"out|any\",job=\"openstack-instance-exporter\"} > 0\nand on (job, instance) (oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"TOREXIT\"} == 1)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "30m",
+          "labels": {
+            "severity": "info",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceTorRelayRepeatedContact",
+          "annotations": {
+            "description": "{{ printf \"%.3g\" $value }} active flow matches against Tor relay. Packet problems or host conntrack pressure also qualify. Check destination and authorized workload; a list match does not prove compromise. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "Persistent TorRelay list match \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie_instance_threat_tor_relay_active_flows{direction=~\"out|any\",job=\"openstack-instance-exporter\"} > 0\nand on (job, instance) (oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"TORRELAY\"} == 1)\nand on (job, instance, instance_uuid) oie:network:pressure",
+          "for": "30m",
+          "labels": {
+            "severity": "info",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceSpamhausRepeatedContact",
+          "annotations": {
+            "description": "{{ printf \"%.3g\" $value }} active flow matches against Spamhaus. Undirected matches also require network pressure. Check destination and authorized workload; a list match does not prove compromise. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "Persistent Spamhaus list match \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\",direction=\"out\"} > 0\n  or (\n    oie_instance_threat_spamhaus_active_flows{job=\"openstack-instance-exporter\",direction=\"any\"} > 0\n    and on (job, instance, instance_uuid) oie:network:pressure\n  )\n)\nand on (job, instance, instance_uuid) oie:network_current\nand on (job, instance) (oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"spamhaus\"} == 1)",
+          "for": "10m",
+          "labels": {
+            "severity": "warning",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceEmergingThreatsRepeatedContact",
+          "annotations": {
+            "description": "{{ printf \"%.3g\" $value }} active flow matches against Emerging Threats. Undirected matches also require network pressure. Check destination and authorized workload; a list match does not prove compromise. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "Persistent EmergingThreats list match \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_threat_emergingthreats_active_flows{job=\"openstack-instance-exporter\",direction=\"out\"} > 0\n  or (\n    oie_instance_threat_emergingthreats_active_flows{job=\"openstack-instance-exporter\",direction=\"any\"} > 0\n    and on (job, instance, instance_uuid) oie:network:pressure\n  )\n)\nand on (job, instance, instance_uuid) oie:network_current\nand on (job, instance) (oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"EMERGING\"} == 1)",
+          "for": "10m",
+          "labels": {
+            "severity": "warning",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceCustomListRepeatedContact",
+          "annotations": {
+            "description": "{{ printf \"%.3g\" $value }} active flow matches against custom list. Undirected matches also require network pressure. Check destination and authorized workload; a list match does not prove compromise. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "Persistent CustomList list match \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "(\n  oie_instance_threat_customlist_active_flows{job=\"openstack-instance-exporter\",direction=\"out\"} > 0\n  or (\n    oie_instance_threat_customlist_active_flows{job=\"openstack-instance-exporter\",direction=\"any\"} > 0\n    and on (job, instance, instance_uuid) oie:network:pressure\n  )\n)\nand on (job, instance, instance_uuid) oie:network_current\nand on (job, instance) (oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"CUSTOMLIST\"} == 1)",
+          "for": "15m",
+          "labels": {
+            "severity": "warning",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceMiningSuspected",
+          "annotations": {
+            "description": "Qualified mining-like evidence (state {{ printf \"%.3g\" $value }}); shared-port evidence also meets its CPU requirement. Check endpoint evidence and authorized workload; this does not confirm mining. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "Persistent mining-like evidence \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie:mining_warning == 1",
+          "for": "15m",
+          "labels": {
+            "severity": "warning",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceMiningCandidatePersistent",
+          "annotations": {
+            "description": "Persistent dedicated-port mining candidate (state {{ printf \"%.3g\" $value }}) with CPU >=40%. Check endpoint evidence and authorized workload; this does not confirm mining. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}.",
+            "summary": "Persistent mining candidate with CPU corroboration \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "max by (job, instance, domain, server_name, instance_uuid, project_uuid, project_name, user_uuid)(oie_instance_mining_suspected{confidence=\"high_persistent\",job=\"openstack-instance-exporter\"} == 1)\nand on (job, instance, instance_uuid) (oie:cpu_percent_5m >= 40)\nand on (job, instance, instance_uuid) oie:network_current\nunless on (job, instance, instance_uuid) oie:mining_warning",
+          "for": "30m",
+          "labels": {
+            "severity": "info",
+            "type": "activity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceVolumeRetypeReadyStalled",
+          "annotations": {
+            "description": "Copy has waited >=10m for pivot (state {{ printf \"%.3g\" $value }}). Check Nova/Cinder logs and the block job; this is a compute-local observation. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}. Destination: {{ $labels.destination_volume_uuid }}.",
+            "summary": "Volume copy awaiting pivot \u2014 {{ $labels.server_name }} / {{ $labels.disk_path }}"
+          },
+          "expr": "oie_instance_disk_retype_status_code{job=\"openstack-instance-exporter\"} == 6\nand on (job, instance) oie:libvirt_ready",
+          "for": "1m",
+          "labels": {
+            "severity": "warning",
+            "type": "operation"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceVolumeRetypeObservationUnhealthy",
+          "annotations": {
+            "description": "Block-job observation failed (state {{ printf \"%.3g\" $value }}) while Libvirt is healthy. Check block-job RPC logs; missing observations do not prove a stall or completion. VM: {{ $labels.instance_uuid }}. Project: {{ $labels.project_name }} ({{ $labels.project_uuid }}). Host: {{ $labels.instance }}. Disk: {{ $labels.disk_path }}; volume: {{ $labels.volume_uuid }}. Destination: {{ $labels.destination_volume_uuid }}.",
+            "summary": "Volume block-job observation unavailable \u2014 {{ $labels.server_name }}"
+          },
+          "expr": "oie_instance_disk_retype_observation_healthy{job=\"openstack-instance-exporter\"} == 0\nand on (job, instance) oie:libvirt_ready",
+          "for": "2m",
+          "labels": {
+            "severity": "warning",
+            "type": "operation"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterUnavailable",
+          "annotations": {
+            "description": "Exporter scrape failed (up={{ printf \"%.3g\" $value }}). Check exporter service and scrape connectivity. Host: {{ $labels.instance }}.",
+            "summary": "Exporter unavailable \u2014 {{ $labels.instance }}"
+          },
+          "expr": "up{job=\"openstack-instance-exporter\"} == 0",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "collection"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterProcessCPUHigh",
+          "annotations": {
+            "description": "Exporter CPU {{ printf \"%.3g\" $value }} cores exceeds 0.5 and collection uses >=80% of its interval. Check collection durations and instance/flow counts. Host: {{ $labels.instance }}.",
+            "summary": "Exporter CPU budget exceeded \u2014 {{ $labels.instance }}"
+          },
+          "expr": "rate(process_cpu_seconds_total{job=\"openstack-instance-exporter\"}[5m]) > 0.5\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)\nand on (job, instance) (oie_host_collection_cycle_duration_seconds{job=\"openstack-instance-exporter\"} / oie_host_collection_interval_seconds{job=\"openstack-instance-exporter\"} >= 0.8)",
+          "for": "15m",
+          "labels": {
+            "severity": "warning",
+            "type": "collection"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterHostThreatListed",
+          "annotations": {
+            "description": "Provider IP {{ $labels.ip }} matches {{ $labels.list }} (state {{ printf \"%.3g\" $value }}). Check IP ownership and the list entry. Host: {{ $labels.instance }}.",
+            "summary": "Provider-owned IP listed \u2014 {{ $labels.ip }}"
+          },
+          "expr": "oie_host_threat_provider_ip_listed{job=\"openstack-instance-exporter\",list=~\"spamhaus|EMERGING|CUSTOMLIST\"} > 0\nand on (job, instance, list) (oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\"} == 1)\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "15m",
+          "labels": {
+            "severity": "warning",
+            "type": "suspicious"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterHostConntrackUtilizationHigh",
+          "annotations": {
+            "description": "Host conntrack usage {{ $value | humanizePercentage }}; limit 80%. Check connection pools and top contributing instances. Host: {{ $labels.instance }}.",
+            "summary": "Host conntrack pressure \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_conntrack_utilization{job=\"openstack-instance-exporter\"} > 0.8\nand on (job, instance) oie:conntrack_ready",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "type": "capacity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterCollectionCycleNearInterval",
+          "annotations": {
+            "description": "Collection uses {{ $value | humanizePercentage }} of its interval; limit 80%. Check Libvirt and conntrack collection durations. Host: {{ $labels.instance }}.",
+            "summary": "Collection timing headroom low \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_collection_cycle_duration_seconds{job=\"openstack-instance-exporter\"} / clamp_min(oie_host_collection_interval_seconds{job=\"openstack-instance-exporter\"}, 1) >= 0.8\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "10m",
+          "labels": {
+            "severity": "warning",
+            "type": "collection"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterHostCPUPressureSustained",
+          "annotations": {
+            "description": "Host CPU {{ printf \"%.3g\" $value }}%; limit 95%, excluding idle and I/O wait. Check workload placement and guest scheduler delay. Host: {{ $labels.instance }}.",
+            "summary": "Host CPU headroom low \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_cpu_usage_percent{job=\"openstack-instance-exporter\"} > 95\nand on (job, instance) oie:libvirt_ready",
+          "for": "15m",
+          "labels": {
+            "severity": "warning",
+            "type": "capacity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterHostMemoryPressureSustained",
+          "annotations": {
+            "description": "Available host memory {{ $value | humanizePercentage }}; minimum 5%. Check resident memory, allocations and guest paging. Host: {{ $labels.instance }}.",
+            "summary": "Host memory headroom low \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_mem_available_mib{job=\"openstack-instance-exporter\"} / oie_host_mem_mib_total{job=\"openstack-instance-exporter\"} < 0.05\nand on (job, instance) oie:libvirt_ready",
+          "for": "15m",
+          "labels": {
+            "severity": "warning",
+            "type": "capacity"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterHostConntrackReadErrors",
+          "annotations": {
+            "description": "{{ printf \"%.3g\" $value }} conntrack read errors in ten minutes; limit 5. Check timeout, ENOBUFS and parse-error logs. Host: {{ $labels.instance }}.",
+            "summary": "Repeated conntrack read errors \u2014 {{ $labels.instance }}"
+          },
+          "expr": "increase(oie_host_conntrack_read_errors_total{job=\"openstack-instance-exporter\"}[10m]) > 5\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "0s",
+          "labels": {
+            "severity": "warning",
+            "type": "collection"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterConntrackRawReaderFailed",
+          "annotations": {
+            "description": "Conntrack reader failed (state {{ printf \"%.3g\" $value }}) while Libvirt is healthy. Check conntrack collection logs. Host: {{ $labels.instance }}.",
+            "summary": "Conntrack collection failed/incomplete \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_conntrack_raw_ok{job=\"openstack-instance-exporter\"} == 0\nand on (job, instance) oie:libvirt_ready",
+          "for": "2m",
+          "labels": {
+            "severity": "warning",
+            "type": "collection"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterConntrackReadStale",
+          "annotations": {
+            "description": "Last successful conntrack read was {{ $value | humanizeDuration }} ago; limit is max(2m, three collection intervals). Check stalled collection. Host: {{ $labels.instance }}.",
+            "summary": "Conntrack observations stale \u2014 {{ $labels.instance }}"
+          },
+          "expr": "time() - oie_host_conntrack_last_success_timestamp_seconds{job=\"openstack-instance-exporter\"} > clamp_min(3 * oie_host_collection_interval_seconds{job=\"openstack-instance-exporter\"}, 120)\nand on (job, instance) (oie_host_conntrack_raw_ok{job=\"openstack-instance-exporter\"} == 1)\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "2m",
+          "labels": {
+            "severity": "warning",
+            "type": "collection"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterLibvirtDataStale",
+          "annotations": {
+            "description": "Last successful Libvirt read was {{ $value | humanizeDuration }} ago; limit is max(4m, three collection intervals). Check stalled collection. Host: {{ $labels.instance }}.",
+            "summary": "Libvirt observations stale \u2014 {{ $labels.instance }}"
+          },
+          "expr": "time() - oie_host_libvirt_last_success_timestamp_seconds{job=\"openstack-instance-exporter\"} > clamp_min(3 * oie_host_collection_interval_seconds{job=\"openstack-instance-exporter\"}, 240)\nand on (job, instance) (oie_host_libvirt_ok{job=\"openstack-instance-exporter\"} == 1)\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "2m",
+          "labels": {
+            "severity": "warning",
+            "type": "collection"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterLibvirtCollectionUnhealthy",
+          "annotations": {
+            "description": "Libvirt collection failed (state {{ printf \"%.3g\" $value }}); retained resource values are not current. Check Libvirt connectivity and collection logs. Host: {{ $labels.instance }}.",
+            "summary": "Libvirt collection unhealthy \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_libvirt_ok{job=\"openstack-instance-exporter\"} == 0\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "2m",
+          "labels": {
+            "severity": "warning",
+            "type": "collection"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterHostCPUContentionCritical",
+          "annotations": {
+            "description": "Host CPU {{ printf \"%.3g\" $value }}% exceeds 95% (excluding idle and I/O wait), with aggregate guest scheduler waiting >5% of allocated vCPU time. Check affected guests and workload placement. Host: {{ $labels.instance }}.",
+            "summary": "Host CPU contention \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie:host_cpu_impact",
+          "for": "5m",
+          "labels": {
+            "severity": "critical",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterHostMemoryPressureCritical",
+          "annotations": {
+            "description": "Available host memory {{ $value | humanizePercentage }} is below 2%, with aggregate guest swap-in >1 MiB/s. Check host headroom and guest paging. Host: {{ $labels.instance }}.",
+            "summary": "Very low host memory with guest paging \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie:host_memory_impact",
+          "for": "5m",
+          "labels": {
+            "severity": "critical",
+            "type": "impact"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterTorExitListRefreshStale",
+          "annotations": {
+            "description": "Enabled Tor exit feed has no usable snapshot (state {{ printf \"%.3g\" $value }}). Check feed refresh/download logs; a failed refresh with a usable snapshot does not qualify. Host: {{ $labels.instance }}.",
+            "summary": "TOREXIT feed coverage unavailable \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"TOREXIT\"} == 0\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "10m",
+          "labels": {
+            "severity": "warning",
+            "type": "coverage"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterTorRelayListRefreshStale",
+          "annotations": {
+            "description": "Enabled Tor relay feed has no usable snapshot (state {{ printf \"%.3g\" $value }}). Check feed refresh/download logs; a failed refresh with a usable snapshot does not qualify. Host: {{ $labels.instance }}.",
+            "summary": "TORRELAY feed coverage unavailable \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"TORRELAY\"} == 0\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "10m",
+          "labels": {
+            "severity": "warning",
+            "type": "coverage"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterSpamhausListRefreshStale",
+          "annotations": {
+            "description": "Enabled Spamhaus feed has no usable snapshot (state {{ printf \"%.3g\" $value }}). Check feed refresh/download logs; a failed refresh with a usable snapshot does not qualify. Host: {{ $labels.instance }}.",
+            "summary": "spamhaus feed coverage unavailable \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"spamhaus\"} == 0\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "30m",
+          "labels": {
+            "severity": "warning",
+            "type": "coverage"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterEmergingThreatsListRefreshStale",
+          "annotations": {
+            "description": "Enabled Emerging Threats feed has no usable snapshot (state {{ printf \"%.3g\" $value }}). Check feed refresh/download logs; a failed refresh with a usable snapshot does not qualify. Host: {{ $labels.instance }}.",
+            "summary": "EMERGING feed coverage unavailable \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"EMERGING\"} == 0\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "30m",
+          "labels": {
+            "severity": "warning",
+            "type": "coverage"
+          }
+        },
+        {
+          "alert": "OpenStackInstanceExporterCustomListRefreshStale",
+          "annotations": {
+            "description": "Enabled custom list feed has no usable snapshot (state {{ printf \"%.3g\" $value }}). Check feed refresh/download logs; a failed refresh with a usable snapshot does not qualify. Host: {{ $labels.instance }}.",
+            "summary": "CUSTOMLIST feed coverage unavailable \u2014 {{ $labels.instance }}"
+          },
+          "expr": "oie_host_threat_feed_fresh{job=\"openstack-instance-exporter\",list=\"CUSTOMLIST\"} == 0\nand on (job, instance) (up{job=\"openstack-instance-exporter\"} == 1)",
+          "for": "10m",
+          "labels": {
+            "severity": "warning",
+            "type": "coverage"
+          }
+        }
+      ]
+    }
+  ]
+}

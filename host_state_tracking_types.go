@@ -7,7 +7,6 @@ import (
 )
 
 type hostAgg struct {
-	mu       sync.Mutex
 	disks    int
 	fixedIPs int
 	projects map[string]struct{}

@@ -1,0 +1,40 @@
+// Set OIE_LOKI_URL to your Loki push endpoint in the Alloy service environment.
+// Enable OIE file logging and grant the Alloy service read access to this file.
+loki.source.file "oie" {
+  targets = [{
+    __path__ = "/var/log/openstack_instance_exporter.log",
+    job      = "openstack-instance-exporter",
+    host     = constants.hostname,
+  }]
+  forward_to = [loki.process.oie.receiver]
+}
+
+loki.process "oie" {
+  stage.json {
+    expressions = {
+      time      = "time",
+      level     = "level",
+      category  = "category",
+      component = "component",
+    }
+  }
+  stage.timestamp {
+    source            = "time"
+    format            = "RFC3339Nano"
+    action_on_failure = "skip"
+  }
+  stage.labels {
+    values = {
+      level     = "",
+      category  = "",
+      component = "",
+    }
+  }
+  forward_to = [loki.write.oie.receiver]
+}
+
+loki.write "oie" {
+  endpoint {
+    url = sys.env("OIE_LOKI_URL")
+  }
+}

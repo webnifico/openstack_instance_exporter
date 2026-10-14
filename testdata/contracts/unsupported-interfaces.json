@@ -1,0 +1,42 @@
+{
+  "alerts": [
+    "OpenStackInstanceAttentionHigh",
+    "OpenStackInstanceAttentionSevere",
+    "OpenStackInstanceThreatScoreHigh",
+    "OpenStackInstanceThreatScoreSevere",
+    "OpenStackInstanceBehaviorScoreHigh",
+    "OpenStackInstanceBehaviorScoreCritical",
+    "OpenStackInstanceHighResourcePressure",
+    "OpenStackInstanceSevereResourcePressure",
+    "OpenStackInstanceResourceCPUHigh",
+    "OpenStackInstanceResourceCPUSevere",
+    "OpenStackInstanceResourceMemHigh",
+    "OpenStackInstanceResourceMemSevere",
+    "OpenStackInstanceResourceDiskHigh",
+    "OpenStackInstanceResourceDiskSevere",
+    "OpenStackInstanceResourceNetHigh",
+    "OpenStackInstanceResourceNetSevere",
+    "OpenStackProjectManyHotInstances"
+  ],
+  "recordings": [
+    "oie:attention_current",
+    "oie:feeds_ready",
+    "oie:resource_current"
+  ],
+  "metrics": [
+    "oie_instance_resource_severity",
+    "oie_instance_resource_cpu_severity",
+    "oie_instance_resource_mem_severity",
+    "oie_instance_resource_disk_severity",
+    "oie_instance_resource_net_severity",
+    "oie_instance_behavior_severity",
+    "oie_instance_threat_list_severity",
+    "oie_instance_attention_severity"
+  ],
+  "flags": [
+    "severity.weight.resource",
+    "severity.weight.behavior",
+    "severity.weight.threat_list",
+    "threat.ewma_tau"
+  ]
+}
