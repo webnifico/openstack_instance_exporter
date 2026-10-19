@@ -4,7 +4,7 @@ go 1.27.2
 
 require (
 	github.com/digitalocean/go-libvirt v0.0.0-20260814190004-1a83157e1858
-	github.com/klauspost/compress v1.20.0
+	github.com/klauspost/compress v1.20.3
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
 	gopkg.in/yaml.v3 v3.0.1
